@@ -109,8 +109,7 @@ namespace io {
 
   }
 
-  at::Tensor read_ppm(string path) {
-    bio::stream<bio::mapped_file_source> is{path}; // use memory-mapped file for faster transversal
+  at::Tensor read_ppm(istream& is) {
 
     // copy raw file contents into vector
     const vector<char> bytes{istreambuf_iterator<char>{is}, {}};
@@ -172,7 +171,8 @@ namespace io {
     for (auto&& [coord, path] : view_list) {
       auto [u, v] = coord;
       //fs::ifstream file{path, ios::in | ios::binary};
-      lightfield.index_put_({u, v}, read_ppm(path));
+      bio::stream<bio::mapped_file_source> is{path}; // use memory-mapped file for faster transversal
+      lightfield.index_put_({u, v}, read_ppm(is));
       std::cout<<u<<" "<<v<<std::endl;
     }
 

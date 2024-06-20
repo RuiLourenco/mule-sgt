@@ -1,6 +1,6 @@
 #ifndef VIEW_H
 #define VIEW_H
- 
+
 
 
 namespace at{
@@ -47,7 +47,7 @@ namespace io{
    *
    * @return   tensor with the parsed image.
    */
-  at::Tensor read_ppm(std::string filePath);
+  at::Tensor read_ppm(std::istream& file);
 
 }
 
