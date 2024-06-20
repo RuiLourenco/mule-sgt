@@ -1,11 +1,18 @@
 #include "LightField/LightField.h"
 #include <string.h>
 #include <stdlib.h>
+#include "IO/io.h"
 
 /*******************************************************************************/
 /*                        LightField class methods                             */
 /*******************************************************************************/
-
+LightField::LightField(int l_size,int k_size, int v_size, int u_size) {
+    this->tensor = torch::zeros({l_size,k_size,v_size,u_size});
+    this->mNumberOfHorizontalViews = k_size;
+    this->mNumberOfVerticalViews = l_size;
+    this->mNumberOfViewLines = v_size;
+    this->mNumberOfViewColumns = u_size;S
+}
 LightField :: LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines) {
     
     mViewFileNamePrefix = NULL;
