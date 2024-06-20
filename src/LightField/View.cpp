@@ -1,4 +1,4 @@
-#include "View.h"
+#include "LightField/View.h"
 #include <string.h>
 #include <stdlib.h>
 

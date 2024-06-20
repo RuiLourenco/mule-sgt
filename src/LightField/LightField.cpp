@@ -1,4 +1,4 @@
-#include "LightField.h"
+#include "LightField/LightField.h"
 #include <string.h>
 #include <stdlib.h>
 

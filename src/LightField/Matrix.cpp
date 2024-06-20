@@ -1,4 +1,4 @@
-#include "Matrix.h"
+#include "LightField/Matrix.h"
 #include <math.h>
 
 Matrix :: Matrix(int lines, int columns) {

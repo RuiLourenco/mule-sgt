@@ -1,4 +1,4 @@
-#include "Block4D.h"
+#include "LightField/Block4D.h"
 #include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
