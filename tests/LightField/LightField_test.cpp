@@ -1,7 +1,7 @@
 #include <LightField/LightField.h>
 #include <gtest/gtest.h>
 
-TEST(LightFieldTests, Testing_Tests)
+TEST(LightField_gTests, Testing_Tests)
 {
     ASSERT_EQ(1, 1);
 }
