@@ -1,4 +1,6 @@
 #include <torch/torch.h>
+#include "Block4D.h"
+
 
 #ifndef LIGHTFIELD_H
 #define LIGHTFIELD_H
