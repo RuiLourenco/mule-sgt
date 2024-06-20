@@ -1,5 +1,7 @@
 #include <torch/torch.h>
+#include "View.h"
 #include "Block4D.h"
+
 
 
 #ifndef LIGHTFIELD_H
@@ -14,6 +16,8 @@ public:
     int mNumberOfHorizontalViews;      /*!< total number of horizontal views of the lightfield */
     int mNumberOfVerticalViews;         /*!< total number of vertical views of the lightfield */
     at::Tensor data;                  /*!< pointer to the two dimensional circular separable cache of views*/
+    View **mViewCache;                  /*!< pointer to the two dimensional circular separable cache of views*/
+
     int mNumberOfCacheHorizontalViews;  /*!< number of horizontal views of the lightfield in the cache */
     int mNumberOfCacheVerticalViews;    /*!< number of vertical views of the lightfield in the cache */
     int mFirstCacheHorizontalView;      /*!< horizontal index of the first cached view */
@@ -28,12 +32,18 @@ public:
     int mHorizontalViewNumberOffset;    /*!< number of horizontal views to skip */
     int mViewType;                      /*!< mViewType = 0 -> PGM, mViewType = 1 -> PPM */    
     LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);
+    
+    LightField(int k_size, int l_size, int u_size, int v_size);
     ~LightField();
     void OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
     void OpenLightFieldPPM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
+    void OpenLightFieldPPM_(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
     void CloseLightField();
+
     void ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    void ReadBlock4DfromLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
     void WriteBlock4DtoLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    void WriteBlock4DtoLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
     int FindViewFileName(char *viewFileName, int index_t, int index_s);
     void SetViewVerbosity(char verbosity);
     
