@@ -39,8 +39,6 @@
 #include <boost/range/algorithm.hpp>
 #include <boost/range/algorithm_ext.hpp>
 
-#include "slant/io/read_ppm.hpp"
-#include "slant/io/read_collection.hpp"
 
 using namespace std;
 namespace qi = boost::spirit::qi;
