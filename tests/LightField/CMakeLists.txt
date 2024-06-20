@@ -14,6 +14,7 @@ add_executable(LightField_gtests LightField_test)
 target_link_libraries(LightField_gtests
  PRIVATE
   GTest::GTest
-  LightField)
+  LightField
+  torch)
 
 add_test(LightField_gtests LightField_gtests )
