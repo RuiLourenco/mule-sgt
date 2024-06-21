@@ -6,12 +6,12 @@
 /*******************************************************************************/
 /*                        LightField class methods                             */
 /*******************************************************************************/
-LightField::LightField(int l_size,int k_size, int v_size, int u_size) {
-    this->tensor = torch::zeros({l_size,k_size,v_size,u_size});
-    this->mNumberOfHorizontalViews = k_size;
-    this->mNumberOfVerticalViews = l_size;
-    this->mNumberOfViewLines = v_size;
-    this->mNumberOfViewColumns = u_size;S
+LightField::LightField(std::string rooth_path,std::string pattern) {
+    this->tensor = OpenLightFieldPPM_(root_path,pattern);;
+    this->mNumberOfHorizontalViews = tensor.size(1);
+    this->mNumberOfVerticalViews = tensor.size(0);
+    this->mNumberOfViewLines = tensor.size(3);
+    this->mNumberOfViewColumns = tensor.size(2);
 }
 LightField :: LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines) {
     
@@ -88,6 +88,9 @@ void LightField :: OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNam
     }
 }
 
+void LightField :: OpenLightFieldPPM_(string rootPath, string pattern ) {
+    this->lightField = io::read_collection(rootPath, pattern);
+}
 void LightField :: OpenLightFieldPPM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField) {
 
     mViewType = 1;

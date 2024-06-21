@@ -40,7 +40,7 @@ public:
     void OpenLightFieldPPM_(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
     void CloseLightField();
 
-    void ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    void ReadBlock4DfromLightField(std::string path,std::string pattern);
     void ReadBlock4DfromLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
     void WriteBlock4DtoLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
     void WriteBlock4DtoLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
