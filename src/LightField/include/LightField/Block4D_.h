@@ -7,11 +7,20 @@
 #include <torch/torch.h>
 #include <array>
 
-
+struct ValidPositions{
+at::Tensor valid_positions_h;
+at::Tensor valid_positions_v;
+};
 class Block4D_ 
 {
 public: 
     at::Tensor data;
+    ValidPositions validPositions;
+    bool includesNonValidCorners = false;
+    bool sgtDomain = false;
+    static at::Tensor get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal);
+    void sgtTransform(double scale);
+
     operator at::Tensor() const;
     //operator const at::Tensor&() const;
     Block4D_() = default;
@@ -37,7 +46,7 @@ public:
     void operator -= (const Block4D_ &B);
     void operator = (const Block4D_ &B);
     void operator = (Block4D_* B);
-    Block4D_ clone();
+    Block4D_ clone() const;
 
     ~Block4D_() = default;
     
