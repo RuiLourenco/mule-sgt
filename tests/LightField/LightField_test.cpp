@@ -78,7 +78,7 @@ TEST(LightFieldTest, BlockFromLightField){
   block_old.SetDimension(2,2,2,2);
   inputLF.ReadBlock4DfromLightField(&block_old,0, 0, 0, 0);  
   vector<int> blockOldVec(block_old.mPixelData,block_old.mPixelData+2*2*2*2);
-  Block4D_ block_new = inputLF.ReadBlock4DfromLightField_({2,2,2,2,1},{0,0,0,0,0});
+  Block4D_ block_new = inputLF.ReadBlock4DfromLightField_({2,2,2,2},{0,0,0,0},0);
   at::Tensor blockNew = block_new.data.to(torch::kInt).cpu().contiguous().view({-1});
   vector<int> blockNewVec(blockNew.data_ptr<int>(),blockNew.data_ptr<int>()+2*2*2*2);
   //cout<<blockNewVec[0]<<" "<<blockOldVec[0]<<endl;
