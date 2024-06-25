@@ -1,14 +1,13 @@
-#ifndef VIEW_H
-#define VIEW_H
+#ifndef IO_H
+#define IO_H
 
 
 
 namespace at{
     class Tensor;
 }
-namespace std{
-    class string;
-}
+
+#include <string>
 
 namespace io{
 
@@ -48,6 +47,9 @@ namespace io{
    * @return   tensor with the parsed image.
    */
   at::Tensor read_ppm(std::istream& file);
+
+  void write_ppm(const at::Tensor& value, std::ostream& os);
+  void write_collection(std::string data_root, at::Tensor data);
 
 }
 
