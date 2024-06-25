@@ -447,7 +447,7 @@ void Block4D :: DCT_U(int scale) {
     
     for ( int index_t = 0; index_t < mlength_t; index_t++ ) {
         
-	for ( int index_s = 0; index_s < mlength_s; index_s++ ) {
+	    for ( int index_s = 0; index_s < mlength_s; index_s++ ) {
             
             for ( int index_v = 0; index_v < mlength_v; index_v++ ) {
             
@@ -456,20 +456,18 @@ void Block4D :: DCT_U(int scale) {
                     temp[index_u] = 0;
                     for ( int summation_index_u = 0; summation_index_u < mlength_u; summation_index_u++ ) {
              
-			double angle = PI * ( double ) ( index_u * ( 2 * summation_index_u + 1 ) ) / ( double ) ( 2 * mlength_u );
-			temp[index_u] +=  scale * cos ( angle ) * mPixel[index_t][index_s][index_v][summation_index_u];
+                        double angle = PI * ( double ) ( index_u * ( 2 * summation_index_u + 1 ) ) / ( double ) ( 2 * mlength_u );
+                        temp[index_u] +=  scale * cos ( angle ) * mPixel[index_t][index_s][index_v][summation_index_u];
                         
                     }
-                    temp[index_u] *= sqrt ( 2.0 );
-                         
+                    temp[index_u] *= sqrt ( 2.0 );                         
                 }
                 temp[0] /= sqrt(2.0);
                 for ( int index_u = 0; index_u < mlength_u; index_u++ ) {
                     mPixel[index_t][index_s][index_v][index_u] = temp[index_u];
                 }
             }
-	}
-		
+	    }
     }
 
     delete [] temp;
