@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+
 /*******************************************************************************/
 /*                            View class methods                               */
 /*******************************************************************************/
@@ -346,14 +347,14 @@ void View :: OpenViewFilePGM(char *name, char readOrWriteView) {
 }
 
 int View :: OpenViewFilePPM(char *name, char readOrWriteView) {
-  
     char tag[256];
+    mVerbosity = 0;
     if(readOrWriteView == 'r') {
         mReadOrWriteView = 'r';
-	if((mViewFilePointer = fopen(name, "rb")) == NULL) {
-	    printf("unable to open %s view file for reading\n", name);
-            return(-1);
-	}
+        if((mViewFilePointer = fopen(name, "rb")) == NULL) {
+            printf("unable to open %s view file for reading\n", name);
+                return(-1);
+        }
         if(mVerbosity > 0) printf("Opening %s view file\n", name);
  	//Reads header of ppm file, sets mLines and mColums accordingly.
 	//allocates mNumberCaheLines*mColums positions for *mPixelData,
