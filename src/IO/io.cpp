@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <map>
+#include <limits>
 
 #include <torch/torch.h>
 
@@ -63,7 +64,7 @@ namespace {
 
       // convert vector to int tensor: hwc to whc
       auto to_tensor = [](auto&& vec, int w, int h, int c){
-        return at::tensor(vec, at::kLong).reshape({h, w, c}).permute({1, 0, 2});
+        return at::tensor(vec, at::kLong).reshape({h, w, c});
       };
 
       // extract max value, and get channel vector
@@ -96,36 +97,93 @@ namespace {
 
 namespace io {
 
-  at::Tensor parse_ppm(istream& is) {
-    at::Tensor value;
 
-    PPMGrammar<boost::spirit::basic_istream_iterator<char>> ppm_grammar;
-    is >> noskipws >> qi::phrase_match(ppm_grammar, qi::ascii::space, value);
 
-    if(is.fail()) throw runtime_error{"PPM parsing error: invalid grammar"};
-    if(!is.eof()) throw runtime_error{"PPM Parsing error: file longer than expected"};
-
-    return value;
-
-  }
-
+/**
+ * Reads a PPM image from the given input stream and returns it as a PyTorch tensor.
+ *
+ * @param is The input stream from which to read the PPM image.
+ *
+ * @return A PyTorch tensor representing the PPM image. The tensor has dimensions (height, width, channels)
+ *         and is transposed to (width, height, channels) before being returned.
+ *
+ * @throws runtime_error If the PPM image cannot be parsed due to an invalid grammar.
+ * @throws runtime_error If the PPM image is longer than expected.
+ */
   at::Tensor read_ppm(istream& is) {
 
     // copy raw file contents into vector
     const vector<char> bytes{istreambuf_iterator<char>{is}, {}};
+    //cout<<(int)bytes[0]<<" "<<(int)bytes[1]<<endl;
 
     PPMGrammar<vector<char>::const_iterator> ppm_grammar;
 
     at::Tensor value;
     auto begin = bytes.begin(), end = bytes.end();
+    auto beginSaved = begin;
     auto good = qi::phrase_parse(begin, end, ppm_grammar, qi::ascii::space, value);
-
+    //cout<<end - beginSaved<<endl;
+    //cout<<begin - beginSaved<<endl;
     if(!good) throw runtime_error{"PPM parsing error: invalid grammar"};
     if(begin != end) throw runtime_error{"Parsing error: file longer than expected"};
 
     return value;
   }
 
+  void write_ppm(const at::Tensor& value, ostream& os) {
+    const bool lil_endian = true;
+    // convert tensor to vector
+    at::Tensor source = value.to(torch::kInt16).cpu().contiguous().view({-1});
+    //cout<<"source: "<<source[0].item()<<endl;
+    std::vector<int16_t> vec_s(source.data_ptr<int16_t>(), source.data_ptr<int16_t>() + source.numel());
+    //cout<<" vec_s = "<<vec_s[0]<<endl;
+    std::vector<uint16_t> vec(vec_s.begin(), vec_s.end());
+    //cout<<"vec = "<<vec[0]<<endl;
+    //Switches endienness for 16bit values!
+    if(lil_endian){
+      for(auto& n : vec){
+        n = (n << 8| n >> 8) ;
+      }
+    }
+    //cout<<"lil'endian vec = "<<vec[0]<<endl;
+
+
+    const int w = value.size(1);
+    const int h = value.size(0);
+    const int c = value.size(2);
+    const int64_t max_value = pow(2,sizeof(uint16_t)*8) - 1; 
+    //cout<<max_value<<endl;
+    //Output Magic Number
+    os<<"P6"<<" "<<w<<" "<<h<<" "<<max_value<<endl;
+    //cout<<vec.size()*sizeof(uint16_t)<<endl;
+    os.write((char*)&vec[0],vec.size()*sizeof(uint16_t));
+
+  }
+
+  void write_collection(string data_root, at::Tensor data) {
+
+    for (int l = 0; l < data.size(0); l++) {
+      for (int k = 0; k < data.size(1); k++) {
+        std::stringstream filename;
+        filename <<data_root<< "/"<<std::setw(3) << std::setfill('0') << k<<"_"<<std::setw(3) << std::setfill('0') << l<<".ppm";
+        fs::ofstream os;
+        os.open(filename.str(), std::ios::out | std::ios::binary);
+        //cout<<"written to ("<<l<<","<<k<<") = "<<data[l][k][0][0][0].item()<<endl;
+        write_ppm(data[l][k], os);
+      }
+    }
+  }
+
+  /**
+   * Reads a collection of data files defined by the given pattern from the specified data root directory.
+   *
+   * @param data_root The root directory where the data files are located
+   * @param pattern The pattern to match the data files
+   *
+   * @return A torch Tensor representing the collection of data read from the files
+   *
+   * @throws runtime_error If there are parsing errors or if the file is longer than expected
+   */
   at::Tensor read_collection(string data_root, string pattern) {
 
     const auto regex  = xp::sregex::compile(pattern);
@@ -142,14 +200,14 @@ namespace io {
       if (xp::regex_match(name.string(), what, regex)) {
         int u = stoi(what["U"]);
         int v = stoi(what["V"]);
-        view_list[{u, v}] = entry.path();
+        view_list[{v, u}] = entry.path();
       }
 
     }
 
     // compute number of views
-    int max_u = 0, max_v = 0;
-    for (auto&& [u, v] : view_list | adp::map_keys) {
+    int max_v = 0, max_u = 0;
+    for (auto&& [v, u] : view_list | adp::map_keys) {
       max_u = max(max_u, u);
       max_v = max(max_v, v);
     }
@@ -162,18 +220,20 @@ namespace io {
     const auto view_shape = first_view.sizes();
     const auto view_dtype = first_view.dtype();
 
-    vector<int64_t> lightfield_shape = {max_u + 1, max_v + 1};
+    vector<int64_t> lightfield_shape = {max_v + 1, max_u + 1};
     boost::push_back(lightfield_shape, view_shape); // insert view shape as trailing dimension
 
     auto lightfield = at::empty(lightfield_shape, view_dtype);
 
     // populate lightfield from read files
     for (auto&& [coord, path] : view_list) {
-      auto [u, v] = coord;
+      auto [v, u] = coord;
       //fs::ifstream file{path, ios::in | ios::binary};
       bio::stream<bio::mapped_file_source> is{path}; // use memory-mapped file for faster transversal
-      lightfield.index_put_({u, v}, read_ppm(is));
-      std::cout<<u<<" "<<v<<std::endl;
+      lightfield.index_put_({v, u}, read_ppm(is));
+      //cout<<"read_from ("<<v<<","<<u<<") = "<<lightfield[v][u][0][0][0].item()<<endl;
+
+      //std::cout<<u<<" "<<v<<std::endl;
     }
 
 
