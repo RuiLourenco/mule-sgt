@@ -1,6 +1,7 @@
 #include "LightField/Block4D_.h"
 
 
+
 Block4D_::operator at::Tensor() const{
     return this->data;
 }
@@ -43,16 +44,18 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
  *
  * @throws None
  */
-void Block4D_::CopySubblockFrom(const Block4D_ &B, std::array<int,4> sourceOffset, std::array<int,4> targetOffset){
+void Block4D_::CopySubblockFrom(const Block4D_& B, std::array<int,4> sourceOffset, std::array<int,4> targetOffset){
+    Block4D_ deepCopy = B.clone(); 
     this->data.index({at::indexing::Slice(targetOffset[0],this->data.size(0)-1),
                           at::indexing::Slice(targetOffset[1],this->data.size(1)-1),
                           at::indexing::Slice(targetOffset[2],this->data.size(2)-1),
                           at::indexing::Slice(targetOffset[3],this->data.size(3)-1)}) =
-                          B.data.index({at::indexing::Slice(sourceOffset[0],this->data.size(0)-1),
+                          deepCopy.data.index({at::indexing::Slice(sourceOffset[0],this->data.size(0)-1),
                                         at::indexing::Slice(sourceOffset[1],this->data.size(1)-1),
                                         at::indexing::Slice(sourceOffset[2],this->data.size(2)-1),
                                         at::indexing::Slice(sourceOffset[3],this->data.size(3)-1)
                                         });
+    
 }
 
 
@@ -107,11 +110,62 @@ void Block4D_::operator = (const Block4D_ &B){
     this->data = B.data;
 }
 
-Block4D_ Block4D_::clone(){
-    return this->data.clone();
+Block4D_ Block4D_::clone() const{
+    Block4D_ newBlock = Block4D_(this->data.clone());
+    return newBlock;
 }
 
+/********Static Functions******/
 
+at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal){
+  
+  
+  int64_t view_coordinate = 0;
+  int64_t spatial_coordinate = 2;
+  if(is_horizontal){
+    view_coordinate = 1;
+    spatial_coordinate = 3;
+  }
+  int lf_extra_size = (int)(abs(round(adjustment_d*(lf_shape[view_coordinate]-1))));
+  double true_alpha;
+  if(adjustment_d == 0){
+    true_alpha = 0;
+  }else{
+    true_alpha = adjustment_d/abs(adjustment_d) * (double)lf_extra_size/((double)lf_shape[view_coordinate]-1);
+  }
+  //cout<<"      True alpha = "<<true_alpha<<endl;
+  std::vector<at::Tensor> padding_coordinates;
+  //cout<<"      Block Start: "<<block_start[spatial_coordinate]<<endl;
+  for(int l_ = 0; l_<lf_shape[view_coordinate]; l_++){
+    if(block_start[view_coordinate]>l_) {
+      //cout<<"Skipping! "<<block_start[view_coordinate]<<" "<<l_<<endl;
+      continue;
+    }
+    if(block_start[view_coordinate]+block_shape[view_coordinate] - 1 < l_){
+      //cout<<"Skipping! "<<block_start[view_coordinate]+block_shape[view_coordinate] - 1 <<" "<<l_<<endl;
+      continue;
+    } 
+    int n_start = round(l_*true_alpha);
+    int n_end = (lf_shape[spatial_coordinate]) + round(l_*true_alpha);
+
+    if(true_alpha < 0){
+      n_start -= (lf_shape[view_coordinate]-1)*true_alpha;
+      n_end -= (lf_shape[view_coordinate]-1)*true_alpha;
+    }
+
+    torch::TensorOptions options = torch::TensorOptions();
+    at::Tensor indexes =  at::empty({0},options.dtype(at::kLong));
+    if(n_start-block_start[spatial_coordinate] < block_shape[spatial_coordinate]){
+      int64_t blk_n_start = std::max(n_start-block_start[spatial_coordinate],(int64_t)0);
+      int64_t blk_n_end = std::min(n_end-block_start[spatial_coordinate],block_shape[spatial_coordinate]);
+      //cout<<"      "<<l_<<": "<<blk_n_start<<" "<<blk_n_end<<endl;
+      indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*l_).to(at::kLong);
+    }
+    padding_coordinates.push_back(indexes);
+  }
+  at::Tensor vectorized_padding = torch::cat(padding_coordinates);
+  return vectorized_padding;
+}
 
 // void Block4D_::Shift_UVPlane(int shift, int position_t, int position_s) {
 
