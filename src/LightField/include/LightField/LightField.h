@@ -1,14 +1,21 @@
 #include <torch/torch.h>
 #include "View.h"
 #include "Block4D.h"
+#include "Block4D_.h"
+#include <array>
 
 
 
 #ifndef LIGHTFIELD_H
 #define LIGHTFIELD_H
 
+
 class LightField {
 public:    
+    LightField() = default;
+    LightField(std::string rooth_path,std::string pattern);
+    LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);
+    LightField(std::array<int,5> sizes);
     char *mViewFileNamePrefix;          /*!< lightfield view name: <mViewFileNamePrefix>_<horizontal index>_<vertical index>_<mViewFilenameSuffix>.pgm */
     char *mViewFileNameSuffix;          /*!< lightfield view name: <mViewFileNamePrefix>_<horizontal index>_<vertical index>_<mViewFilenameSuffix>.pgm */
     int mNumberOfHorizontalDigits;      /*!< number of digits used to represent the horizontal index in the view file names */
@@ -31,23 +38,20 @@ public:
     int mVerticalViewNumberOffset;      /*!< number of vertical views to skip */
     int mHorizontalViewNumberOffset;    /*!< number of horizontal views to skip */
     int mViewType;                      /*!< mViewType = 0 -> PGM, mViewType = 1 -> PPM */    
-    LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);
-    
     LightField(int k_size, int l_size, int u_size, int v_size);
     ~LightField();
     void OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
     void OpenLightFieldPPM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
-    void OpenLightFieldPPM_(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField);
+    void OpenLightFieldPPM_(std::string path,std::string pattern,char readOrWriteLightField);
     void CloseLightField();
 
-    void ReadBlock4DfromLightField(std::string path,std::string pattern);
-    void ReadBlock4DfromLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    void ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    Block4D_ ReadBlock4DfromLightField_(std::array<int,5> size, std::array<int,5> position_t);
     void WriteBlock4DtoLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
-    void WriteBlock4DtoLightField_(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
+    void WriteBlock4DtoLightField_(Block4D_ sourcelock, std::array<int,5> position);
     int FindViewFileName(char *viewFileName, int index_t, int index_s);
     void SetViewVerbosity(char verbosity);
-    
-    
+
 };
 
 #endif

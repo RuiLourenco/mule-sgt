@@ -6,12 +6,39 @@
 /*******************************************************************************/
 /*                        LightField class methods                             */
 /*******************************************************************************/
-LightField::LightField(std::string rooth_path,std::string pattern) {
-    this->tensor = OpenLightFieldPPM_(root_path,pattern);;
-    this->mNumberOfHorizontalViews = tensor.size(1);
-    this->mNumberOfVerticalViews = tensor.size(0);
-    this->mNumberOfViewLines = tensor.size(3);
-    this->mNumberOfViewColumns = tensor.size(2);
+LightField::LightField(std::string root_path,std::string pattern) {
+    OpenLightFieldPPM_(root_path,pattern,'r');
+    this->mNumberOfHorizontalViews = data.size(1);
+    this->mNumberOfVerticalViews = data.size(0);
+    this->mNumberOfViewLines = data.size(3);
+    this->mNumberOfViewColumns = data.size(2);
+}
+LightField :: LightField(std::array<int,5> size){
+    this->data = at::zeros({size[0],size[1],size[2],size[3],size[4]},at::kShort);
+    mViewFileNamePrefix = NULL;
+    mViewFileNameSuffix = NULL;
+    mNumberOfHorizontalViews = 0;
+    mNumberOfVerticalViews = 0;
+    mNumberOfCacheHorizontalViews = size[1];
+    mNumberOfCacheVerticalViews = size[0];
+    this->mViewCache = new View * [mNumberOfCacheVerticalViews];
+    for(int index_t = 0; index_t < mNumberOfCacheVerticalViews; index_t++) {
+        mViewCache[index_t] = new View [mNumberOfCacheHorizontalViews];
+        for(int index_s = 0; index_s < mNumberOfCacheHorizontalViews; index_s++) {
+            this->mViewCache[index_t][index_s].SetCacheSize(size[3]);
+        }
+    }
+
+    
+    
+    mFirstCacheHorizontalView = 0;
+    mFirstCacheVerticalView = 0;
+    mHorizontalIndexOffset = 0;
+    mVerticalIndexOffset = 0;
+    mReadOrWriteLightField = 'r';
+    mVerticalViewNumberOffset = 0;
+    mHorizontalViewNumberOffset = 0;
+
 }
 LightField :: LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines) {
     
@@ -22,13 +49,16 @@ LightField :: LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizo
     mNumberOfCacheHorizontalViews = numberOfCacheHorizontalViews;
     mNumberOfCacheVerticalViews = numberOfCacheVerticalViews;
     
-    mViewCache = new View * [mNumberOfCacheVerticalViews];
+    this->mViewCache = new View * [mNumberOfCacheVerticalViews];
     for(int index_t = 0; index_t < mNumberOfCacheVerticalViews; index_t++) {
         mViewCache[index_t] = new View [mNumberOfCacheHorizontalViews];
         for(int index_s = 0; index_s < mNumberOfCacheHorizontalViews; index_s++) {
-            mViewCache[index_t][index_s].SetCacheSize(numberOfViewCacheLines);
+            this->mViewCache[index_t][index_s].SetCacheSize(numberOfViewCacheLines);
+            
         }
     }
+
+    
     
     mFirstCacheHorizontalView = 0;
     mFirstCacheVerticalView = 0;
@@ -37,7 +67,8 @@ LightField :: LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizo
     mReadOrWriteLightField = 'r';
     mVerticalViewNumberOffset = 0;
     mHorizontalViewNumberOffset = 0;
-    
+
+
 }
 LightField :: ~LightField() {
     
@@ -47,6 +78,7 @@ LightField :: ~LightField() {
     delete [] mViewCache;
 
 }
+
 void LightField :: OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField) {
 /*! opens lightfield pgm views for reading or writing */
     
@@ -88,12 +120,22 @@ void LightField :: OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNam
     }
 }
 
-void LightField :: OpenLightFieldPPM_(string rootPath, string pattern ) {
-    this->lightField = io::read_collection(rootPath, pattern);
+
+void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
+    if(readOrWriteLightField == 'r'){
+        this->data = io::read_collection(rootPath, pattern).to(torch::kInt16);
+    }else{
+        if(readOrWriteLightField == 'w'){
+            io::write_collection(rootPath,this->data);
+        }
+    }
 }
+
 void LightField :: OpenLightFieldPPM(char *viewFileNamePrefix, char *viewFileNameSuffix, int numberOfVerticalViews, int numberOfHorizontalViews, int numberOfVerticalDigits, int numberOfHorizontalDigits, char readOrWriteLightField) {
 
+
     mViewType = 1;
+
     
     mViewFileNamePrefix = new char [strlen(viewFileNamePrefix)+1];
     mViewFileNameSuffix = new char [strlen(viewFileNameSuffix)+1];
@@ -108,23 +150,28 @@ void LightField :: OpenLightFieldPPM(char *viewFileNamePrefix, char *viewFileNam
     mNumberOfHorizontalDigits =  numberOfHorizontalDigits; 
     
     mReadOrWriteLightField = readOrWriteLightField;
+
+
     
     int endOfStrByte = 1;
     char *ViewFileName = new char[strlen(viewFileNamePrefix)+strlen(viewFileNameSuffix)+mNumberOfVerticalDigits+mNumberOfHorizontalDigits+1 + endOfStrByte];
-    
     for(int index_t = 0; index_t < mNumberOfCacheVerticalViews && index_t < mNumberOfVerticalViews; index_t++) {
         for(int index_s = 0; index_s < mNumberOfCacheHorizontalViews && index_s < mNumberOfHorizontalViews; index_s++) {
-            
+    
             FindViewFileName(ViewFileName, index_t+mFirstCacheVerticalView, index_s+mFirstCacheHorizontalView);
+
             //printf("Opening %s view file\n", ViewFileName);
             if(mReadOrWriteLightField == 'w') {
                 mViewCache[index_t][index_s].mLines = mNumberOfViewLines;
                 mViewCache[index_t][index_s].mColumns = mNumberOfViewColumns;
                 mViewCache[index_t][index_s].mPGMScale = mPGMScale;
             }
+
+
             mViewCache[index_t][index_s].OpenViewFilePPM(ViewFileName, mReadOrWriteLightField);
         }
     }
+    
     delete [] ViewFileName;
     if(mReadOrWriteLightField == 'r') {
         mNumberOfViewLines = mViewCache[0][0].mLines;
@@ -157,6 +204,18 @@ void LightField :: CloseLightField() {
     mNumberOfVerticalDigits = 0;
     mNumberOfHorizontalDigits =  0;  
     
+}
+
+Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int,5>size,std::array<int,5>position){
+    at::Tensor blockData = this->data.index({at::indexing::Slice(position[0],position[0]+size[0]),
+                                             at::indexing::Slice(position[1],position[1]+size[1]),
+                                             at::indexing::Slice(position[2],position[2]+size[2]),
+                                             at::indexing::Slice(position[3],position[3]+size[3]),
+                                             at::indexing::Slice(position[4],position[4]+size[4])});
+    
+    
+    
+    return blockData;
 }
 void LightField :: ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component) {
 /*! reads a 4 dimensional block from the lightfield at position (position_t,position_s,position_v,position_u). */
@@ -972,7 +1031,35 @@ void LightField :: WriteBlock4DtoLightField(Block4D *targetBlock, int position_t
         
     }
 }
+void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int,5> position){
+    std::cout<<sourceBlock.data.sizes()<<std::endl;
+    std::cout<<this->data.sizes()<<std::endl;
+    std::cout<<sourceBlock.data.size(3)<<std::endl;
+    std::cout<<sourceBlock.data.dtype()<<std::endl;
+    std::cout<<sourceBlock.data[0][0]<<std::endl;
+    std::cout<<this->data.dtype()<<std::endl;
+    at::Tensor a = this->data.index({at::indexing::Slice(position[0],position[0]+sourceBlock.data.size(0)),
+                     at::indexing::Slice(position[1],position[1]+sourceBlock.data.size(1)),
+                     at::indexing::Slice(position[2],position[2]+sourceBlock.data.size(2)),
+                     at::indexing::Slice(position[3],position[3]+sourceBlock.data.size(3)),
+                     at::indexing::Slice(position[4],position[4]+1)});
+    a =sourceBlock.data;
+    std::cout<<"Did this work?"<<std::endl;
+    std::cout <<this->data[0][0][0][0][0]<<std::endl;
+    std::cout<<a.sizes()<<std::endl;              
+    std::cout<<a.size(3)<<std::endl;   
+     std::cout<<sourceBlock.data.size(2)<<std::endl;         
+     std::cout<<position[3]<<" "<<position[3]+sourceBlock.data.size(3)<<std::endl;
+    this->data.index({at::indexing::Slice(position[0],position[0]+sourceBlock.data.size(0)),
+                     at::indexing::Slice(position[1],position[1]+sourceBlock.data.size(1)),
+                     at::indexing::Slice(position[2],position[2]+sourceBlock.data.size(2)),
+                     at::indexing::Slice(position[3],position[3]+sourceBlock.data.size(3)),
+                     position[4]}) = sourceBlock.data.index({at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()});
+                    
 
+                     std::cout<<"successfully did something!"<<std::endl;
+
+}
 int LightField :: FindViewFileName(char *viewFileName, int index_t, int index_s) {
 /*! light field name conversion*/
     
