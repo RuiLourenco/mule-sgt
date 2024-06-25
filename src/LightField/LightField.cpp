@@ -206,12 +206,16 @@ void LightField :: CloseLightField() {
     
 }
 
-Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int,5>size,std::array<int,5>position){
-    at::Tensor blockData = this->data.index({at::indexing::Slice(position[0],position[0]+size[0]),
+Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
+    Block4D_ blockData = this->data.index({at::indexing::Slice(position[0],position[0]+size[0]),
                                              at::indexing::Slice(position[1],position[1]+size[1]),
                                              at::indexing::Slice(position[2],position[2]+size[2]),
                                              at::indexing::Slice(position[3],position[3]+size[3]),
-                                             at::indexing::Slice(position[4],position[4]+size[4])});
+                                             channel}).squeeze();
+
+    at::Tensor validPosition_h = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
+    at::Tensor validPosition_v = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
+    blockData.validPositions = ValidPositions{validPosition_h,validPosition_v};
     
     
     
