@@ -16,6 +16,7 @@ public:
     LightField(std::string rooth_path,std::string pattern);
     LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);
     LightField(std::array<int,5> sizes);
+    int preSlantTan = 0;
     char *mViewFileNamePrefix;          /*!< lightfield view name: <mViewFileNamePrefix>_<horizontal index>_<vertical index>_<mViewFilenameSuffix>.pgm */
     char *mViewFileNameSuffix;          /*!< lightfield view name: <mViewFileNamePrefix>_<horizontal index>_<vertical index>_<mViewFilenameSuffix>.pgm */
     int mNumberOfHorizontalDigits;      /*!< number of digits used to represent the horizontal index in the view file names */
@@ -46,7 +47,7 @@ public:
     void CloseLightField();
 
     void ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
-    Block4D_ ReadBlock4DfromLightField_(std::array<int,5> size, std::array<int,5> position_t);
+    Block4D_ ReadBlock4DfromLightField_(std::array<int64_t,4> size, std::array<int64_t,4> position_t,int64_t channel );
     void WriteBlock4DtoLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component=0);
     void WriteBlock4DtoLightField_(Block4D_ sourcelock, std::array<int,5> position);
     int FindViewFileName(char *viewFileName, int index_t, int index_s);
