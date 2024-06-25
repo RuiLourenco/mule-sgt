@@ -1,7 +1,8 @@
-#include "MultiscaleTransform.h"
-#include "Hierarchical4DEncoder.h"
+//#include "Transform/MultiscaleTransform.h"
+//#include "Encoder/Hierarchical4DEncoder.h"
 #include <math.h>
 #include <string.h>
+#include <LightField/Block4D_>
 
 #ifndef TRANSFORMPARTITION_H
 #define TRANSFORMPARTITION_H
@@ -14,6 +15,9 @@
 #define INTERVIEWSPLITFLAGSYMBOL 2
 #define MINIMUM_BITPLANE_PRECISION 5
 
+class MultiScaleTransfrom;
+class Hierarchical4DEncoder;
+
 class TransformPartition {
 public:  
     char *mPartitionCode;               /*!< String of flags defining the partition tree */
@@ -21,6 +25,7 @@ public:
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     Block4D mPartitionData;             /*!< DCT of all subblocks of the partition */
+    Block4D_ mPartitionData_;
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);

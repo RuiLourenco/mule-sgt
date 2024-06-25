@@ -1,0 +1,5 @@
+add_library(Encoder Hierarchical4DEncoder.cpp TransformPartition.cpp)
+
+target_include_directories(Encoder PUBLIC include)
+
+target_link_libraries(Encoder PUBLIC torch LightField)

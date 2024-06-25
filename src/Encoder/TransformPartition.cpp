@@ -12,6 +12,26 @@ TransformPartition :: ~TransformPartition(void) {
     if(mPartitionCode != NULL)
         delete [] mPartitionCode;
 }
+void TransformPartition :: RDOptimizeTransform_(Block4D_ &inputBlock, MultiscaleTransform& mt, Hierarchical4DEncoder& entropyCoder, double lambda){
+    if(mPartitionCode != NULL)
+        delete [] mPartitionCode;
+    mPartitionCode = new char [1];
+    mPartitionCode[0] = 0;          //initializes the partition code string as the null string
+    mEvaluateOptimumBitPlane = 1;
+    mPartitionData_ = Block4D_({inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)});
+    double scaledLambda = mPartitionData_.data.size(0)*mPartitionData_.data.size(1)*mPartitionData.data.size(2)*mPartitionData_.data.size(3)*lambda;
+
+    std::array<int,4> position = {0,0,0,0};
+    std::array<int,4> length = {mPartitionData_.data.size(0),mPartitionData_.data.size(1),mPartitionData_.data.size(2),mPartitionData_.data.size(3)};
+
+    entropyCoder.LoadOptimizerState();
+    Block4D_ transformedBlock({length[0], length[1], length[2], length[3]});
+
+    mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, mt, entropyCoder, scaledLambda, &mPartitionCode);
+    
+
+    
+}
 
 void TransformPartition :: RDoptimizeTransform(Block4D &inputBlock, MultiscaleTransform &mt, Hierarchical4DEncoder &entropyCoder, double lambda) {
 /*! Evaluates the Lagrangian cost of the optimum multiscale transform for the input block as well as the transformed block */   
@@ -54,6 +74,23 @@ void TransformPartition :: RDoptimizeTransform(Block4D &inputBlock, MultiscaleTr
     printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);    
 }
 
+double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, arrat<int,4> position, arrat<int,4> length, MultiscaleTransform &mt, Hierarchical4DEncoder &entropyCoder, double lambda, char **partitionCode) {
+        //inputBlock never changes for the recursive calls. Instead block_0 is copied from a different position. 
+        //I should eventually check if this needs to be a copy or if it can just be a reference but inputBlock could very well be a const & from my understanding.
+        ProbabilityModel *currentCoderModelState;
+        entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+        //Guess: partitionCodeS handles splitting in the view dimension, partitionCodeV handles splitting in the spacial dimension.
+        char *partitionCodeS=NULL, *partitionCodeV=NULL; 
+        //Copy from inp
+        Block4D_ block_0(length);
+        block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
+        mt.Transform4D_(block_0);
+        
+
+
+
+
+}
 double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4D &transformedBlock, int *position, int *length, MultiscaleTransform &mt, Hierarchical4DEncoder &entropyCoder, double lambda, char **partitionCode) {
 /*! returns the Lagrangian cost of one step of the optimization of the multiscale transform for the input block as well as the transformed block */   
  
