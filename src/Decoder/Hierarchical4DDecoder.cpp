@@ -1,4 +1,4 @@
-#include "Hierarchical4DDecoder.h"
+#include "Decoder/Hierarchical4DDecoder.h"
 /*******************************************************************************/
 /*                        Hierachical4DDeccoder class methods                  */
 /*******************************************************************************/
@@ -9,8 +9,7 @@ Hierarchical4DDecoder :: Hierarchical4DDecoder(void) {
     mPreSegmentation = 1;
     mSegmentationFlagProbabilityModelIndex = SEGMENTATION_PROB_MODEL_INDEX;
     mSymbolProbabilityModelIndex = SYMBOL_PROBABILITY_MODEL_INDEX;
-    mPmodel = NULL;
-    
+    mPmodel = NULL;  
 }
 Hierarchical4DDecoder :: ~Hierarchical4DDecoder(void) {
     
@@ -51,7 +50,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
     if(length_t*length_s*length_v*length_u == 1) {
         int coefficient =  DecodeCoefficient(bitplane);     
 
-        mSubbandLF.mPixel[position_t][position_s][position_v][position_u] = coefficient;
+        mSubbandLF.data[position_t][position_s][position_v][position_u] = coefficient;
         return;
     }
     
@@ -112,7 +111,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
             for(int index_s = 0; index_s < length_s; index_s++) {
                 for(int index_v = 0; index_v < length_v; index_v++) {
                     for(int index_u = 0; index_u < length_u; index_u++) {
-                        mSubbandLF.mPixel[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 0;
+                        mSubbandLF.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 0;
                     }
 
                 }
@@ -182,6 +181,21 @@ int Hierarchical4DDecoder :: DecodePartitionFlag(void)  {
         
 }
 
+SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(){
+    int rhoSInt;
+    int rhoTInt;
+    int rhoUInt;
+    int rhoVInt;
+    int dInt;
+    int precisionRho = std::ceil(log2(SgtSideInfo::PRECISION_FACTOR_RHO + 1)) ;
+    int precisionD = std::ceil(log2(SgtSideInfo::PRECISION_FACTOR_D + 1)) ;
+    rhoSInt = DecodeInteger(precisionRho);
+    rhoTInt = DecodeInteger(precisionRho);
+    rhoUInt = DecodeInteger(precisionRho);
+    rhoVInt = DecodeInteger(precisionRho);
+    dInt = DecodeInteger(precisionD);
+    return SgtSideInfo(rhoSInt,rhoTInt,rhoUInt,rhoVInt,dInt);
+}
 int Hierarchical4DDecoder :: DecodeInteger(int precision)  {
 
     int integerValue = 0;
