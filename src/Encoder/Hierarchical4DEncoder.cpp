@@ -800,7 +800,7 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
     int optimumBitplane=0;    //Irrelevant initial value
     
     double accumulatedRate = 0;
-    
+    at::Tensor flattened_data = mSubbandLF_.data.flatten();
     for(int bit_position = mSuperiorBitPlane; bit_position >= 0; bit_position--) {
         
         double distortion = 0.0;
@@ -812,11 +812,10 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
         int onesMask = 0;
         onesMask = ~onesMask;
         int bitMask = onesMask << bit_position;
-       
-
+       //only flatten once (maybe faster?)
         for(long int coefficient_index=0; coefficient_index < subbandSize; coefficient_index++) {
         
-            int magnitude = mSubbandLF_.data.flatten()[coefficient_index].item<int>();
+            int magnitude = flattened_data[coefficient_index].item<int>();
             if(magnitude < 0) {
                 magnitude = -magnitude;
             }
