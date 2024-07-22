@@ -1,6 +1,8 @@
 #include "Encoder/Hierarchical4DEncoder.h"
 #include <string.h>
 #include <stdlib.h>
+#include <chrono>
+#include <bitset>
 /*******************************************************************************/
 /*                        Hierachical4DEncoder class methods                   */
 /*******************************************************************************/
