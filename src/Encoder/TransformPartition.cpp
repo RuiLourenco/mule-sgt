@@ -39,22 +39,22 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
 
 
     std::array<int64_t,4> position = {0,0,0,0};
-    std::cout<<"SetUp Complete."<<std::endl;
+    //std::cout<<"SetUp Complete."<<std::endl;
     entropyCoder.LoadOptimizerState();
-    std::cout<<"EntropyCoder Loaded."<<std::endl;
+    //std::cout<<"EntropyCoder Loaded."<<std::endl;
 
     Block4D_ transformedBlock(length);
-    std::cout<<"Ready for First Step."<<std::endl;
-    std::cout<<mlength_u_min<<" "<<mlength_v_min<<" "<<mlength_s_min<<" "<<mlength_t_min<<std::endl;
+    //std::cout<<"Ready for First Step."<<std::endl;
+    //std::cout<<mlength_u_min<<" "<<mlength_v_min<<" "<<mlength_s_min<<" "<<mlength_t_min<<std::endl;
 
-    std::cout<<"inputBlock var = "<<inputBlock.data.to(at::kDouble).var()<<std::endl;
-    //std::cout<<inputBlock.data[0][0]<<std::endl;
+    //std::cout<<"inputBlock var = "<<inputBlock.data.to(at::kDouble).var()<<std::endl;
+    //std::cout<<"First value: "<<inputBlock.data[0][0][0][0]<<std::endl;
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, entropyCoder, scaledLambda,mSsiBuffer, &mPartitionCode);
     mPartitionData_.CopySubblockFrom(transformedBlock,{0,0,0,0},{0,0,0,0});
     entropyCoder.LoadOptimizerState();
-    printf("mPartitionCode = %s\n", mPartitionCode);    
-    printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);
-    std::cout<<"Full Number of Compressed Blocks"<<mSsiBuffer.size()<<std::endl;
+    printf(" Full PartitionCode = %s\n", mPartitionCode);    
+    //printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);
+    //std::cout<<"Full Number of Compressed Blocks"<<mSsiBuffer.size()<<std::endl;
 
 }
 
