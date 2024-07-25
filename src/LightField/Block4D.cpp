@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <iostream>
 
 /*******************************************************************************/
 /*                         Block4D class methods                               */
@@ -728,8 +729,12 @@ void Block4D :: IDCT_T(int scale) {
 
 void Block4D :: TRANSFORM_U(double scale, double *coefficients) {
 /*! performs a one dimensional generic transform defined by the values pointed by *coefficients on the u dimension */ 
-    
     double *temp = new double [mlength_u];
+    std::cout<<"dct matrix coefficients"<<std::endl;
+    for ( int index_u = 0; index_u < mlength_u; index_u++ ) {
+        std::cout<< coefficients[index_u*mlength_u + index_u]<<" ";     
+    }                   
+
     
     for ( int index_t = 0; index_t < mlength_t; index_t++ ) {
         
@@ -742,22 +747,27 @@ void Block4D :: TRANSFORM_U(double scale, double *coefficients) {
                     temp[index_u] = 0;
                     for ( int summation_index_u = 0; summation_index_u < mlength_u; summation_index_u++ ) {
              
-			temp[index_u] +=  scale * mPixel[index_t][index_s][index_v][summation_index_u] * coefficients[index_u*mlength_u + summation_index_u];
-                        
+			            temp[index_u] +=  scale * mPixel[index_t][index_s][index_v][summation_index_u] * coefficients[index_u*mlength_u + summation_index_u];
                     }
+
                          
                 }
                 for ( int index_u = 0; index_u < mlength_u; index_u++ ) {
+                    
+                    
                     mPixel[index_t][index_s][index_v][index_u] = temp[index_u];
                     if(temp[index_u] > 0)
                         mPixel[index_t][index_s][index_v][index_u] = temp[index_u]+0.5;
                     if(temp[index_u] < 0)
                         mPixel[index_t][index_s][index_v][index_u] = temp[index_u]-0.5;
                 }
+                
             }
 	}
 		
     }
+
+
 
     delete [] temp;
      
