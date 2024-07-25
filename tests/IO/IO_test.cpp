@@ -35,7 +35,8 @@ TEST(IO_Tests, ReadPPM) {
 TEST(IO_Tests, ReadPPM_Collection) {
     std::string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
     std::string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    at::Tensor collection = io::read_collection(inputDirectory,pattern);
+    int scale;
+    at::Tensor collection = io::read_collection(inputDirectory,pattern,scale);
     EXPECT_EQ(collection.size(0), 9);
     EXPECT_EQ(collection.size(1), 9);
     EXPECT_EQ(collection.size(2), 512);
@@ -60,11 +61,12 @@ TEST(IO_Tests,Read_WRITE_READ_PPM_View){
 TEST(IO_Tests, Write_PPM_Collection){
     std::string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
     std::string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    at::Tensor collection = io::read_collection(inputDirectory,pattern);
+    int scale;
+    at::Tensor collection = io::read_collection(inputDirectory,pattern,scale);
     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/greek-copy/";
     io::write_collection(outputDirectory, collection);
     //std::cout<<"collection_written"<<std::endl;
-    at::Tensor copy_collection = io::read_collection(outputDirectory,pattern);
+    at::Tensor copy_collection = io::read_collection(outputDirectory,pattern,scale);
     //std::cout<<"copy_collection_read"<<std::endl;
     //std::cout<<copy_collection[0][0][0][0][0]<<" "<<collection[0][0][0][0][0]<<std::endl;
     EXPECT_DOUBLE_EQ(0.0, mse(copy_collection,collection));
