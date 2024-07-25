@@ -25,6 +25,9 @@ double TransformPartition :: totalTransformGain(std::array<int64_t,4> length){
 void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchical4DEncoder& entropyCoder,std::array<double,2>disparityRange,double transformGain, double lambda){
     mDisparityRange = disparityRange;
     mGain = transformGain;
+    inputBlock.data = inputBlock.data.contiguous();
+    if(!mSsiBuffer.empty()) mSsiBuffer.clear();
+    mSsiBufferIndex = 0;
     if(mPartitionCode != NULL)
         delete [] mPartitionCode;
     mPartitionCode = new char [1];
