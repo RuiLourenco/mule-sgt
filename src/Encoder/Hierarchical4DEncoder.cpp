@@ -196,7 +196,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                     
                     if((index_t < mSubbandLF_.data.size(0))&&(index_s < mSubbandLF_.data.size(1))&&(index_v < mSubbandLF_.data.size(2))&&(index_u < mSubbandLF_.data.size(3))) {
                         int magnitude = data[mSubbandLF_.LinearPosition(index_t,index_s,index_v,index_u)];
-                        
+
                         if(magnitude >= Threshold) Significance = 1;
                         if(magnitude <= -Threshold) Significance = 1;
                         if(Significance == 1) {
@@ -222,7 +222,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     if(bitplane > BITPLANE_BYPASS_FLAGS) {
         mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(0);
         mOptimizationPmodel[2*bitplane+1+mSegmentationFlagProbabilityModelIndex].UpdateModel(Significance);
-    }
+    }   
     if(Significance == 0) {
         //std::cout<<"No Significant Bits in this bitplane. Continuing with lower bitplane."<<std::endl;
         
@@ -230,7 +230,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         
     }
     else {
-         
+
         SignalEnergySum = 0;
         double Energy;
 
@@ -571,7 +571,7 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     }
     //If the block is a single bit long Encode the bit and return
     if(length[0]*length[1]*length[2]*length[3] == 1) {
-        //rd encode coefficient        
+        //rd encode coefficient     
         //std::cout<<"Encoded Coefficient"<<std::endl;   
         EncodeCoefficient(mSubbandLF_.data[position[0]][position[1]][position[2]][position[3]].item<int>(), bitplane);
         return;
@@ -812,7 +812,7 @@ void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
 
 void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
 
-    for(int n = precision-1; n >= 0; n--) {
+    for(int n = precision-1; n >= 0; n--) { 
         int bit = (integerValue >> n)&01;
         mEntropyCoder.EncodeBit(bit, mPmodel[0]);
     }
@@ -967,7 +967,7 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
         }
            
         J = distortion + lambda*(accumulatedRate + signalRate);
-        
+
         std::cout<<bit_position<<": "<<J<<" = "<<distortion<<" + "<<lambda*(accumulatedRate + signalRate)<<std::endl;
         
         if((J <= Jmin)||(bit_position == mSuperiorBitPlane)) {
