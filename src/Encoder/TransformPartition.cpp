@@ -97,12 +97,17 @@ void TransformPartition :: RDoptimizeTransform(Block4D &inputBlock, MultiscaleTr
     //Restores state since the encoder will reevaluate it    
     entropyCoder.LoadOptimizerState();
     
-    printf("mPartitionCode = %s\n", mPartitionCode);    
-    printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);    
+    //printf("Finale PartitionCode = %s\n", mPartitionCode);    
+    //printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);    
 }
 
 double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
-    std::cout<<"Step with size: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
+    
+    std::chrono::time_point<std::chrono::steady_clock> starter;
+    std::chrono::time_point<std::chrono::steady_clock> ender;
+    //std::cout<<"IsContinuousOutside = "<<inputBlock.data.is_contiguous()<<std::endl;
+    //std::cout<<"Stride = "<<inputBlock.data.strides()<<std::endl;
+    //std::cout<<"Step with size: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
     
     //inputBlock never changes for the recursive calls. Instead block_0 is copied from a different position. 
     //I should eventually check if this needs to be a copy or if it can just be a reference but inputBlock could very well be a const & from my understanding.
@@ -114,31 +119,79 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     std::vector<SgtSideInfo> ssiBufferS, ssiBufferV;
     //Copy from inp
     Block4D_ block_0(length);
+
     block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
+        //std::cout<<"IsContinuousOutside = "<<block_0.data.is_contiguous()<<std::endl;
+
+    //std::cout<<block_0.data.strides()<<" "<<block_0.data.sizes()<<std::endl;
     //std::cout<<"position: "<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]<<std::endl;
     //std::cout<<"inputBlock var = "<<inputBlock.data.to(at::kDouble).var()<<std::endl;
     //std::cout<<"block_0 var = "<<block_0.data.to(at::kDouble).var()<<std::endl;
-    std::cout<<block_0.data.sizes()<<std::endl;
+    //std::cout<<block_0.data.sizes()<<std::endl;
+    
     double currGain = totalTransformGain(length);
+    // if(position[0]==0 && position[1]==0 && position[2]==48 && position[3]==0){
+    //     // if(length[2] == 16 && length[3] == 16){
+    //     //     std::cout<<"Gain = "<<currGain<<std::endl;
+    //     //     std::cout<<"First Coefficient: "<<block_0.data[0][0][0][0].item<int>()/currGain<<std::endl;
+    //     //     std::cout<<"Second Coefficient: "<<block_0.data[0][0][0][1].item<int>()/currGain<<std::endl;
+    //     // }
+    // }
     //double currGain = 1;
-    std::cout<<"gain ="<<currGain<<std::endl;
+    //std::cout<<"gain ="<<currGain<<std::endl;
+    //starter = std::chrono::steady_clock::now();
+    //std::cout<<"Y:"<<std::endl;
+    //std::cout<<block_0.data.mean({2,3},false,at::kDouble)<<std::endl<<std::endl;
     block_0.sgtTransform(currGain,mDisparityRange);
+    //std::cout<<mDisparityRange[0]<<" "<<mDisparityRange[1]<<std::endl;
+    //std::cout<<"Before:"<<std::endl;
+    //std::cout<<block_0.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
+
+    //std::cout<<"Gain:"<<currGain<<std::endl;
+    //std::cout<<"First Coefficient: "<<block_0.data[0][0][0][0].item()<<std::endl;
+    //ender = std::chrono::steady_clock::now(); 
+    // if(position[0]==0 && position[1]==0 && position[2]==48 && position[3]==0){
+    //     if(length[2] == 16 && length[3] == 16){
+    //         std::cout<<"Gain = "<<currGain<<std::endl;
+    //         std::cout<<"First Coefficient: "<<block_0.data[0][0][0][0].item<int>()/currGain<<std::endl;
+    //         std::cout<<"Second Coefficient: "<<block_0.data[0][0][0][1].item<int>()/currGain<<std::endl;
+    //     }
+    // }
+    //std::cout<<"Transform Time = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
+    
     //std::cout<<"Transformed the block!"<<std::endl;
     SgtSideInfo ssi0 = block_0.ssi; 
+    starter = std::chrono::steady_clock::now();
     entropyCoder.mSubbandLF_ = block_0;
     double Energy;
     if(mEvaluateOptimumBitPlane == 1){
-        entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplane_(lambda);
+        //std::cout<<"PLEASE BE CONTIGUOUS! "<<entropyCoder.mSubbandLF_.data.is_contiguous()<<std::endl;
+        entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(lambda);
         entropyCoder.LoadOptimizerState();
         mEvaluateOptimumBitPlane = 0;
+        //std::cout<<"Optimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
+        //std::cout<<"OPTIMUM BIT PLANE OLD: "<<entropyCoder.OptimumBitplane_(lambda)<<std::endl;
+
+
     }
+
+
+
     if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
         delete [] entropyCoder.mSegmentationTreeCodeBuffer;
     }
     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
-    double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, length, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy);
 
+    ender = std::chrono::steady_clock::now(); 
+    //std::cout<<"Encoder Setup Time = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
+   
+    
+    starter = std::chrono::steady_clock::now();
+    double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, length, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy);
+    ender = std::chrono::steady_clock::now(); 
+    //std::cout<<"Optimization Time = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
+   
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
@@ -206,7 +259,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         ssiBufferS.insert(ssiBufferS.end(), ssiBufferS01.begin(), ssiBufferS01.end());
         ssiBufferS.insert(ssiBufferS.end(), ssiBufferS10.begin(), ssiBufferS10.end());
         ssiBufferS.insert(ssiBufferS.end(), ssiBufferS11.begin(), ssiBufferS11.end());
-        std::cout<<ssiBufferS00.size()<<"+"<<ssiBufferS01.size()<<"+"<<ssiBufferS10.size()<<"+"<<ssiBufferS11.size()<<"="<<ssiBufferS.size()<<std::endl;
+        //std::cout<<ssiBufferS00.size()<<"+"<<ssiBufferS01.size()<<"+"<<ssiBufferS10.size()<<"+"<<ssiBufferS11.size()<<"="<<ssiBufferS.size()<<std::endl;
        
         //concatenate the partition codes doe the four blocks   
         
@@ -220,6 +273,12 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         strcat(partitionCodeS, partitionCodeS10);
         transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS11,transformedBlockS10,false);
         transformedBlockS.sgtDomain = true;
+
+        // std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
+        // std::cout<<"First Coefficent 00:"<<transformedBlockS00.data[0][0][0][0].item()<<"  "<<transformedBlockS.data[0][0][0][0].item()<<std::endl;
+        // std::cout<<"First Coefficent 01:"<<transformedBlockS01.data[0][0][0][0].item()<<"  "<<transformedBlockS.data[0][0][0][length[3]/2].item()<<std::endl;
+        // std::cout<<"First Coefficent 10:"<<transformedBlockS10.data[0][0][0][0].item()<<"  "<<transformedBlockS.data[0][0][length[2]/2][0].item()<<std::endl;
+        // std::cout<<"First Coefficent 11:"<<transformedBlockS11.data[0][0][0][0].item()<<"  "<<transformedBlockS.data[0][0][length[2]/2][length[3]/2].item()<<std::endl<<std::endl;
         
         
         
@@ -317,6 +376,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         //saves the resulting entropyCoder arithmetic model to model_v
     ProbabilityModel *coderModelState_v=NULL;
     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_v);
+    int RHO_PRECISION = ssi0.getRhoPrecision();
+    int DISP_PRECISION = ssi0.getDisparityPrecision();
+    J0 += RHO_PRECISION*4*lambda + DISP_PRECISION*lambda;
 
     if(J0 > 0) 
         J0 += 1.0*lambda;
@@ -324,8 +386,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         JV += 2.0*lambda;
     if(JS > 0)
         JS += 2.0*lambda;
-    std::cout<<"superiorBitPlane = "<<entropyCoder.mSuperiorBitPlane<<std::endl;
-    std::cout<<"J0 = "<<J0<<"JV = "<<JV<<"JS = "<<JS<<std::endl;
+    //std::cout<<"superiorBitPlane = "<<entropyCoder.mSuperiorBitPlane<<std::endl;
+    
     
     
     //choose the lower cost and returns the corresponding cost,  the partition code and the arithmetic coder model
@@ -333,7 +395,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     int interview_split = 0;
     int intraview_split = 0;
     int no_split = 0;
-   
+    //std::cout<<length[2]<<"x"<<length[3]<<std::endl;
+    //std::cout<<" J0 = "<<J0<<" JV = "<<JV<<" JS = "<<JS<<std::endl;
     if(JV >= 0) {
         if(JS >= 0) {
             if(JV < JS) {
@@ -413,7 +476,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         entropyCoder.SetOptimizerProbabilisticModelState(coderModelState_s);
         transformedBlock.CopySubblockFrom(transformedBlockS, {0,0,0,0},{0,0,0,0});
         currSsiBuffer.insert(currSsiBuffer.end(),ssiBufferS.begin(), ssiBufferS.end());
-        std::cout<<"Split! BufferSize is now: "<<currSsiBuffer.size();
+        //std::cout<<"Split! BufferSize is now: "<<currSsiBuffer.size();
 
     }
     if(no_split == 1) {
@@ -428,10 +491,12 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         //mPartitionData.CopySubblockFrom(block_0, 0, 0, 0, 0, position[0], position[1], position[2], position[3]);
         transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
         currSsiBuffer.push_back(block_0.ssi);
-        std::cout<<"didn't split"<<std::endl;
+       
+
+        //std::cout<<"didn't split"<<std::endl;
     }
-    std::cout<<no_split<<" "<<intraview_split<<" "<<interview_split<<std::endl;
-    std::cout<<"currBufferSizeAtEnd = "<<currSsiBuffer.size()<<std::endl;
+    //std::cout<<no_split<<" "<<intraview_split<<" "<<interview_split<<std::endl;
+    //std::cout<<"currBufferSizeAtEnd = "<<currSsiBuffer.size()<<std::endl;
     //deletes temporary strings, blocks and models
     //block_0.SetDimension(0, 0, 0, 0);
    
@@ -465,6 +530,8 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
     block_0.SetDimension(length[0], length[1], length[2], length[3]);
     block_0.CopySubblockFrom(inputBlock, position[0], position[1], position[2], position[3]);
     mt.Transform4D(block_0);
+    //std::cout<<"First Coefficient: "<<block_0.mPixel[0][0][0][0]<<std::endl;
+    
    
     //copy the transformed input block to entropyCoder.mSubbandLF    
     entropyCoder.mSubbandLF.SetDimension(block_0.mlength_t, block_0.mlength_s, block_0.mlength_v, block_0.mlength_u);
@@ -474,6 +541,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
         entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplane(lambda);
         entropyCoder.LoadOptimizerState();
         mEvaluateOptimumBitPlane = 0;
+        //std::cout<<"Optimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
     }
     
     //call RdOptimizeHexadecaTree method from entropyCoder to evaluate J0
@@ -677,7 +745,8 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
     int interview_split = 0;
     int intraview_split = 0;
     int no_split = 0;
-   
+    //std::cout<<" J0 = "<<J0<<" JV = "<<JV<<" JS = "<<JS<<std::endl;
+
     if(JV >= 0) {
         if(JS >= 0) {
             if(JV < JS) {
@@ -833,11 +902,32 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         mPartitionCodeIndex++;
         
         entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
+        // std::cout<< "RhoS = "<<mSsiBuffer[mSsiBufferIndex].getRhoS()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoSCode()<<std::endl;
+        // std::cout<< "RhoT = "<<mSsiBuffer[mSsiBufferIndex].getRhoT()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoTCode()<<std::endl;
+        // std::cout<< "RhoU = "<<mSsiBuffer[mSsiBufferIndex].getRhoU()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoUCode()<<std::endl;
+        // std::cout<< "RhoV = "<<mSsiBuffer[mSsiBufferIndex].getRhoV()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoVCode()<<std::endl;
+        // std::cout<<"Disparity = "<<mSsiBuffer[mSsiBufferIndex].getDisparity()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getDCode()<<std::endl;
+        
+        
         entropyCoder.EncodeSSI_(mSsiBuffer[mSsiBufferIndex++]);
 
         entropyCoder.mSubbandLF_ = Block4D_(length);
         entropyCoder.mSubbandLF_.CopySubblockFrom(mPartitionData_, position,{0,0,0,0});
-        
+        //std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
+        //std::cout<<"First Coefficent BEING Compressed:"<<entropyCoder.mSubbandLF_.data[0][0][0][0].item()<<std::endl;
+        //std::cout<<"Is data contiguous?"<<entropyCoder.mSubbandLF_.data.is_contiguous()<<std::endl;
+         int fCoeff = entropyCoder.mSubbandLF_.data[0][0][0][0].item<int>();
+        //std::cout<<entropyCoder.mSubbandLF_.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
+
+        // if (abs(fCoeff) < 1e5){
+        //     std::cout<<"("<<position[2]<<","<<position[3]<<") "<<length[2]<<"x"<<length[3]<<std::endl;
+        //std::cout<<"First Coefficent:"<<fCoeff<<" Second (?) Coefficient "<<entropyCoder.mSubbandLF_.data[0][0][0][1].item<int>()<<std::endl;
+        //     std::cout<<"d = "<<mSsiBuffer[mSsiBufferIndex-1].getDisparity()<<std::endl;
+        // }
+        //std::cout<<"SGT Mean = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).mean().item()<<std::endl;
+        //std::cout<<"SGT STD = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).std().item()<<std::endl;
+        //std::cout<<"SGT Mean = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).mean({2,3},false,at::kDouble)<<std::endl;
+
         entropyCoder.EncodeSubblock_(lambda);
         return;
     }
