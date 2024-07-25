@@ -31,7 +31,7 @@ namespace io{
    *
    * @return   5D tensor of shape \f$[U \times V \times S \times T \times C]\f$.
    */
-  at::Tensor read_collection(std::string root_path, std::string pattern);
+  at::Tensor read_collection(std::string root_path, std::string pattern, int &scale);
 
     /**
    * @brief    Read ppm or pgm image from given stream.
