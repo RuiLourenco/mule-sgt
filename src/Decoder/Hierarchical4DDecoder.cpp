@@ -55,7 +55,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
     }
     
     int Significance = DecodeSegmentationFlag(bitplane);
-            
+    
             
     if(Significance == 0) {
         
