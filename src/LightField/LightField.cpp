@@ -123,7 +123,7 @@ void LightField :: OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNam
 
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
     if(readOrWriteLightField == 'r'){
-        this->data = io::read_collection(rootPath, pattern).to(torch::kInt16);
+        this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
     }else{
         if(readOrWriteLightField == 'w'){
             io::write_collection(rootPath,this->data);
@@ -207,19 +207,28 @@ void LightField :: CloseLightField() {
 }
 
 Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
-    Block4D_ blockData = this->data.index({at::indexing::Slice(position[0],position[0]+size[0]),
-                                             at::indexing::Slice(position[1],position[1]+size[1]),
-                                             at::indexing::Slice(position[2],position[2]+size[2]),
-                                             at::indexing::Slice(position[3],position[3]+size[3]),
-                                             channel}).squeeze();
+    Block4D_ block(size);
+    std::array<int64_t,4> actualSize;
+    for(int n = 0; n<4; n++){
+        actualSize[n] = std::min(data.size(n) - position[n],size[n]);
+    }
+        std::cout<<actualSize[0]<<" "<<actualSize[1]<<" "<<actualSize[2]<<" "<<actualSize[3]<<" "<<std::endl;
+
+
+    block.data.index({at::indexing::Slice(0,actualSize[0]),
+                                             at::indexing::Slice(0,actualSize[1]),
+                                             at::indexing::Slice(0,actualSize[2]),
+                                             at::indexing::Slice(0,actualSize[3])}) 
+                         = this->data.index({at::indexing::Slice(position[0],position[0]+actualSize[0]),
+                                             at::indexing::Slice(position[1],position[1]+actualSize[1]),
+                                             at::indexing::Slice(position[2],position[2]+actualSize[2]),
+                                             at::indexing::Slice(position[3],position[3]+actualSize[3]),
+                                             channel});
 
     at::Tensor validPosition_h = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
     at::Tensor validPosition_v = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
-    blockData.validPositions = ValidPositions{validPosition_h,validPosition_v};
-    
-    
-    
-    return blockData;
+    block.validPositions = ValidPositions{validPosition_h,validPosition_v};
+    return block;
 }
 void LightField :: ReadBlock4DfromLightField(Block4D *targetBlock, int position_t, int position_s, int position_v, int position_u, int component) {
 /*! reads a 4 dimensional block from the lightfield at position (position_t,position_s,position_v,position_u). */
@@ -1035,25 +1044,8 @@ void LightField :: WriteBlock4DtoLightField(Block4D *targetBlock, int position_t
         
     }
 }
-void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int,5> position){
-    std::cout<<sourceBlock.data.sizes()<<std::endl;
-    std::cout<<this->data.sizes()<<std::endl;
-    std::cout<<sourceBlock.data.size(3)<<std::endl;
-    std::cout<<sourceBlock.data.dtype()<<std::endl;
-    std::cout<<sourceBlock.data[0][0]<<std::endl;
-    std::cout<<this->data.dtype()<<std::endl;
-    at::Tensor a = this->data.index({at::indexing::Slice(position[0],position[0]+sourceBlock.data.size(0)),
-                     at::indexing::Slice(position[1],position[1]+sourceBlock.data.size(1)),
-                     at::indexing::Slice(position[2],position[2]+sourceBlock.data.size(2)),
-                     at::indexing::Slice(position[3],position[3]+sourceBlock.data.size(3)),
-                     at::indexing::Slice(position[4],position[4]+1)});
-    a =sourceBlock.data;
-    std::cout<<"Did this work?"<<std::endl;
-    std::cout <<this->data[0][0][0][0][0]<<std::endl;
-    std::cout<<a.sizes()<<std::endl;              
-    std::cout<<a.size(3)<<std::endl;   
-     std::cout<<sourceBlock.data.size(2)<<std::endl;         
-     std::cout<<position[3]<<" "<<position[3]+sourceBlock.data.size(3)<<std::endl;
+void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position){
+    
     this->data.index({at::indexing::Slice(position[0],position[0]+sourceBlock.data.size(0)),
                      at::indexing::Slice(position[1],position[1]+sourceBlock.data.size(1)),
                      at::indexing::Slice(position[2],position[2]+sourceBlock.data.size(2)),
@@ -1061,7 +1053,6 @@ void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<in
                      position[4]}) = sourceBlock.data.index({at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()});
                     
 
-                     std::cout<<"successfully did something!"<<std::endl;
 
 }
 int LightField :: FindViewFileName(char *viewFileName, int index_t, int index_s) {
