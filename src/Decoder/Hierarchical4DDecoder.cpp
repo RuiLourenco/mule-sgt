@@ -56,6 +56,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
     
     int Significance = DecodeSegmentationFlag(bitplane);
             
+            
     if(Significance == 0) {
         
         DecodeBlock(position_t, position_s, position_v, position_u, length_t, length_s, length_v, length_u, bitplane-1);
@@ -106,12 +107,16 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
         return;
     }
     if(Significance == 2) {
+        //std::cout<<"Skipping block of size "<<length_t<<"x"<<length_s<<"x"<<length_v<<"x"<<length_u<<std::endl;
+        mSkipCount+= length_t*length_s*length_v*length_u;
        
         for(int index_t = 0; index_t < length_t; index_t++) {
             for(int index_s = 0; index_s < length_s; index_s++) {
                 for(int index_v = 0; index_v < length_v; index_v++) {
                     for(int index_u = 0; index_u < length_u; index_u++) {
                         mSubbandLF.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 0;
+                        mSkipMatrix[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 1;
+
                     }
 
                 }
@@ -121,6 +126,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
         }
         return;
     }
+
 }
 
 int Hierarchical4DDecoder :: DecodeCoefficient(int bitplane) {
@@ -158,6 +164,7 @@ int Hierarchical4DDecoder :: DecodeSegmentationFlag(int bitplane)  {
 
     int bit0=0;
     int bit1 = mEntropyDecoder.DecodeBit(mPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex]);
+
     if(bitplane > BITPLANE_BYPASS_FLAGS) 
         mPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(bit1);
     if(bit1 == 0) {
