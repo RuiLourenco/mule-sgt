@@ -271,7 +271,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         strcat(partitionCodeS, partitionCodeS01);
         strcat(partitionCodeS, partitionCodeS11);
         strcat(partitionCodeS, partitionCodeS10);
-        transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS11,transformedBlockS10,false);
+        transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS10,transformedBlockS11,false);
         transformedBlockS.sgtDomain = true;
 
         // std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
