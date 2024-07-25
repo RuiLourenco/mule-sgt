@@ -151,7 +151,7 @@ namespace io {
     const int w = value.size(1);
     const int h = value.size(0);
     const int c = value.size(2);
-    const int64_t max_value = pow(2,sizeof(uint16_t)*8) - 1; 
+    const int64_t max_value = pow(2,10) - 1; 
     //cout<<max_value<<endl;
     //Output Magic Number
     os<<"P6"<<" "<<w<<" "<<h<<" "<<max_value<<endl;
@@ -184,7 +184,7 @@ namespace io {
    *
    * @throws runtime_error If there are parsing errors or if the file is longer than expected
    */
-  at::Tensor read_collection(string data_root, string pattern) {
+  at::Tensor read_collection(string data_root, string pattern, int& scale) {
 
     const auto regex  = xp::sregex::compile(pattern);
     const auto data_dir = fs::path{data_root};
@@ -215,10 +215,18 @@ namespace io {
     // get shape of individual view
     auto first_entry = view_list.cbegin()->second;
     fs::ifstream first_file{first_entry, ios::in | ios::binary};
-
+    std::string magic_number;
+    int h,w;
+    first_file>>magic_number>>w>>h>>scale;
+    first_file.clear();
+    first_file.seekg(0);
     auto first_view = read_ppm(first_file);
     const auto view_shape = first_view.sizes();
     const auto view_dtype = first_view.dtype();
+    // cout<<"LF VIEW SHAPE = "<<view_shape<<std::endl;
+    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),0})<<endl<<endl;
+    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),1})<<endl<<endl;
+    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),2})<<endl<<endl;
 
     vector<int64_t> lightfield_shape = {max_v + 1, max_u + 1};
     boost::push_back(lightfield_shape, view_shape); // insert view shape as trailing dimension
