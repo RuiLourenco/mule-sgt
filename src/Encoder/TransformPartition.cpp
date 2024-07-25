@@ -16,6 +16,7 @@ double TransformPartition :: totalTransformGain(std::array<int64_t,4> length){
     
     double transformGain = 1;
     for(int i = 0; i < 4; i++){
+        transformGain*=length[i]/sqrt(length[i]);
         transformGain  *= sqrt(mPartitionData_.data.size(i)/length[i]);
     }
     return transformGain*mGain;
