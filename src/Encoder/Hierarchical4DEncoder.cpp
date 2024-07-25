@@ -83,6 +83,11 @@ void Hierarchical4DEncoder :: EncodeSubblock(double lambda) {
 }
 
 double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, char **codeString, double &signalEnergy) {
+    bool start = position[0] == 0 && position[1] == 0 && position[2] == 0 && position[3] == 0;
+    bool smallRelevant = position[0] <4  && position[1] < 4  && position[2] < 4 && position[3] < 4 && length[0] ==9 && length[1] == 9 && length[2] == 64 && length[3] == 64;
+    bool relevant = (start && smallRelevant)&& false;
+    if(relevant)std::cout<<"HELLO HELLO HELLO"<<std::endl;
+    //lambda = 0;
     double J0, J1;
     double SignalEnergySum;
     ProbabilityModel currentProbabilityModel[NUMBER_OF_MODELS];
@@ -97,13 +102,19 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     int64_t position_s = position[1];
     int64_t position_v = position[2];
     int64_t position_u = position[3];
+    //std::cout<<"bitplane = "<<bitplane<<std::endl;
+    //std::cout<<length_t<<" "<<length_s<<" "<<length_v<<" "<<length_u<<std::endl;
+
+    int* data = mSubbandLF_.data.data_ptr<int>();
     if(bitplane < mInferiorBitPlane) {
         signalEnergy = 0;
         for(int index_t = 0; index_t < length_t; index_t++) {
             for(int index_s = 0; index_s < length_s; index_s++) {
                 for(int index_v = 0; index_v < length_v; index_v++) {
                     for(int index_u = 0; index_u < length_u; index_u++) {
-                        int coefficient = mSubbandLF_.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u].item<int>();
+                        int coefficient = data[mSubbandLF_.LinearPosition(position_t+index_t,position_s+index_s,position_v+index_v,position_u+index_u)];
+                        //int coefficient = mSubbandLF_.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u].item<int>();
+                        if(relevant && length_t < 4 && length_s < 4 && length_v < 4 && length_u < 4) std::cout<<"Same Check "<<"("<<position_t+index_t<<","<<position_s+index_s<<","<<position_v+index_v<<","<<position_u+index_u<<") "<<coefficient<<std::endl;
                         J0 = coefficient;
                         signalEnergy += J0*J0;
                     }
@@ -114,8 +125,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     }
     if(length_t*length_s*length_v*length_u == 1) {
         //evaluate the cost to encode coefficient
-       
-        int magnitude = mSubbandLF_.data[position_t][position_s][position_v][position_u].item<int>();
+        int magnitude = data[mSubbandLF_.LinearPosition(position_t,position_s,position_v,position_u)];
+        //int magnitude = mSubbandLF_.data[position_t][position_s][position_v][position_u].item<int>();
         int signal = 0;
         if(magnitude < 0) {
             magnitude = -magnitude;
@@ -151,13 +162,18 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         }  
         J = magnitude - quantizedMagnitude;
         //std::cout<<"Cost: "<<J*J <<" "<<lambda*(accumulatedRate)<<std::endl;
-
+        int distortion = J*J;
         J = J*J + lambda*(accumulatedRate);
+        //std::cout<<"Magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" Distortion = "<<distortion<<" rate = "<<accumulatedRate<<" weighed rate"<<lambda*accumulatedRate<<std::endl;
+        //std::cout<<"Compression Energy = "<< J<< " Ignoring Energy  = "<<signalEnergy<<std::endl;
         
         *codeString[0] = 0;
+        
+        //std::cout<<"We have split everything down to a 1x1 block! Energy equals: "<<J<<" CodeString equals 0!"<<std::endl;
 
         return(J);
     }
+
     for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++)
         currentProbabilityModel[model_index].CopyModel(&mOptimizationPmodel[model_index]);
 
@@ -179,9 +195,10 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                 for(int index_u = position_u; index_u < position_u+length_u; index_u++) {
                     
                     if((index_t < mSubbandLF_.data.size(0))&&(index_s < mSubbandLF_.data.size(1))&&(index_v < mSubbandLF_.data.size(2))&&(index_u < mSubbandLF_.data.size(3))) {
+                        int magnitude = data[mSubbandLF_.LinearPosition(index_t,index_s,index_v,index_u)];
                         
-                        if(mSubbandLF_.data[index_t][index_s][index_v][index_u].item<int>() >= Threshold) Significance = 1;
-                        if(mSubbandLF_.data[index_t][index_s][index_v][index_u].item<int>() <= -Threshold) Significance = 1;
+                        if(magnitude >= Threshold) Significance = 1;
+                        if(magnitude <= -Threshold) Significance = 1;
                         if(Significance == 1) {
                             index_t = position_t+length_t;
                             index_s = position_s+length_s;
@@ -198,7 +215,16 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         }
         
     }
+     //evaluate the cost of segmentation flags
+    J0 = lambda*mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].Rate(0);
+    J0 += lambda*mOptimizationPmodel[2*bitplane+1+mSegmentationFlagProbabilityModelIndex].Rate(Significance);
+    J1 = lambda*mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].Rate(1);
+    if(bitplane > BITPLANE_BYPASS_FLAGS) {
+        mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(0);
+        mOptimizationPmodel[2*bitplane+1+mSegmentationFlagProbabilityModelIndex].UpdateModel(Significance);
+    }
     if(Significance == 0) {
+        //std::cout<<"No Significant Bits in this bitplane. Continuing with lower bitplane."<<std::endl;
         
         J0 += RdOptimizeHexadecaTree_({position_t, position_s, position_v, position_u}, {length_t, length_s, length_v, length_u}, lambda, bitplane-1, &codeString_0, SignalEnergySum);
         
@@ -218,6 +244,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         int number_of_subdivisions_v = (length_v > 1) ? 2 : 1;
         int number_of_subdivisions_u = (length_u > 1) ? 2 : 1;
         
+        //std::cout<<"Significant Bits!!! Dividing block!"<<std::endl;
+
         
         for(int index_t = 0; index_t < number_of_subdivisions_t; index_t++) {
             
@@ -241,6 +269,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                             
                         strcpy(codeString_1, "");
                         J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, &codeString_1, Energy);
+                        //if(relevant) std::cout<<"counter = "<<counter<<" p:"<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<" Cumm = "<<J0<<std::endl;
                         char *tempString = new char[strlen(codeString_0)+strlen(codeString_1)+2];
                         strcpy(tempString, codeString_0);
                         strcat(tempString, codeString_1);
@@ -249,6 +278,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         codeString_0 = tempString;
                             
                         SignalEnergySum += Energy;
+                        //if(relevant) std::cout<<"Energy = "<<SignalEnergySum<<std::endl;
+
                     }
                     
                 }
@@ -259,9 +290,15 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     }    
     //evaluate the cost J1 to skip this subblock
     J1 += SignalEnergySum;
+    if(relevant)std::cout<<length_t<<" "<<length_s<<" "<<length_v<<" "<<length_u<<std::endl;
+    if(relevant)std::cout<<position_t<<" "<<position_s<<" "<<position_v<<" "<<position_u<<std::endl;
+
+    if(relevant)std::cout<<"J0 = "<< J0<<" J1 = "<< J1<<std::endl;
+
     
     //Choose the lowest cost
     if((J0 < J1)||((bitplane == mInferiorBitPlane)&&(Significance == 0))) {
+        if(relevant)std::cout<<"We have made the superior choice"<<std::endl;
         char *tempString = new char[strlen(*codeString)+strlen(codeString_0)+3];
         strcpy(tempString, *codeString);
         delete [] *codeString;
@@ -276,6 +313,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         strcat(*codeString, codeString_0);
     }
     else {
+        if(relevant) std::cout<<"Skippers of the Galaxy"<<std::endl;
+        
         char *tempString = new char[strlen(*codeString)+3];
         strcpy(tempString, *codeString);
         delete [] *codeString;
@@ -363,7 +402,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree(int position_t, int posit
             quantizedMagnitude += (1 << mInferiorBitPlane)/2;
         }  
         J = magnitude - quantizedMagnitude;
-        
+        //std::cout<<"Magnitude = "<<std::bitset<8*sizeof(magnitude)>(magnitude)<<"   "<<std::bitset<8*sizeof(quantizedMagnitude)>(quantizedMagnitude)<<std::endl;
+        //std::cout<<"Magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" Distortion = "<<J*J<<" rate = "<<lambda * accumulatedRate<<" lambda = "<<lambda<<std::endl;
         J = J*J + lambda*(accumulatedRate);
         
         *codeString[0] = 0;
@@ -532,12 +572,15 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     //If the block is a single bit long Encode the bit and return
     if(length[0]*length[1]*length[2]*length[3] == 1) {
         //rd encode coefficient        
+        //std::cout<<"Encoded Coefficient"<<std::endl;   
         EncodeCoefficient(mSubbandLF_.data[position[0]][position[1]][position[2]][position[3]].item<int>(), bitplane);
         return;
     }
-    //First function call starts with flag = 0, meaning we read the content of mSegmentationTreeCodeBuffer at 0
+    //std::cout<<mSegmentationTreeCodeBuffer[flagIndex]<<std::endl;
+    //First function call starts with flagIndex = 0, meaning we read the content of mSegmentationTreeCodeBuffer at 0
     //If mSegmentationTreeCodeBuffer is zero, we encode the segmentationflag and increment the index
     //we run the function recurseviley with bitplane -1;
+    //std::cout<<mSegmentationTreeCodeBuffer[flagIndex]<<std::endl;
     if(mSegmentationTreeCodeBuffer[flagIndex] == '0') {
         
         EncodeSegmentationFlag(0, bitplane);
@@ -712,7 +755,7 @@ void Hierarchical4DEncoder :: EncodeCoefficient(int coefficient, int bitplane) {
         quantizedMagnitude += (1 << mInferiorBitPlane)/2;
     }
     double D = magnitude-quantizedMagnitude;
-    
+    //std::cout<<"magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" D = "<<D<<std::endl; 
 }
 
 void Hierarchical4DEncoder :: EncodeSegmentationFlag(int flag, int bitplane) {
@@ -734,6 +777,7 @@ void Hierarchical4DEncoder :: EncodeSegmentationFlag(int flag, int bitplane) {
         }
     }
     if(flag == 2) {
+
         mEntropyCoder.EncodeBit(1, mPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex]);
         if(bitplane > BITPLANE_BYPASS_FLAGS) 
             mPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(1);
@@ -754,7 +798,6 @@ void Hierarchical4DEncoder :: EncodePartitionFlag(int symbol) {
     if(symbol == 0) {
         mEntropyCoder.EncodeBit(0, mPmodel[0]);
     }
-   
 }
 void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
     int precisionRho = ssi.getRhoPrecision();
@@ -795,9 +838,86 @@ void Hierarchical4DEncoder :: SetDimension(int length_t, int length_s, int lengt
     mSegmentationTreeCodeBuffer = new char [mSegmentationTreeCodeBufferSize];
 }
 
-int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
+
+int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
+    std::chrono::time_point<std::chrono::steady_clock> starter;
+    std::chrono::time_point<std::chrono::steady_clock> ender;
+    starter = std::chrono::steady_clock::now();
+    long int subbandSize = mSubbandLF_.data.numel(); 
+    double Jmin=0;            //Irrelevant initial value
+    int optimumBitplane=0;    //Irrelevant initial value
     
-    long int subbandSize = mSubbandLF_.data.size(0) * mSubbandLF_.data.size(1) * mSubbandLF_.data.size(2) * mSubbandLF_.data.size(3); 
+    double accumulatedRate = 0;
+    int* flattened_data = mSubbandLF_.data.data_ptr<int>();
+    for(int bit_position = mSuperiorBitPlane; bit_position >= 0; bit_position--) {
+        
+        double distortion = 0.0;
+        double coefficientsDistortion = 0.0;
+        double signalRate = 0.0;
+        double J;
+        int numberOfCoefficients = 0;
+        
+        int onesMask = 0;
+        onesMask = ~onesMask;
+        int bitMask = onesMask << bit_position;
+        int Threshold = (1 << bit_position);
+        
+        //For Each SGT Coefficient
+        for(long int coefficient_index=0; coefficient_index < subbandSize; coefficient_index++) {
+            //Calc the magnitude
+            int magnitude = flattened_data[coefficient_index];
+            if(magnitude < 0) {
+                magnitude = -magnitude;
+            }
+            //If the coefficient is represented in the bitplane
+            if(magnitude >= Threshold) {
+                //Get the actual bit to be represented
+                int bit = (magnitude >> bit_position)&01;
+                //Calculate the rate used to compress this bit and update model
+                accumulatedRate += mOptimizationPmodel[bit_position+mSymbolProbabilityModelIndex].Rate(bit);
+                mOptimizationPmodel[bit_position+mSymbolProbabilityModelIndex].UpdateModel(bit);
+                //calculate the quantized magnitude, if the magnitude is over 0, the signalRate is incremented.
+                int quantizedMagnitude = magnitude&bitMask;
+                if(quantizedMagnitude > 0) {
+                    signalRate += 1.0;
+                }
+                numberOfCoefficients++;
+            }
+            //Calculate the quantized magnitude again! Why isn't this just calculated once?
+            int quantizedMagnitude = magnitude&bitMask;
+            //If it's over 0, we add 2^(bit_position-1) Not sure why.
+            if(quantizedMagnitude > 0) {
+                quantizedMagnitude += (1 << bit_position)/2;
+            }  
+            //Calculate Distortion
+            double magnitude_error = magnitude - quantizedMagnitude;
+            distortion += magnitude_error*magnitude_error;
+            if(magnitude >= (1 << bit_position)) {
+                coefficientsDistortion += magnitude_error*magnitude_error;
+            }  
+        }
+           
+        J = distortion + lambda*(accumulatedRate + signalRate);
+        
+        if((J <= Jmin)||(bit_position == mSuperiorBitPlane)) {
+            Jmin = J;
+            optimumBitplane = bit_position;
+        }
+       
+    }
+
+    ender = std::chrono::steady_clock::now();
+    //std::cout<<"TIMER = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
+    
+    return(optimumBitplane);
+}
+
+int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
+    std::chrono::time_point<std::chrono::steady_clock> starter;
+    std::chrono::time_point<std::chrono::steady_clock> ender;
+    starter = std::chrono::steady_clock::now();
+    
+    long int subbandSize = mSubbandLF_.data.numel(); 
     double Jmin=0;            //Irrelevant initial value
     int optimumBitplane=0;    //Irrelevant initial value
     
@@ -814,6 +934,9 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
         int onesMask = 0;
         onesMask = ~onesMask;
         int bitMask = onesMask << bit_position;
+        int Threshold = (1 << bit_position);
+        
+
        //only flatten once (maybe faster?)
         for(long int coefficient_index=0; coefficient_index < subbandSize; coefficient_index++) {
         
@@ -821,7 +944,6 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
             if(magnitude < 0) {
                 magnitude = -magnitude;
             }
-            int Threshold = (1 << bit_position);
             if(magnitude >= Threshold) {
                 int bit = (magnitude >> bit_position)&01;
                 accumulatedRate += mOptimizationPmodel[bit_position+mSymbolProbabilityModelIndex].Rate(bit);
@@ -846,12 +968,16 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
            
         J = distortion + lambda*(accumulatedRate + signalRate);
         
+        std::cout<<bit_position<<": "<<J<<" = "<<distortion<<" + "<<lambda*(accumulatedRate + signalRate)<<std::endl;
+        
         if((J <= Jmin)||(bit_position == mSuperiorBitPlane)) {
             Jmin = J;
             optimumBitplane = bit_position;
         }
        
     }
+    ender = std::chrono::steady_clock::now();
+    //std::cout<<"TIMER = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
     
     return(optimumBitplane);
 }

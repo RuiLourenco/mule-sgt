@@ -33,6 +33,8 @@ public:
     int mPreSegmentation;
     char *mSegmentationTreeCodeBuffer;
     long int mSegmentationTreeCodeBufferSize;
+    int OptimumBitplaneFaster_(double lambda);
+
     Hierarchical4DEncoder(void);
     ~Hierarchical4DEncoder(void);
     void StartEncoder(FILE *outputFilePointer);
