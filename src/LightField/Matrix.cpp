@@ -1,5 +1,6 @@
 #include "LightField/Matrix.h"
 #include <math.h>
+#include <iostream>
 
 Matrix :: Matrix(int lines, int columns) {
   
@@ -271,18 +272,23 @@ int Matrix :: SubMatrix(Matrix *M, int pivot_line, int pivot_column) {
 
 void Matrix :: DCT(void) {
 /*! loads the DCT transform matrix */
-    
+    std::cout<<"Heyo "<<mLines<<" "<<mColumns<<std::endl;
     if(mLines * mColumns == 0)
         return;
     
     for(int column_index = 0; column_index < mColumns; column_index++) {
         mElement[0][column_index] = 1.0; 
+       std::cout<<mElement[0][column_index]<<" ";
     }
+    std::cout<<std::endl;
     for(int line_index = 1; line_index < mLines; line_index++) {
         for(int column_index = 0; column_index < mColumns; column_index++) {
             mElement[line_index][column_index] = sqrt( 2.0 ) *  cos (PI * ( line_index * ( 2 * column_index + 1 ) ) / ( double ) ( 2 * mLines )); 
+            std::cout<<mElement[line_index][column_index]<<" ";
         }
+        std::cout<<std::endl;
     }
+    std::cout<<std::endl;
 }
 
 void Matrix :: IDCT(void) {
