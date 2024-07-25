@@ -13,12 +13,12 @@ LightField::LightField(std::string root_path,std::string pattern) {
     this->mNumberOfViewLines = data.size(3);
     this->mNumberOfViewColumns = data.size(2);
 }
-LightField :: LightField(std::array<int,5> size){
-    this->data = at::zeros({size[0],size[1],size[2],size[3],size[4]},at::kShort);
+LightField :: LightField(std::array<int64_t,5> size){
+    this->data = at::zeros({size[0],size[1],size[2],size[3],size[4]},at::kInt);
     mViewFileNamePrefix = NULL;
     mViewFileNameSuffix = NULL;
-    mNumberOfHorizontalViews = 0;
-    mNumberOfVerticalViews = 0;
+    mNumberOfHorizontalViews = size[1];
+    mNumberOfVerticalViews = size[0];
     mNumberOfCacheHorizontalViews = size[1];
     mNumberOfCacheVerticalViews = size[0];
     this->mViewCache = new View * [mNumberOfCacheVerticalViews];
