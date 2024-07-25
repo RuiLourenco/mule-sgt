@@ -188,20 +188,17 @@ int Hierarchical4DDecoder :: DecodePartitionFlag(void)  {
         
 }
 
-SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(){
-    int rhoSInt;
-    int rhoTInt;
-    int rhoUInt;
-    int rhoVInt;
-    int dInt;
-    int precisionRho = std::ceil(log2(SgtSideInfo::PRECISION_FACTOR_RHO + 1)) ;
-    int precisionD = std::ceil(log2(SgtSideInfo::PRECISION_FACTOR_D + 1)) ;
-    rhoSInt = DecodeInteger(precisionRho);
-    rhoTInt = DecodeInteger(precisionRho);
-    rhoUInt = DecodeInteger(precisionRho);
-    rhoVInt = DecodeInteger(precisionRho);
-    dInt = DecodeInteger(precisionD);
-    return SgtSideInfo(rhoSInt,rhoTInt,rhoUInt,rhoVInt,dInt);
+SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(std::array<double,2> dispRange) {
+    SgtSideInfo ssi(dispRange);
+    
+    int precisionRho = ssi.getRhoPrecision();
+    int precisionD = ssi.getDisparityPrecision();
+    ssi.setRhoSCode(DecodeInteger(precisionRho));
+    ssi.setRhoTCode(DecodeInteger(precisionRho));
+    ssi.setRhoUCode(DecodeInteger(precisionRho));
+    ssi.setRhoVCode(DecodeInteger(precisionRho));
+    ssi. setDCode(DecodeInteger(precisionD));
+    return ssi;
 }
 int Hierarchical4DDecoder :: DecodeInteger(int precision)  {
 
@@ -216,9 +213,7 @@ int Hierarchical4DDecoder :: DecodeInteger(int precision)  {
 
 
 void Hierarchical4DDecoder :: DoneDecoding(void) {
-    
     mEntropyDecoder.Finish();      
-    
 }
 
   
