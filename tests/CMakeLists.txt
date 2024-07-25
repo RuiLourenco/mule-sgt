@@ -7,6 +7,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 add_subdirectory(LightField)
-
 add_subdirectory(IO)
+add_subdirectory(Encoder)
 

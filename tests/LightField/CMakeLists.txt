@@ -7,6 +7,7 @@ target_link_libraries(LightField_gtests
  PRIVATE
   GTest::GTest
   LightField
+  OldDCT
   torch)
 
 add_test(LightField_gtests LightField_gtests )
