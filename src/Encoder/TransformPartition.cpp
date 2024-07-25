@@ -1,4 +1,6 @@
 #include "Encoder/TransformPartition.h"
+#include <chrono>
+
 
 /*******************************************************************************/
 /*                      TransformPartition class methods                    */
