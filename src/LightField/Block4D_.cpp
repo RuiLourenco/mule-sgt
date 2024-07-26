@@ -154,9 +154,10 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false);
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV);
+    flatTransform = flatTransform.unsqueeze(0).unsqueeze(0);
     this->data = flatTransform.round().to(at::kInt).contiguous();
+    std::cout<<"Transform Check: "<<this->data.sizes()<<" "<<this->data.dtype()<<std::endl;
     this->sgtDomain = true;
-    
 }
 
 at::Tensor Block4D_::getZigZagIndexes(std::array<int64_t,2> size){
