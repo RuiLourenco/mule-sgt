@@ -154,29 +154,6 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false);
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV);
-    //at::Tensor halfTransform = at::mm(flatBlock,sgtMatrixH);
-    //std::cout<<"block to code = "<<std::endl<<flatBlock.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<std::endl;
-    //std::cout<<"Coded Block = "<<std::endl<<flatTransform.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<std::endl;
-
-    //this->data = (sgtFrom2DCoefficients(flatTransform)).round().to(at::kInt).contiguous();
-    std::ofstream flatSGT;
-    flatSGT.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/flatSGT.m", std::ios::out | std::ios::trunc);
-    std::cout<<"starting file"<<std::endl;
-    flatSGT<<"flatTransform = ["<<std::endl;
-    for(int n = 0; n<flatTransform.size(0);n++){
-        if(n != 0){
-            flatSGT<<";"<<std::endl;
-        }
-        for(int m = 0; m<flatTransform.size(1);m++){
-            if(m != 0){
-                flatSGT<<",";
-            }
-            flatSGT<<flatTransform[n][m].item();                     
-        }
-    }
-    flatSGT<<"];";
-    std::cout<<"File Written"<<std::endl;
-
     this->data = (flat24D(flatTransform)).round().to(at::kInt).contiguous();
     this->sgtDomain = true;
     
@@ -284,51 +261,11 @@ at::Tensor Block4D_::diagonalOrder4DBlock(at::Tensor coefficients){
 }
 at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
-    at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false); 
-    //std::cout<<"MINIMUM COVARIANCE = "<<std::setprecision(100)<<modelCovMatH.abs().min().item<double>()<<std::endl;
-    //std::ofstream file("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/Q_decoder.m", std::ios::out | std::ios::trunc);
-
-    // file<<std::setprecision(80)<<"Q_decoder = [";
-    // auto [L, Q] = torch::linalg::eigh(modelCovMatV,"U");
-    // Q = Q.flip({-1});
-
-
-
-
-    // for(int u = 0; u < Q.size(0); u++){
-    //     if(u!=0) file<<";"<<std::endl;
-    //     for(int v = 0; v < Q.size(1); v++){
-    //         if(v!=0) file<<",";
-    //         file<<Q[u][v].item<double>();
-    //     }
-        
-    // }
-    // file<<"];";
-    // std::cout<<modelCovMatV.dtype()<<std::endl;
-    
-    //L = L.flip({0});
-    // Q = Q.flip({-1});
-    // std::cout<<Q.pow(2.0).sum({1}).sqrt()<<std::endl;
-    // std::cout<<"EvS:"<<L.index({at::indexing::Slice(0,90)})<<std::endl;
-    //     std::cout<<"qqqq: "<<Q.mean({1}).index({at::indexing::Slice(0,10)})<<std::endl;
-    // auto rec = at::matmul(at::matmul(Q,  L.diag()),Q.t());
-    // std::cout<<"R: "<<rec.index({at::indexing::Slice(0,20),3})<<std::endl;
-    // std::cout<<"True: "<<modelCovMatV.index({at::indexing::Slice(0,20),3})<<std::endl;
-    
-
+    at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);  
     at::Tensor flatBlock = getFlatBlock().to(at::kDouble)/scale;
-    //at::Tensor flatBlock = flatBlockFrom4DTensor(this->data)/scale;
-    //std::cout<<"flatBlock size = "<<flatBlock.sizes()<<std::endl;
-
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true);
     at::Tensor sgtMatrixV = getSgtTransformMatrix(modelCovMatV,false);
-
-    //std::cout<<"sgtMatrixH:"<<std::endl<<sgtMatrixH.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-    //std::cout<<"sgtMatrixV:"<<std::endl<<sgtMatrixV.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
     at::Tensor flatTransform = isgt(flatBlock,sgtMatrixH,sgtMatrixV);
-    //std::cout<<"Block to Decode = "<<std::endl<<flatBlock.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<std::endl;
-    //std::cout<<"Decoded Block = "<<std::endl<<flatTransform.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<std::endl;
-
     return flat24D(flatTransform);
 }
 
