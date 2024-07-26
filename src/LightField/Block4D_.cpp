@@ -154,7 +154,7 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false);
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV);
-    this->data = (flat24D(flatTransform)).round().to(at::kInt).contiguous();
+    this->data = flatTransform.round().to(at::kInt).contiguous();
     this->sgtDomain = true;
     
 }
@@ -262,7 +262,7 @@ at::Tensor Block4D_::diagonalOrder4DBlock(at::Tensor coefficients){
 at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);  
-    at::Tensor flatBlock = getFlatBlock().to(at::kDouble)/scale;
+    at::Tensor flatBlock = this->data.to(at::kDouble)/scale;   
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true);
     at::Tensor sgtMatrixV = getSgtTransformMatrix(modelCovMatV,false);
     at::Tensor flatTransform = isgt(flatBlock,sgtMatrixH,sgtMatrixV);
