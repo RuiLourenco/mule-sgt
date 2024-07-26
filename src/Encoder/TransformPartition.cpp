@@ -46,7 +46,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
     Block4D_ transformedBlock(length);
 
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, entropyCoder, scaledLambda,mSsiBuffer, &mPartitionCode);
-    mPartitionData_.CopySubblockFrom(transformedBlock,{0,0,0,0},{0,0,0,0});
+    mPartitionData_ = transformedBlock;
     entropyCoder.LoadOptimizerState();
     printf(" Full PartitionCode = %s\n", mPartitionCode);    
     //printf("mInferiorBitPlane = %d\n", entropyCoder.mInferiorBitPlane);
@@ -56,15 +56,14 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
 
 double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
     
-    std::chrono::time_point<std::chrono::steady_clock> starter;
-    std::chrono::time_point<std::chrono::steady_clock> ender;
+
 
     
     //inputBlock never changes for the recursive calls. Instead block_0 is copied from a different position. 
     //I should eventually check if this needs to be a copy or if it can just be a reference but inputBlock could very well be a const & from my understanding.
     ProbabilityModel *currentCoderModelState;
     entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
-    //Guess: partitionCodeS handles splitting in the view dimension, partitionCodeV handles splitting in the spacial dimension.
+    //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL, *partitionCodeV=NULL; 
     
     std::vector<SgtSideInfo> ssiBufferS, ssiBufferV;
@@ -78,16 +77,12 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     block_0.sgtTransform(currGain,mDisparityRange);
     SgtSideInfo ssi0 = block_0.ssi; 
-    starter = std::chrono::steady_clock::now();
     entropyCoder.mSubbandLF_ = block_0;
     double Energy;
     if(mEvaluateOptimumBitPlane == 1){
-        //std::cout<<"PLEASE BE CONTIGUOUS! "<<entropyCoder.mSubbandLF_.data.is_contiguous()<<std::endl;
         entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(lambda);
         entropyCoder.LoadOptimizerState();
         mEvaluateOptimumBitPlane = 0;
-        //std::cout<<"Optimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
-        //std::cout<<"OPTIMUM BIT PLANE OLD: "<<entropyCoder.OptimumBitplane_(lambda)<<std::endl;
 
 
     }
@@ -100,14 +95,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
 
-    ender = std::chrono::steady_clock::now(); 
-    //std::cout<<"Encoder Setup Time = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
    
-    
-    starter = std::chrono::steady_clock::now();
+    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, length, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy);
-    ender = std::chrono::steady_clock::now(); 
-    //std::cout<<"Optimization Time = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
    
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
@@ -190,6 +180,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         strcat(partitionCodeS, partitionCodeS10);
         transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS10,transformedBlockS11,false);
         transformedBlockS.sgtDomain = true;
+        std::cout<<transformedBlockS.data.sizes()<<std::endl;
 
         // std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
         // std::cout<<"First Coefficent 00:"<<transformedBlockS00.data[0][0][0][0].item()<<"  "<<transformedBlockS.data[0][0][0][0].item()<<std::endl;
