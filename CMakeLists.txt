@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-list(APPEND CMAKE_PREFIX_PATH "<libtorch-path>")
+list(APPEND CMAKE_PREFIX_PATH "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/lib/python3.10/site-packages/torch/share/cmake/")
 find_package(Torch REQUIRED)
 find_package(LAPACK REQUIRED)
 

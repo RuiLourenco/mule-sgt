@@ -23,6 +23,15 @@ class TransformPartition {
 public:  
     std::array<double,2> mDisparityRange;
     std::vector<SgtSideInfo> mSsiBuffer;
+    at::Tensor costImage;
+    at::Tensor rhoSImage;
+    at::Tensor rhoUImage;
+    at::Tensor rhoTImage;
+    at::Tensor rhoVImage;
+    at::Tensor angleImageH;
+    at::Tensor angleImageV;
+    at::Tensor rateImage;
+
     double mGain = 1;
     double totalTransformGain(std::array<int64_t,4> length);
     int mSsiBufferIndex = 0;

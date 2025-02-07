@@ -283,6 +283,7 @@ int main(int argc, char **argv) {
     tp.mlength_s_min = par.minPartitionSize[1];
     tp.mlength_v_min = par.minPartitionSize[2];
     tp.mlength_u_min = par.minPartitionSize[3];
+
  
     std::array<int64_t,4> extensionLength;
 
@@ -319,7 +320,15 @@ int main(int argc, char **argv) {
 
     //writes the bit precision of each component of the pixels of the views
     BigEndianUnsignedIntegerWrite(inputLF.mPGMScale, 2, outputFileNamePointer);
-    cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
+    //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
+    at::Tensor lfEnergy = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfRhoS = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfRhoT = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfRhoU = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfRhoV = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfAngleV = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfAngleH = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
+    at::Tensor lfRate = at::zeros({inputLF.data.size(0),inputLF.data.size(1),inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),0})<<std::endl<<std::endl;
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),1})<<std::endl<<std::endl;;
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),2})<<std::endl<<std::endl;;
@@ -330,7 +339,7 @@ int main(int argc, char **argv) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
-                    if(par.verbosity > 0)
+                    if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
@@ -392,7 +401,7 @@ int main(int argc, char **argv) {
 
                     }
 
-                    for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++) {
+                    for(int spectralComponent = 0; spectralComponent < 1; spectralComponent++) {
                         if(par.verbosity > 0) printf("\nProcessing spectral component %d\n", spectralComponent);
                         if(spectralComponent == 0){
                             lfBlock = yBlock;
@@ -419,12 +428,101 @@ int main(int argc, char **argv) {
                         hdt.RestartProbabilisticModel();
                         tp.RDoptimizeTransform_(lfBlock, hdt,par.disparityRange,par.transformGain, par.Lambda);
                         tp.EncodePartition_(hdt, par.Lambda);
+                        // std::cout<<"Encoded"<<std::endl;
+                        // std::cout<<tp.costImage.sizes()<<std::endl;
+                        // lfEnergy.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.costImage;
+                        // // std::cout<<"Cost Image Fine"<<std::endl;
+                        // lfRhoS.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoSImage;
+                        // // std::cout<<"RhoS Fine"<<std::endl;
 
-		    }            
+                        // lfRhoT.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoTImage;
+                        // // std::cout<<"RhoT Fine"<<std::endl;
+                        // lfRhoU.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoUImage;
+                        // // std::cout<<"RhoU Fine"<<std::endl;
+                        // lfRhoV.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoVImage;
+                        // //std::cout<<"RhoV Fine"<<std::endl;
+                        // lfAngleV.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.angleImageV;
+                        // //std::cout<<"AngleV Fine"<<std::endl;
+                        // lfAngleH.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.angleImageH;
+                        // //std::cout<<"AngleH Fine"<<std::endl;
+                        // lfRate.index({at::indexing::Slice(verticalView,verticalView+par.maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+par.maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rateImage;
+                        // //std::cout<<"Rate Fine"<<std::endl;
+
+
+                    }            
                 }
             }
         }
     }
+    // std::ofstream energy;
+    // std::ofstream rhoS;
+    // std::ofstream rhoT;
+    // std::ofstream rhoU;
+    // std::ofstream rhoV;
+    // std::ofstream angleH;
+    // std::ofstream angleV;
+    // std::ofstream rate;
+    // energy.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/energy.m");
+    // rhoS.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/rhoS.m");
+    // rhoT.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/rhoT.m");
+    // rhoU.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/rhoU.m");
+    // rhoV.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/rhoV.m");
+    // angleH.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/angleH.m");
+    // angleV.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/angleV.m");
+    // rate.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/DoubleAngleFix/rate.m");
+    // std::cout<<"Printing Images"<<endl;
+    // energy<<"energy_cpp = zeros("<<lfEnergy.size(2)<<","<<lfEnergy.size(3)<<","<<lfEnergy.size(4)<<");"<<std::endl;
+    // rhoS<<"rhoS_cpp = zeros("<< lfRhoS.size(2)<<","<< lfRhoS.size(3)<<","<< lfRhoS.size(4)<<");"<<std::endl;
+    // rhoT<<"rhoT_cpp = zeros("<<lfRhoT.size(2)<<","<<lfRhoT.size(3)<<","<<lfRhoT.size(4)<<");"<<std::endl;
+    // rhoU<<"rhoU_cpp = zeros("<<lfRhoU.size(2)<<","<<lfRhoU.size(3)<<","<<lfRhoU.size(4)<<");"<<std::endl;
+    // rhoV<<"rhoV_cpp = zeros("<<lfRhoV.size(2)<<","<<lfRhoV.size(3)<<","<<lfRhoV.size(4)<<");"<<std::endl;
+    // angleH<<"angleH_cpp = zeros("<<lfAngleH.size(2)<<","<<lfAngleH.size(3)<<","<<lfAngleH.size(4)<<");"<<std::endl;
+    // angleV<<"angleV_cpp = zeros("<<lfAngleV.size(2)<<","<<lfAngleV.size(3)<<","<<lfAngleV.size(4)<<");"<<std::endl;
+    // rate<<"rate_cpp = zeros("<<lfRate.size(2)<<","<<lfRate.size(3)<<","<<lfRate.size(4)<<");"<<std::endl;
+    // for(int n = 0; n < lfEnergy.size(2); n++){
+    //     for(int m = 0; m < lfEnergy.size(3); m++){
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEnergy[0][0][n][m][0].item()<<";";
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEnergy[0][0][n][m][1].item()<<";";
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEnergy[0][0][n][m][2].item()<<";";
+            
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoS[0][0][n][m][0].item()<<";";
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoS[0][0][n][m][1].item()<<";";
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoS[0][0][n][m][2].item()<<";";
+            
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoT[0][0][n][m][0].item()<<";";
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoT[0][0][n][m][1].item()<<";";
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoT[0][0][n][m][2].item()<<";";
+            
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoU[0][0][n][m][0].item()<<";";
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoU[0][0][n][m][1].item()<<";";
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoU[0][0][n][m][2].item()<<";";
+           
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoV[0][0][n][m][0].item()<<";";
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoV[0][0][n][m][1].item()<<";";
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoV[0][0][n][m][2].item()<<";";
+           
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleH[0][0][n][m][0].item()<<";";
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleH[0][0][n][m][1].item()<<";";
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleH[0][0][n][m][2].item()<<";";
+           
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleV[0][0][n][m][0].item()<<";";
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleV[0][0][n][m][1].item()<<";";
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleV[0][0][n][m][2].item()<<";";
+           
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRate[0][0][n][m][0].item()<<";";
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRate[0][0][n][m][1].item()<<";";
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRate[0][0][n][m][2].item()<<";";
+    //     }
+    //     energy<<std::endl;
+    //     rhoS<<std::endl;
+    //     rhoT<<std::endl;
+    //     rhoU<<std::endl;
+    //     rhoV<<std::endl;
+    //     angleH<<std::endl;
+    //     angleV<<std::endl;
+    //     rate<<std::endl;
+    //}
+    
     cout<<"The file pointer is not null right?"<< outputFileNamePointer <<endl;
      hdt.DoneEncoding();
     fclose(outputFileNamePointer);

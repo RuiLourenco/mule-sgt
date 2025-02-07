@@ -50,9 +50,14 @@ void Hierarchical4DEncoder :: StartEncoder(FILE *outputFilePointer) {
 }
 
 void Hierarchical4DEncoder :: RestartProbabilisticModel(void) {
-    
+    //  if(mPmodel != NULL && mOptimizationPmodel != NULL){
+    //     std::cout<<" This shou;d be Fine"<<std::endl;
+    //  }else{
+    //      std::cout<<" This shou;d not be Fine"<<std::endl;
+    //  }
      for(int n = 0; n < NUMBER_OF_MODELS; n++) {
          mPmodel[n].ResetModel();
+         //std::cout<<mPmodel[n].mRate[0]<<" "<<mOptimizationPmodel[n].mRate[0]<<std::endl;
          mOptimizationPmodel[n].ResetModel();
     }
    
@@ -62,10 +67,16 @@ void Hierarchical4DEncoder :: EncodeSubblock_(double lambda) {
     
     int flagSearchIndex = 0;
     double Energy;
+    double rate = 0;
+    double distortion = 0;
     std::array<int64_t,4> size = {mSubbandLF_.data.size(0),mSubbandLF_.data.size(1),mSubbandLF_.data.size(2),mSubbandLF_.data.size(3)};
-    
+    this->ignored = at::zeros(size,at::kInt);
+
     strcpy(mSegmentationTreeCodeBuffer,"");
-    RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy);
+    this->currCost = RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy, rate,distortion);
+    this->mRate = rate;
+    //std::cout<<"Rate = "<<rate<< " WeightedRate = "<<lambda*rate<<"Distortion = "<<distortion<<" CurrentCost = "<<this->currCost<<std::endl;
+    //std::cout<<"Calculated Rate = "<<(this->currCost - distortion)/lambda<<std::endl;
   
     flagSearchIndex = 0;
     RdEncodeHexadecatree_({0, 0, 0, 0}, size, mSuperiorBitPlane, flagSearchIndex);
@@ -74,6 +85,7 @@ void Hierarchical4DEncoder :: EncodeSubblock(double lambda) {
     
     int flagSearchIndex = 0;
     double Energy;
+    double rate;
     
     strcpy(mSegmentationTreeCodeBuffer,"");
     RdOptimizeHexadecaTree(0, 0, 0, 0, mSubbandLF.mlength_t, mSubbandLF.mlength_s, mSubbandLF.mlength_v, mSubbandLF.mlength_u, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy);
@@ -82,14 +94,21 @@ void Hierarchical4DEncoder :: EncodeSubblock(double lambda) {
     RdEncodeHexadecatree(0, 0, 0, 0, mSubbandLF.mlength_t, mSubbandLF.mlength_s, mSubbandLF.mlength_v, mSubbandLF.mlength_u, mSuperiorBitPlane, flagSearchIndex);
 }
 
-double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, char **codeString, double &signalEnergy) {
-    bool start = position[0] == 0 && position[1] == 0 && position[2] == 0 && position[3] == 0;
-    bool smallRelevant = position[0] <4  && position[1] < 4  && position[2] < 4 && position[3] < 4 && length[0] ==9 && length[1] == 9 && length[2] == 64 && length[3] == 64;
-    bool relevant = (start && smallRelevant)&& false;
-    if(relevant)std::cout<<"HELLO HELLO HELLO"<<std::endl;
+double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, char **codeString, double &signalEnergy, double &rate, double& distortion) {
+   //std::cout<<"Length = "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl; 
+    //std::cout<<"In"<<std::endl;
+    double rate0 = 0;
+    double rate1 = 0;
+    double distortion0 = 0;
+    double distortion1 = 0;
+    // bool start = position[0] == 0 && position[1] == 0 && position[2] == 0 && position[3] == 0;
+    // bool smallRelevant = position[0] <4  && position[1] < 4  && position[2] < 4 && position[3] < 4 && length[0] ==9 && length[1] == 9 && length[2] == 64 && length[3] == 64;
+    // bool relevant = (start && smallRelevant)&& false;
+    // if(relevant)std::cout<<"HELLO HELLO HELLO"<<std::endl;
     //lambda = 0;
     double J0, J1;
     double SignalEnergySum;
+    double distortionSum = 0;
     ProbabilityModel currentProbabilityModel[NUMBER_OF_MODELS];
     //std::cout<<bitplane<<" "<<mInferiorBitPlane<<std::endl;
     //std::cout<<length[0]<<length[1]<<length[2]<<length[3]<<std::endl;
@@ -114,13 +133,16 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                     for(int index_u = 0; index_u < length_u; index_u++) {
                         int coefficient = data[mSubbandLF_.LinearPosition(position_t+index_t,position_s+index_s,position_v+index_v,position_u+index_u)];
                         //int coefficient = mSubbandLF_.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u].item<int>();
-                        if(relevant && length_t < 4 && length_s < 4 && length_v < 4 && length_u < 4) std::cout<<"Same Check "<<"("<<position_t+index_t<<","<<position_s+index_s<<","<<position_v+index_v<<","<<position_u+index_u<<") "<<coefficient<<std::endl;
+                        //if(relevant && length_t < 4 && length_s < 4 && length_v < 4 && length_u < 4) std::cout<<"Same Check "<<"("<<position_t+index_t<<","<<position_s+index_s<<","<<position_v+index_v<<","<<position_u+index_u<<") "<<coefficient<<std::endl;
                         J0 = coefficient;
                         signalEnergy += J0*J0;
                     }
                 }
             }
         }
+        rate += 0;
+        distortion += signalEnergy;
+        //std::cout<<"skipping stuff"<<std::endl;
         return (signalEnergy);
     }
     if(length_t*length_s*length_v*length_u == 1) {
@@ -162,14 +184,21 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         }  
         J = magnitude - quantizedMagnitude;
         //std::cout<<"Cost: "<<J*J <<" "<<lambda*(accumulatedRate)<<std::endl;
-        int distortion = J*J;
+        distortion = J*J;
         J = J*J + lambda*(accumulatedRate);
+        rate = accumulatedRate;
+
+
+
         //std::cout<<"Magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" Distortion = "<<distortion<<" rate = "<<accumulatedRate<<" weighed rate"<<lambda*accumulatedRate<<std::endl;
         //std::cout<<"Compression Energy = "<< J<< " Ignoring Energy  = "<<signalEnergy<<std::endl;
         
         *codeString[0] = 0;
         
         //std::cout<<"We have split everything down to a 1x1 block! Energy equals: "<<J<<" CodeString equals 0!"<<std::endl;
+        //rate += accumulatedRate;
+        //distortion+=J*J;
+        //std::cout<<"compressing stuff;"<<std::endl;      
 
         return(J);
     }
@@ -218,16 +247,28 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
      //evaluate the cost of segmentation flags
     J0 = lambda*mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].Rate(0);
     J0 += lambda*mOptimizationPmodel[2*bitplane+1+mSegmentationFlagProbabilityModelIndex].Rate(Significance);
+    rate0+=J0/lambda;
+   
+
     J1 = lambda*mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].Rate(1);
+    rate1+=J1/lambda;
+
     if(bitplane > BITPLANE_BYPASS_FLAGS) {
         mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(0);
         mOptimizationPmodel[2*bitplane+1+mSegmentationFlagProbabilityModelIndex].UpdateModel(Significance);
     }   
     if(Significance == 0) {
         //std::cout<<"No Significant Bits in this bitplane. Continuing with lower bitplane."<<std::endl;
+        double rateTemp = 0;
+        double distortionTemp = 0;
+        J0 += RdOptimizeHexadecaTree_({position_t, position_s, position_v, position_u}, {length_t, length_s, length_v, length_u}, lambda, bitplane-1, &codeString_0, SignalEnergySum,rateTemp,distortionTemp);
+        rate0+=rateTemp;    
+        distortion0+=distortionTemp;
+
         
-        J0 += RdOptimizeHexadecaTree_({position_t, position_s, position_v, position_u}, {length_t, length_s, length_v, length_u}, lambda, bitplane-1, &codeString_0, SignalEnergySum);
-        
+
+            //std::cout<<"Rate0 = "<<rate0*lambda<<" "<<"distortion0 = "<<distortion0<<" J0 = "<<J0<<" "<<rate0*lambda+distortion0<<std::endl;
+
     }
     else {
 
@@ -268,7 +309,20 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         char *codeString_1 = new char [2];
                             
                         strcpy(codeString_1, "");
-                        J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, &codeString_1, Energy);
+                        //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<std::endl;
+                        double rateTemp = 0;
+                        double distortionTemp = 0;
+                        J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, &codeString_1, Energy,rateTemp,distortionTemp);
+                        rate0+=rateTemp;
+                        distortion0+=distortionTemp;
+                        if(position_t == 0 && position_s == 0 && position_v == 0 && position_u == 0) {
+                            if(length_v == 32 && length_u == 32) {
+                                std::cout<<"("<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<") "<<rateTemp/8<<" "<<distortionTemp<<" "<<J0<<std::endl;
+                            }
+                        }
+                        
+                        //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<" "<<rate0*lambda + distortion0<<std::endl;
+
                         //if(relevant) std::cout<<"counter = "<<counter<<" p:"<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<" Cumm = "<<J0<<std::endl;
                         char *tempString = new char[strlen(codeString_0)+strlen(codeString_1)+2];
                         strcpy(tempString, codeString_0);
@@ -278,7 +332,6 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         codeString_0 = tempString;
                             
                         SignalEnergySum += Energy;
-                        //if(relevant) std::cout<<"Energy = "<<SignalEnergySum<<std::endl;
 
                     }
                     
@@ -288,17 +341,19 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
             
         }         
     }    
+
     //evaluate the cost J1 to skip this subblock
     J1 += SignalEnergySum;
-    if(relevant)std::cout<<length_t<<" "<<length_s<<" "<<length_v<<" "<<length_u<<std::endl;
-    if(relevant)std::cout<<position_t<<" "<<position_s<<" "<<position_v<<" "<<position_u<<std::endl;
+    distortion1 += SignalEnergySum;
 
-    if(relevant)std::cout<<"J0 = "<< J0<<" J1 = "<< J1<<std::endl;
-
-    
     //Choose the lowest cost
     if((J0 < J1)||((bitplane == mInferiorBitPlane)&&(Significance == 0))) {
-        if(relevant)std::cout<<"We have made the superior choice"<<std::endl;
+        //std::cout<<"j0 < j1"<<std::endl;
+        //std::cout<<"J0 = "<<J0<<" Calc J0 = "<< lambda*rate0 + distortion0<<std::endl;
+
+        rate = rate0;
+        distortion = distortion0;
+
         char *tempString = new char[strlen(*codeString)+strlen(codeString_0)+3];
         strcpy(tempString, *codeString);
         delete [] *codeString;
@@ -313,8 +368,10 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         strcat(*codeString, codeString_0);
     }
     else {
-        if(relevant) std::cout<<"Skippers of the Galaxy"<<std::endl;
-        
+        //std::cout<<"j0 > j1"<<std::endl;
+
+        rate += rate1;   
+        distortion = distortion1;     
         char *tempString = new char[strlen(*codeString)+3];
         strcpy(tempString, *codeString);
         delete [] *codeString;
@@ -328,10 +385,13 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         if(bitplane > BITPLANE_BYPASS_FLAGS) 
             mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(1);
     }
-  
+    //std::cout<<"rate = "<<rate<<std::endl;
+    //std::cout<<"J0 = "<<J0/lambda<<std::endl;
     delete [] codeString_0;
     
     signalEnergy = SignalEnergySum;
+    //std::cout<<"J0 = "<<J0<<" Calc J0 = "<< lambda*rate + distortion<<" rate = "<<rate<<" distortion = "<<distortion<<" lambda = "<<lambda<<std::endl;
+
         
     return(J0);    
     
@@ -584,6 +644,7 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     if(mSegmentationTreeCodeBuffer[flagIndex] == '0') {
         
         EncodeSegmentationFlag(0, bitplane);
+        flagZero++;
     
         flagIndex++;
         RdEncodeHexadecatree_(position, length, bitplane-1, flagIndex);
@@ -593,7 +654,8 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     //If the Flag is 2 seems to just Encode the flag itself and get out This does not call the function recursively.
     
     if(mSegmentationTreeCodeBuffer[flagIndex] == '2') {
-        
+        flagTwo++;
+        ignored.index({at::indexing::Slice(position[0],position[0]+length[0]),at::indexing::Slice(position[1],position[1]+length[1]),at::indexing::Slice(position[2],position[2]+length[2]),at::indexing::Slice(position[3],position[3]+length[3])}) = flagIndex*at::ones(length,at::kInt);
         EncodeSegmentationFlag(2, bitplane);
     
         flagIndex++;
@@ -604,7 +666,7 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     if(mSegmentationTreeCodeBuffer[flagIndex] == '1') {
         
         EncodeSegmentationFlag(1, bitplane);
-    
+        flagOne++;
         flagIndex++;
         
         std::array<int64_t,4> half_length;
@@ -800,13 +862,18 @@ void Hierarchical4DEncoder :: EncodePartitionFlag(int symbol) {
     }
 }
 void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
+    //std::cout<<"Encode SSI: ";
+    //ssi.print();
     int precisionRho = ssi.getRhoPrecision();
-    int precisionD = ssi.getDisparityPrecision();
+    int precisionD = ssi.getAnglePrecision();
+    //std::cout<<"precision: "<<precisionD<<" "<<precisionRho<<std::endl;
+    //EncodeInteger(5,1);
+    EncodeInteger(ssi.getAngleVCode(),precisionD);
+    EncodeInteger(ssi.getAngleHCode(),precisionD);
     EncodeInteger(ssi.getRhoSCode(),precisionRho);
     EncodeInteger(ssi.getRhoTCode(),precisionRho);
     EncodeInteger(ssi.getRhoUCode(),precisionRho);
     EncodeInteger(ssi.getRhoVCode(),precisionRho);
-    EncodeInteger(ssi.getDCode(),precisionD);
 }
 
 
@@ -820,7 +887,7 @@ void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
 }
 
 void Hierarchical4DEncoder :: DoneEncoding(void) {
-    
+    std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<std::endl;
     mEntropyCoder.Flush();      //flushes entropy encoder
     
 }
@@ -840,10 +907,10 @@ void Hierarchical4DEncoder :: SetDimension(int length_t, int length_s, int lengt
 
 
 int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
-    std::chrono::time_point<std::chrono::steady_clock> starter;
-    std::chrono::time_point<std::chrono::steady_clock> ender;
-    starter = std::chrono::steady_clock::now();
+    //std::cout<<"hello"<<std::endl;
+    std::cout<<"Optimum Calc Lambda: "<<lambda<<std::endl;
     long int subbandSize = mSubbandLF_.data.numel(); 
+   // std::cout<<"subbandSize = "<<subbandSize<<std::endl;
     double Jmin=0;            //Irrelevant initial value
     int optimumBitplane=0;    //Irrelevant initial value
     
@@ -906,8 +973,6 @@ int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
        
     }
 
-    ender = std::chrono::steady_clock::now();
-    //std::cout<<"TIMER = "<<std::chrono::duration_cast<std::chrono::nanoseconds>(ender - starter).count()/1e6<<"ms"<<std::endl;
     
     return(optimumBitplane);
 }
@@ -968,7 +1033,7 @@ int Hierarchical4DEncoder :: OptimumBitplane_(double lambda) {
            
         J = distortion + lambda*(accumulatedRate + signalRate);
 
-        std::cout<<bit_position<<": "<<J<<" = "<<distortion<<" + "<<lambda*(accumulatedRate + signalRate)<<std::endl;
+        //std::cout<<bit_position<<": "<<J<<" = "<<distortion<<" + "<<lambda*(accumulatedRate + signalRate)<<std::endl;
         
         if((J <= Jmin)||(bit_position == mSuperiorBitPlane)) {
             Jmin = J;

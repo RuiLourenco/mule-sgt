@@ -218,6 +218,8 @@ int main(int argc, char **argv) {
     PartitionDecoder pd;
     pd.mPartitionData = Block4D_(maxPartitionSize);
 
+    at::Tensor lfEntropy = at::zeros(lfSize,at::kDouble);
+
     
     std::cout<<"LOOP WILL START"<<std::endl;
     for(int verticalView = 0; verticalView < lfSize[0]; verticalView+= maxPartitionSize[0]){
@@ -226,7 +228,8 @@ int main(int argc, char **argv) {
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
-                    for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++){
+                    for(int spectralComponent = 0; spectralComponent <3; spectralComponent++){
+                        if(par.verbosity > 0) cout<<"decoding spectral component "<<spectralComponent<<endl;
                         std::array<int64_t,5> currLfPosition = {verticalView,horizontalView,viewLine,viewColumn,spectralComponent};
 
                         if(par.verbosity > 0) 
@@ -234,32 +237,41 @@ int main(int argc, char **argv) {
                         lfBlock.Zeros();
                         hdt.RestartProbabilisticModel();
                         pd.DecodePartition(hdt,par.disparityRange);
+                        //lfEntropy.index({at::indexing::Slice(verticalView,verticalView+maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+maxPartitionSize[3]),spectralComponent}) =pd.entropyImage;
+
                         if(spectralComponent == 0){
                             std::ofstream skipFile;
-                            skipFile.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/skipNaive.m", std::ios::out | std::ios::trunc);
-
-                            skipFile<<"rowMajorSkip = zeros(["<<maxPartitionSize[0]<<" "<<maxPartitionSize[1]<<" "<<maxPartitionSize[2]<<" "<<maxPartitionSize[3]<<"]);"<<endl;
-                            for(int l = 0; l<maxPartitionSize[0];l++){
-                                for(int k = 0; k<maxPartitionSize[1];k++){
-                                    skipFile<<"rowMajorSkip("<<l+1<<","<<k+1<<",:,:) = [";
-                                    for(int n = 0; n<maxPartitionSize[2];n++){
-                                        if(n!= 0) skipFile<<";"<<endl;
-                                        for(int m = 0; m<maxPartitionSize[3];m++){
-                                            if(m!= 0) skipFile<<",";
-                                            skipFile<<hdt.mSkipMatrix[l][k][n][m].item();
-                                        }
-                                    }
-                                    skipFile<<"];"<<endl;
+                            skipFile.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/skip2D.m", std::ios::out | std::ios::trunc);
+                            std::cout<<hdt.mSkipMatrix.sizes()<<std::endl;
+                            skipFile<<"twoDimSkip = [";
+                            for(int n = 0; n<maxPartitionSize[0]*maxPartitionSize[2];n++){
+                                if(n!= 0) skipFile<<";"<<endl;
+                                for(int m = 0; m<maxPartitionSize[1]*maxPartitionSize[3];m++){
+                                    if(m!= 0) skipFile<<",";
+                                    skipFile<<hdt.mSkipMatrix[0][0][n][m].item();
                                 }
-                                
-                            }
+                            }   
+                            skipFile<<"];"<<endl;
+                            // skipFile<<"rowMajorSkip("<<l+1<<","<<k+1<<",:,:) = [";
+                            // for(int n = 0; n<maxPartitionSize[2];n++){
+                                            
+                            //     for(int m = 0; m<maxPartitionSize[3];m++){
+                            //         if(m!= 0) skipFile<<",";
+                            //         skipFile<<hdt.mSkipMatrix[l][k][n][m].item();
+                            //     }
+                            // }
+                            // skipFile<<"];"<<endl;
                         }
+                    
+                
+                        
                         
                         
                         
                         
                         
                         lfBlock = pd.mPartitionData;
+                        cout<<"lfBlock is copied!!"<<endl;
                         //if(par.verbosity > 0) cout<<lfBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<endl;
 
                         //cout<<"Extend Block?"<<endl;
@@ -349,7 +361,24 @@ int main(int argc, char **argv) {
             }
         }
     }
-    
+    std::ofstream entropy;
+    entropy.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/entropy.m");
+    entropy<<"energy_cpp = zeros("<<lfEntropy.size(2)<<","<<lfEntropy.size(3)<<","<<lfEntropy.size(4)<<");"<<std::endl;
+    for(int n = 0; n < lfEntropy.size(2); n++) {
+        for(int m = 0; m < lfEntropy.size(3); m++) {
+            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEntropy[0][0][n][m][0].item()<<";";
+            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEntropy[0][0][n][m][1].item()<<";";
+            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEntropy[0][0][n][m][2].item()<<";";
+            
+        }
+        entropy<<std::endl;
+    }
+    entropy.close();
+
+
+
+
+
     hdt.DoneDecoding();
     outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w');
     fclose(inputFileNamePointer);
@@ -413,7 +442,7 @@ unsigned long int BigEndianUnsignedIntegerRead(int precision, FILE *inputFilePoi
     unsigned char input_byte;
     unsigned long int value = 0;
     for(int byte_index = precision-1; byte_index >= 0; byte_index--) {
-        fread(&input_byte, 1, 1, inputFilePointer);
+        int a = fread(&input_byte, 1, 1, inputFilePointer);
         value = (value << 8);
         value += input_byte;
     }
@@ -430,14 +459,14 @@ long int BigEndianSignedIntegerRead(int precision, FILE *inputFilePointer) {
     unsigned char input_byte;
     unsigned long int value = 0;
     int sign;
-    fread(&input_byte, 1, 1, inputFilePointer);
+    int a = fread(&input_byte, 1, 1, inputFilePointer);
     if(input_byte) {
         sign = -1;
     }else{
         sign = 1;
     }
     for(int byte_index = precision-1; byte_index >= 0; byte_index--) {
-        fread(&input_byte, 1, 1, inputFilePointer);
+        int a = fread(&input_byte, 1, 1, inputFilePointer);
         value = (value << 8);
         value += input_byte;
     }

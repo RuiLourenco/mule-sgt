@@ -304,11 +304,11 @@ TEST(SGTTest,CalcDisparity){
   Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
 
   SgtSideInfo ssi;
-  double startingDisparity = ssi.getDisparity();
+  double startingDisparity = ssi.getDisparityV();
   cout<<startingDisparity<<endl;
   ssi.estimateDisparity(block);
-  cout<<ssi.getDisparity()<<endl;
-  EXPECT_NEAR(2.75,ssi.getDisparity(),0.3);
+  cout<<ssi.getDisparityV()<<endl;
+  EXPECT_NEAR(2.75,ssi.getDisparityV(),0.3);
 }
 
 TEST(SGTTest,CalcRhos){
@@ -319,7 +319,8 @@ TEST(SGTTest,CalcRhos){
   Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
   std::cout<<"BLOCK CREATED"<<endl;
   SgtSideInfo ssi;
-  ssi.setDisparity(0);
+  ssi.setAngleV(0);
+  ssi.setAngleH(0);
   std::cout<<"BLOCK CREATED"<<endl;
   ssi.estimateRhos(block,3000);
   //EXPECT_DOUBLE_EQ(0,ssi.getDisparity());
@@ -334,7 +335,7 @@ TEST(SGTTest,SideInfoCalc){
   Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
 
   SgtSideInfo ssi(block,{-0.1,0.1});
-  cout<<ssi.getRhoS()<<" "<<ssi.getDisparity()<<endl;
+  cout<<ssi.getRhoS()<<" "<<ssi.getDisparityV()<<endl;
 }
 
 TEST(SGTTEST,ModelCovMat){
@@ -374,7 +375,7 @@ TEST(SGTTest,NoQuantizationScale){
   ssi.setRhoU(0.99);
   ssi.setRhoT(0.99);
   ssi.setRhoV(0.99);
-  ssi.setDisparity(1.00);
+  ssi.setAngleV(1.00);
   ones.ssi = ssi;
   ones.sgtTransform(1);
   cout<<ones.data[0][0]<<endl;

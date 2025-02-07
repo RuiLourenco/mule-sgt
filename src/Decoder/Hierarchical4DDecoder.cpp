@@ -115,14 +115,11 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
                 for(int index_v = 0; index_v < length_v; index_v++) {
                     for(int index_u = 0; index_u < length_u; index_u++) {
                         mSubbandLF.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 0;
-                        mSkipMatrix[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 1;
+                        //mSkipMatrix[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 1;
 
                     }
-
                 }
-
-            }
-           
+            }          
         }
         return;
     }
@@ -192,12 +189,16 @@ SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(std::array<double,2> dispRange) {
     SgtSideInfo ssi(dispRange);
     
     int precisionRho = ssi.getRhoPrecision();
-    int precisionD = ssi.getDisparityPrecision();
+    int precisionAngle = ssi.getAnglePrecision();
+    //std::cout<<precisionRho<<" "<<precisionAngle<<std::endl;
+    ssi.setAngleVCode(DecodeInteger(precisionAngle));
+    ssi.setAngleHCode(DecodeInteger(precisionAngle));
     ssi.setRhoSCode(DecodeInteger(precisionRho));
     ssi.setRhoTCode(DecodeInteger(precisionRho));
     ssi.setRhoUCode(DecodeInteger(precisionRho));
     ssi.setRhoVCode(DecodeInteger(precisionRho));
-    ssi. setDCode(DecodeInteger(precisionD));
+    
+    //ssi.print();
     return ssi;
 }
 int Hierarchical4DDecoder :: DecodeInteger(int precision)  {

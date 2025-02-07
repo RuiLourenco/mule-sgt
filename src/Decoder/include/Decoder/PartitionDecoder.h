@@ -14,11 +14,14 @@
 
 class PartitionDecoder {
 public:  
+    at::Tensor entropyImage;
+    char *mPartitionCode;               /*!< String of flags defining the partition tree */
     int mPartitionCodeMaxLength;        /*!< Maximum length of the partition tree code string */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     int mUseSameBitPlane;               /*!< Forces to use the same minimum bitplane for all subblocks */
     Block4D_ mPartitionData;             /*!< DCT of all subblocks of the partition */
     PartitionDecoder(void);
+    double calcEntropy(at::Tensor &data);
     void DecodePartition(Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange);
     double transformGain(std::array<int64_t,4> length);
 

@@ -22,11 +22,17 @@
 
 class Hierarchical4DEncoder {
 public:
+    int mRate  = 0;
     Block4D mSubbandLF;   
     Block4D_ mSubbandLF_;   
+    at::Tensor ignored;
+    double currCost;
     ABACoder mEntropyCoder;
     ProbabilityModel *mPmodel;
     ProbabilityModel *mOptimizationPmodel;
+    int flagZero = 0;
+    int flagOne = 0;
+    int flagTwo = 0;
     int mSuperiorBitPlane, mInferiorBitPlane;
     int mSegmentationFlagProbabilityModelIndex;
     int mSymbolProbabilityModelIndex;
@@ -50,7 +56,7 @@ public:
     void EncodeSubblock(double lambda);
     void EncodeSubblock_(double lambda);
     double RdOptimizeHexadecaTree(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, double lambda, int bitplane, char **codeString, double &signalEnergy);
-    double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, char **codeString, double &signalEnergy);
+    double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, char **codeString, double &signalEnergy,double& rate, double& distortion);
     void RdEncodeHexadecatree(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane, int &flagIndex);
     void RdEncodeHexadecatree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane, int &flagIndex);
     void DoneEncoding(void);
