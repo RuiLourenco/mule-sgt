@@ -327,47 +327,49 @@ TEST(EncoderTests,CabinetDetail){
     
     
 }
-// TEST(EncoderTests,Dummy){
+TEST(EncoderTests,Dummy){
 
-//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
-//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/TEST-DUMMY-ORIGINAL/";
-//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-//     double lambda = 0;
-//     LightField inputLF(9,9,512);
-//     inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-//     //std::array<int64_t,4> position = {0,0,64,448};
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+    //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+    std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/Greek-TopRightCorner/";
+    string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+    double lambda = 0;
+    LightField inputLF(9,9,512);
+    inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+    //std::array<int64_t,4> position = {0,0,64,448};
     
-//     //Sideboard Dummy BACKWALL
-//     //std::array<int64_t,4> position = {0,0,114,90};
-//     //Sideboard Dummy SIDEWALL
-//     std::array<int64_t,4> position = {0,0,114,480};
-//     //Sideboard Dummy Cabinet
-//     //std::array<int64_t,4> position = {0,0,320,64};
+    //Start
+    std::array<int64_t,4> position = {0,0,0,0};
+    //Sideboard Dummy BACKWALL
+    //std::array<int64_t,4> position = {0,0,114,90};
+    //Sideboard Dummy SIDEWALL
+    //std::array<int64_t,4> position = {0,0,114,480};
+    //Sideboard Dummy Cabinet
+    //std::array<int64_t,4> position = {0,0,320,64};
 
-//     //std::array<int64_t,4> position = {0,0,64,64};
+    //std::array<int64_t,4> position = {0,0,64,64};
 
     
-//     //std::array<int64_t,4> position = {0,0,160,288};
+    //std::array<int64_t,4> position = {0,0,160,288};
     
-//     //std::array<int64_t,4> position = {0,0,256,288};
-//     //std::array<int64_t,4> position = {0,0,0,0};
-//     //std::array<int64_t,4> position = {0,0,64,128};
-//     //std::array<int64_t,4> position = {0,0,384,256};   
-//     //std::array<int64_t,4> position = {0,0,256,320};
-//     int length = 32;
-//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,0);
-//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,1);
-//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,2);
+    //std::array<int64_t,4> position = {0,0,256,288};
+    //std::array<int64_t,4> position = {0,0,0,0};
+    //std::array<int64_t,4> position = {0,0,64,128};
+    //std::array<int64_t,4> position = {0,0,384,256};   
+    //std::array<int64_t,4> position = {0,0,256,320};
+    int length = 64;
+    Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,0);
+    Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,1);
+    Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,2);
 
-//     LightField outputLF({9,9,length,length,3});
-//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
-//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
-//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
-//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');
+    LightField outputLF({9,9,length,length,3});
+    outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+    outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+    outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+    outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');
     
     
-// }
+}
 
 void saveTensorAsMatlabScript2(at::Tensor tensor,std::string name){
     std::ofstream stuff;

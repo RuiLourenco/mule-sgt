@@ -401,7 +401,7 @@ int main(int argc, char **argv) {
 
                     }
 
-                    for(int spectralComponent = 0; spectralComponent < 1; spectralComponent++) {
+                    for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++) {
                         if(par.verbosity > 0) printf("\nProcessing spectral component %d\n", spectralComponent);
                         if(spectralComponent == 0){
                             lfBlock = yBlock;

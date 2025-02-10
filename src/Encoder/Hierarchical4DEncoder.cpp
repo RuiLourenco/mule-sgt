@@ -317,7 +317,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         distortion0+=distortionTemp;
                         if(position_t == 0 && position_s == 0 && position_v == 0 && position_u == 0) {
                             if(length_v == 32 && length_u == 32) {
-                                std::cout<<"("<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<") "<<rateTemp/8<<" "<<distortionTemp<<" "<<J0<<std::endl;
+                                //std::cout<<"("<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<") "<<rateTemp/8<<" "<<distortionTemp<<" "<<J0<<std::endl;
                             }
                         }
                         
@@ -887,7 +887,7 @@ void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
 }
 
 void Hierarchical4DEncoder :: DoneEncoding(void) {
-    std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<std::endl;
+    //std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<std::endl;
     mEntropyCoder.Flush();      //flushes entropy encoder
     
 }
@@ -908,7 +908,7 @@ void Hierarchical4DEncoder :: SetDimension(int length_t, int length_s, int lengt
 
 int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
     //std::cout<<"hello"<<std::endl;
-    std::cout<<"Optimum Calc Lambda: "<<lambda<<std::endl;
+    //std::cout<<"Optimum Calc Lambda: "<<lambda<<std::endl;
     long int subbandSize = mSubbandLF_.data.numel(); 
    // std::cout<<"subbandSize = "<<subbandSize<<std::endl;
     double Jmin=0;            //Irrelevant initial value

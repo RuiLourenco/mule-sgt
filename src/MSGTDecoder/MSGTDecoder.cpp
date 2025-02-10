@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
                         if(spectralComponent == 0){
                             std::ofstream skipFile;
                             skipFile.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/skip2D.m", std::ios::out | std::ios::trunc);
-                            std::cout<<hdt.mSkipMatrix.sizes()<<std::endl;
+                            //std::cout<<hdt.mSkipMatrix.sizes()<<std::endl;
                             skipFile<<"twoDimSkip = [";
                             for(int n = 0; n<maxPartitionSize[0]*maxPartitionSize[2];n++){
                                 if(n!= 0) skipFile<<";"<<endl;
@@ -271,7 +271,7 @@ int main(int argc, char **argv) {
                         
                         
                         lfBlock = pd.mPartitionData;
-                        cout<<"lfBlock is copied!!"<<endl;
+                        //cout<<"lfBlock is copied!!"<<endl;
                         //if(par.verbosity > 0) cout<<lfBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<endl;
 
                         //cout<<"Extend Block?"<<endl;

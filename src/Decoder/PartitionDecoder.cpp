@@ -14,7 +14,7 @@ double PartitionDecoder :: calcEntropy(at::Tensor &data) {
 
     auto [unique,dummy1]  = at::_unique(data,true,false);
     int64_t levels = unique.size(0);
-    std::cout<<"Byte number = "<<levels<<std::endl;
+    //std::cout<<"Byte number = "<<levels<<std::endl;
     //std::cout<<"Count: "<<std::endl<<unique<<std::endl;
     at::Tensor flat = data.flatten().contiguous();
     int* data_ptr = flat.data_ptr<int>();
@@ -107,7 +107,7 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
 }
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
     int flagCode = entropyDecoder.DecodePartitionFlag();
-    if(flagCode == INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"why?";return;}
+    if(flagCode == INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"INTERVIEW SPLIT??? "<<flagCode<<std::endl;}
     //std::cout << "Entered Step with size: ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
     //std::cout<<"Decoding Partition Flag"<<std::endl;
     //std::cout<<"Partition Flag Decoded: "<<flagCode<<std::endl;

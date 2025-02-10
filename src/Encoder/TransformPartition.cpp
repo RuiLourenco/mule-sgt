@@ -63,7 +63,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     
 
 
-    std::cout<<"Hello?"<<std::endl;
+    //std::cout<<"Hello?"<<std::endl;
     //inputBlock never changes for the recursive calls. Instead block_0 is copied from a different position. 
     //I should eventually check if this needs to be a copy or if it can just be a reference but inputBlock could very well be a const & from my understanding.
     ProbabilityModel *currentCoderModelState;
@@ -74,23 +74,23 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     std::vector<SgtSideInfo> ssiBufferS, ssiBufferV;
     //Copy from inp
     Block4D_ block_0(length);
-    std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
-    std::cout<<"We're starting!"<<std::endl;
+    //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
+    //std::cout<<"We're starting!"<<std::endl;
 
     block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
-   std::cout<<"Block Copied!"<<std::endl;
+   //std::cout<<"Block Copied!"<<std::endl;
 
     
     double currGain = totalTransformGain(length);
-    std::cout<<"3,2,1 Let's jam!"<<std::endl;
+    //std::cout<<"3,2,1 Let's jam!"<<std::endl;
 
     block_0.sgtTransform(currGain,mDisparityRange);
-    std::cout<<block_0.data.sizes()<<std::endl;
-    std::cout<<"Param param param pararam1"<<std::endl;
+    //std::cout<<block_0.data.sizes()<<std::endl;
+    //std::cout<<"Param param param pararam1"<<std::endl;
     //std::cout<<"TRANSFORMED! "<<block_0.data.sizes()<<std::endl;
     SgtSideInfo ssi0 = block_0.ssi; 
     entropyCoder.mSubbandLF_ = block_0;
-    std::cout<<"Param param param pararam2"<<std::endl;
+    //std::cout<<"Param param param pararam2"<<std::endl;
 
     //std::cout<<"HERE"<<std::endl;
 
@@ -101,7 +101,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(lambda);
         entropyCoder.LoadOptimizerState();
         mEvaluateOptimumBitPlane = 0;
-        std::cout<<"Minimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
+        //std::cout<<"Minimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
     }
     
 
@@ -112,13 +112,13 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
 
-    std::cout<<"To Compress:"<<std::endl<<inputBlock.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-    std::cout<<entropyCoder.mSubbandLF_.data.sizes()<<std::endl;
+    //std::cout<<"To Compress:"<<std::endl<<inputBlock.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
+    //std::cout<<entropyCoder.mSubbandLF_.data.sizes()<<std::endl;
     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
-    std::cout<<"HERE "<<lengthTransform[0]<<" "<<lengthTransform[1]<<" "<<lengthTransform[2]<<" "<<lengthTransform[3]<<std::endl;
+    //std::cout<<"HERE "<<lengthTransform[0]<<" "<<lengthTransform[1]<<" "<<lengthTransform[2]<<" "<<lengthTransform[3]<<std::endl;
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     //std::cout<<"HERE"<<std::endl;
-    std::cout<<"Param param param pararam 3"<<std::endl;
+    //std::cout<<"Param param param pararam 3"<<std::endl;
 
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
@@ -394,13 +394,13 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         }
     }
     double optimumJ=0;
-    std::cout<<"HERE"<<std::endl;
+    //std::cout<<"HERE"<<std::endl;
 
     if((interview_split + intraview_split + no_split) != 1) {
         printf("ERROR: partition fail/n");
         exit(0);
     }
-    std::cout<<"Param param param pararam final"<<std::endl;
+    //std::cout<<"Param param param pararam final"<<std::endl;
 
     //reallocates memory for the partitionCode string based on the current length and the length of the chosen one
     //copies data from the chosen arithmetic coder model to the current model
@@ -419,9 +419,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         transformedBlock.CopySubblockFrom(transformedBlockV,{0,0,0,0},{0,0,0,0});
         currSsiBuffer.insert(currSsiBuffer.end(),ssiBufferV.begin(), ssiBufferV.end());
 
-        
-
-
+        std::cout<<"Busios e Borboletas! Algo errado aconteceu! O algoritmo escolheu dividir as vistas!!!"<<std::endl;
     }
     if(intraview_split == 1) {
         optimumJ = JS;
@@ -439,7 +437,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     }
     if(no_split == 1) {
-        std::cout<<"Param param param pararam 4"<<std::endl;
+        //std::cout<<"Param param param pararam 4"<<std::endl;
 
         optimumJ = J0;   
         char *code = new char[2+strlen(*partitionCode)];
@@ -448,20 +446,20 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         strcat(code, flagCode);
         delete(*partitionCode);
         *partitionCode = code;
-                 std::cout<<"Param param param pararam 5"<<std::endl;
+                 //std::cout<<"Param param param pararam 5"<<std::endl;
 
         entropyCoder.SetOptimizerProbabilisticModelState(coderModelState_0);
-                 std::cout<<block_0.data.sizes()<<std::endl;
-                 std::cout<<transformedBlock.data.sizes()<<std::endl;
+                 //std::cout<<block_0.data.sizes()<<std::endl;
+                 //std::cout<<transformedBlock.data.sizes()<<std::endl;
 
         //mPartitionData.CopySubblockFrom(block_0, 0, 0, 0, 0, position[0], position[1], position[2], position[3]);
         transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
-             std::cout<<"Param param param pararam 7"<<std::endl;
+             //std::cout<<"Param param param pararam 7"<<std::endl;
 
         //transformedBlock.orderH = block_0.getOrderH();
         //transformedBlock.orderV = block_0.getOrderV();
         currSsiBuffer.push_back(block_0.ssi);
-                 std::cout<<"Param param param pararam "<<std::endl;
+                 //std::cout<<"Param param param pararam "<<std::endl;
 
 
 
@@ -486,7 +484,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     //return optimum J
     //std::cout<<"ENDED OPTIMIZATION"<<std::endl;
-        std::cout<<"Param param param pararam final"<<std::endl;
+        //std::cout<<"Param param param pararam final"<<std::endl;
 
     return(optimumJ);     
 }
@@ -499,6 +497,7 @@ void TransformPartition :: EncodePartition_(Hierarchical4DEncoder&entropyCoder, 
         length[i] = mPartitionData_.data.size(i);
         scaledLambda*=length[i];
     }
+
     //std::cout<<"Partition Data Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
     //std::cout<<"Partition Data Transform Size: "<<mPartitionData_.transformSize[0]<<" "<<mPartitionData_.transformSize[1]<<" "<<mPartitionData_.transformSize[2]<<" "<<mPartitionData_.transformSize[3]<<std::endl;
     this->costImage = torch::zeros(mPartitionData_.size, torch::kDouble);
@@ -610,7 +609,7 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         mPartitionCodeIndex++;
         
         entropyCoder.EncodePartitionFlag(INTERVIEWSPLITFLAGSYMBOL);
-        
+        std::cout<<"INTER VIEW PARTITION"<<std::endl;
         std::array<int64_t,4> new_position, new_length;;
         
         new_position[0] = position[0];
