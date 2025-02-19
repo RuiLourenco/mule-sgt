@@ -59,8 +59,45 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
 
 }
 
+double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angle){
+    //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
+    char *partitionCodeS=NULL;
+    block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
+    block_0.ssi.estimateRhos(block_0.data,3000);
 
-double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
+    block_0.sgtTransform(currGain);
+    //std::cout<<"AFTER: ";
+    //block_0.ssi.print();
+    SgtSideInfo ssi0 = block_0.ssi; 
+    entropyCoder.mSubbandLF_ = block_0;
+
+
+    double Energy;
+    double rate = 0;
+    double distortion = 0;
+
+
+    if(mEvaluateOptimumBitPlane == 1){
+        entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(mLambda);
+        entropyCoder.LoadOptimizerState();
+        mEvaluateOptimumBitPlane = 0;
+        std::cout<<"MBP : "<<entropyCoder.mInferiorBitPlane<<std::endl;
+    }
+    if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
+        delete [] entropyCoder.mSegmentationTreeCodeBuffer;
+    }
+    entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
+    strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
+
+    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
+    double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
+    int RHO_PRECISION = ssi0.getRhoPrecision();
+    int DISP_PRECISION = ssi0.getAnglePrecision();
+    J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;
+    //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl;
+    return J0;
+}
+double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
     
     ProbabilityModel *currentCoderModelState;
     entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
@@ -70,40 +107,34 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     
     std::vector<SgtSideInfo> ssiBufferS;
     Block4D_ block_0(length);
-
-    
     block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
+    Block4D_ blockOrig = block_0;
+    Block4D_ temp_block_0 = block_0;
 
     double currGain = totalTransformGain(length);
-    block_0.sgtTransform(currGain,mDisparityRange);
+    double J0 = std::numeric_limits<double>::max();
+    double minAngle = -75;
+    double maxAngle = 75;
+    double angleStep = 3;
+
+    int count = 0;
+    for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
+        double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angle);
+        if (J0_curr < J0){
+            J0 = J0_curr;
+            block_0 = temp_block_0;
+            //std::cout<<"tempBlock: ";
+            //tempBlock.ssi.print();
+            //block_0.ssi.print();
+        }
+        temp_block_0 = blockOrig;
+        std::cout<<"                       \rAngle Search: "<<count++<<"/"<<round((maxAngle-minAngle)/angleStep)<<std::flush;
+    }
+    std::cout<<std::endl;
+
     SgtSideInfo ssi0 = block_0.ssi; 
-    entropyCoder.mSubbandLF_ = block_0;
-
-
-    double Energy;
-    double rate = 0;
-    double distortion = 0;
-    if(mEvaluateOptimumBitPlane == 1){
-        entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(lambda);
-        entropyCoder.LoadOptimizerState();
-        mEvaluateOptimumBitPlane = 0;
-        std::cout<<"Minimum Bit Plane: "<<entropyCoder.mInferiorBitPlane<<std::endl;
-    }
-    
-
-
-    if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
-        delete [] entropyCoder.mSegmentationTreeCodeBuffer;
-    }
-    entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
-    strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
-
-    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
-    double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
-    int RHO_PRECISION = ssi0.getRhoPrecision();
-    int DISP_PRECISION = ssi0.getAnglePrecision();
-double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
-    
+    //std::cout<<"SSI CHOSEN: ";
+    //ssi0.print();
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
