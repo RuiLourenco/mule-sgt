@@ -326,9 +326,18 @@ void TransformPartition :: EncodePartition_(Hierarchical4DEncoder&entropyCoder, 
         length[i] = mPartitionData_.size[i];
         scaledLambda*=length[i];
     }
+    mLambda = scaledLambda;
     //std::cout<<"Partition Data Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
     //std::cout<<"Partition Data Transform Size: "<<mPartitionData_.transformSize[0]<<" "<<mPartitionData_.transformSize[1]<<" "<<mPartitionData_.transformSize[2]<<" "<<mPartitionData_.transformSize[3]<<std::endl;
-    this->costImage = torch::zeros(mPartitionData_.size, torch::kDouble);
+    this->costImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->rateImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->distortionImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->rhoSImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->rhoTImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->rhoUImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->rhoVImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->angleImageH = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
+    this->angleImageV = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
     //std::cout<<"Cost Image Size: "<<costImage.size(0)<<" "<<costImage.size(1)<<" "<<costImage.size(2)<<" "<<costImage.size(3)<<std::endl;
 
     std::array<int64_t,4> position = {0,0,0,0};    
@@ -355,13 +364,9 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         
         
         entropyCoder.EncodeSSI_(mSsiBuffer[mSsiBufferIndex++]);
-        std::array<int64_t,4> trueLength = {9,9,length[2]/9,length[3]/9};
-        this->rhoSImage = mSsiBuffer[mSsiBufferIndex-1].getRhoS()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoTImage = mSsiBuffer[mSsiBufferIndex-1].getRhoT()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoUImage = mSsiBuffer[mSsiBufferIndex-1].getRhoU()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoVImage = mSsiBuffer[mSsiBufferIndex-1].getRhoV()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        this->angleImageH = mSsiBuffer[mSsiBufferIndex-1].getDisparityH()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        this->angleImageV = mSsiBuffer[mSsiBufferIndex-1].getDisparityV()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
+
+        std::array<int64_t,4> trueLength = length;
+        
 
         entropyCoder.mSubbandLF_ = Block4D_(length);
         entropyCoder.mSubbandLF_.emptyTransform();
@@ -372,7 +377,7 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
         //std::cout<<"First Coefficent BEING Compressed:"<<entropyCoder.mSubbandLF_.data[0][0][0][0].item()<<std::endl;
         //std::cout<<"Is data contiguous?"<<entropyCoder.mSubbandLF_.data.is_contiguous()<<std::endl;
-         int fCoeff = entropyCoder.mSubbandLF_.data[0][0][0][0].item<int>();
+        //int fCoeff = entropyCoder.mSubbandLF_.data[0][0][0][0].item<int>();
 
 
         //std::cout<<entropyCoder.mSubbandLF_.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
@@ -386,10 +391,22 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //std::cout<<"SGT Mean = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).mean().item()<<std::endl;
         //std::cout<<"SGT STD = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).std().item()<<std::endl;
         //std::cout<<"SGT Mean = "<<entropyCoder.mSubbandLF_.data.to(at::kDouble).mean({2,3},false,at::kDouble)<<std::endl;
-
+        //std::cout<<this->distortionImage.sizes()<<std::endl;
         entropyCoder.EncodeSubblock_(lambda);
-        this->rateImage = entropyCoder.mRate*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
-        //std::cout<<"mRate = "<<entropyCoder.mRate<<std::endl;
+        this->rateImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = entropyCoder.mRate*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        
+        double weight = totalTransformGain(length);
+        double distortion = (double) entropyCoder.mDistortion/(weight*weight);
+        this->distortionImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = distortion*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+
+        this->rhoSImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoS()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        this->rhoTImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoT()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        this->rhoUImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoU()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        this->rhoVImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        this->angleImageH.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityH()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        this->angleImageV.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
+        //std::cout<<"Weight = "<<weight<<std::endl;
+        //std::cout<<"mRate = "<<entropyCoder.mRate<<" mDistortion: "<<(double) entropyCoder.mDistortion/(weight*weight)<<std::endl;
 
         //std::cout<<"Position: = "<<position[0]<<","<<position[1]<<","<<position[2]/9<<","<<position[3]/9<<" Length = "<<length[0]+8<<","<<length[1]+8<<","<<length[2]/9<<","<<length[3]/9<<" "<<(entropyCoder.currCost/(double)size)<< std::endl;
 
