@@ -323,7 +323,7 @@ void TransformPartition :: EncodePartition_(Hierarchical4DEncoder&entropyCoder, 
     double scaledLambda = lambda;
     std::array<int64_t,4> length;
     for(int i = 0; i < 4; ++i){
-        length[i] = mPartitionData_.data.size(i);
+        length[i] = mPartitionData_.size[i];
         scaledLambda*=length[i];
     }
     //std::cout<<"Partition Data Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
@@ -364,9 +364,9 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         this->angleImageV = mSsiBuffer[mSsiBufferIndex-1].getDisparityV()*at::ones({trueLength[0],trueLength[1],trueLength[2],trueLength[3]},at::kDouble);
 
         entropyCoder.mSubbandLF_ = Block4D_(length);
-        entropyCoder.mSubbandLF_.CopySubblockFrom(mPartitionData_, position,{0,0,0,0});
-        entropyCoder.mSubbandLF_.orderH = mPartitionData_.orderH;
-        entropyCoder.mSubbandLF_.orderV = mPartitionData_.orderV;
+        entropyCoder.mSubbandLF_.emptyTransform();
+        std::array<int64_t,4> positionTransform = {0,0,position[2]*length[0],position[3]*length[1]};
+        entropyCoder.mSubbandLF_.CopySubblockFrom(mPartitionData_, positionTransform,{0,0,0,0});
         //std::cout<<"mSubbandLF_ Size: "<<entropyCoder.mSubbandLF_.data.size(2)<<"x"<<entropyCoder.mSubbandLF_.data.size(3)<<std::endl;
         //std::cout<<"mPartitionData_ Size: "<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;
         //std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;
@@ -401,7 +401,7 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         
         entropyCoder.EncodePartitionFlag(INTRAVIEWSPLITFLAGSYMBOL);
         
-        std::array<int64_t,4> new_position, new_length;;
+        std::array<int64_t,4> new_position, new_length;
         
         new_position[0] = position[0];
         new_position[1] = position[1];
