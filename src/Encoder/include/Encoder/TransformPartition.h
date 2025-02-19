@@ -31,8 +31,10 @@ public:
     at::Tensor angleImageH;
     at::Tensor angleImageV;
     at::Tensor rateImage;
+    at::Tensor distortionImage;
 
     double mGain = 1;
+    double mLambda = 0;
     double totalTransformGain(std::array<int64_t,4> length);
     int mSsiBufferIndex = 0;
     char *mPartitionCode;               /*!< String of flags defining the partition tree */
@@ -46,9 +48,11 @@ public:
     TransformPartition(void);
     ~TransformPartition(void);
     void RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchical4DEncoder &entropyCoder,std::array<double,2> disparityRange, double transformGain, double lambda);
-    double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , Hierarchical4DEncoder &entropyCoder, double lambda, std::vector<SgtSideInfo>& currSsi,char **partitionCode);
+    double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsi,char **partitionCode);
     void EncodePartition_(Hierarchical4DEncoder &entropyCoder, double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda);
+    double EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angle);
+
 };
    
 
