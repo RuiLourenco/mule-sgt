@@ -74,8 +74,10 @@ void Hierarchical4DEncoder :: EncodeSubblock_(double lambda) {
 
     strcpy(mSegmentationTreeCodeBuffer,"");
     this->currCost = RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy, rate,distortion);
-    this->mRate = rate;
-    //std::cout<<"Rate = "<<rate<< " WeightedRate = "<<lambda*rate<<"Distortion = "<<distortion<<" CurrentCost = "<<this->currCost<<std::endl;
+    this->mRate = rate/(size[0]*size[1]*size[2]*size[3]);
+    this->mDistortion = distortion/(size[0]*size[1]*size[2]*size[3]);
+
+    //std::cout<<"Rate = "<<rate<< " WeightedRate = "<<lambda*rate<<"Distortion = "<<this->mDistortion<<" CurrentCost = "<<this->currCost<<" SumCheck = "<<lambda*rate + distortion<<std::endl;
     //std::cout<<"Calculated Rate = "<<(this->currCost - distortion)/lambda<<std::endl;
   
     flagSearchIndex = 0;
