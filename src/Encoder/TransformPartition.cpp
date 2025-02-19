@@ -63,7 +63,7 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
-    block_0.ssi.estimateRhos(block_0.data,3000);
+    
 
     block_0.sgtTransform(currGain);
     //std::cout<<"AFTER: ";
@@ -399,10 +399,6 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         double distortion = (double) entropyCoder.mDistortion/(weight*weight);
         this->distortionImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = distortion*at::ones({trueLength[2],trueLength[3]},at::kDouble);
 
-        this->rhoSImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoS()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoTImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoT()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoUImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoU()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoVImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getRhoV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         this->angleImageH.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityH()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         this->angleImageV.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         //std::cout<<"Weight = "<<weight<<std::endl;

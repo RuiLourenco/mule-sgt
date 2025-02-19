@@ -1,6 +1,5 @@
 #include <LightField/LightField.h>
-#include <LightField/Block4D.h>
-#include <OldDCT/MultiscaleTransform.h>
+
 //#include <LightField/Block4D_.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -65,33 +64,33 @@ double mse(const vector<int>& a, const vector<int>& b) {
 
 
 
-TEST(LightFieldTest, BlockFromLightField){
-  LightField inputLF(9,9,512);
-  inputLF.mVerticalViewNumberOffset = 0;
-  inputLF.mHorizontalViewNumberOffset = 0;
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  //cout<<inputDirectory<<endl;
-  string extension = ".ppm";
-  inputLF.OpenLightFieldPPM(strdup(inputDirectory.c_str()), strdup(extension.c_str()), 9, 9, 3, 3, 'r');
-  //cout<<"Uploaded LightField The Old Way"<<endl;
-  string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  //cout<<"Uploaded LightField The New Way"<<endl;
+// TEST(LightFieldTest, BlockFromLightField){
+//   LightField inputLF(9,9,512);
+//   inputLF.mVerticalViewNumberOffset = 0;
+//   inputLF.mHorizontalViewNumberOffset = 0;
+//   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//   //cout<<inputDirectory<<endl;
+//   string extension = ".ppm";
+//   inputLF.OpenLightFieldPPM(strdup(inputDirectory.c_str()), strdup(extension.c_str()), 9, 9, 3, 3, 'r');
+//   //cout<<"Uploaded LightField The Old Way"<<endl;
+//   string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//   inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+//   //cout<<"Uploaded LightField The New Way"<<endl;
 
-  Block4D block_old;
-  block_old.SetDimension(2,2,2,2);
-  inputLF.ReadBlock4DfromLightField(&block_old,0, 0, 0, 0);  
-  vector<int> blockOldVec(block_old.mPixelData,block_old.mPixelData+2*2*2*2);
-  Block4D_ block_new = inputLF.ReadBlock4DfromLightField_({2,2,2,2},{0,0,0,0},0);
-  at::Tensor blockNew = block_new.data.to(torch::kInt).cpu().contiguous().view({-1});
-  vector<int> blockNewVec(blockNew.data_ptr<int>(),blockNew.data_ptr<int>()+2*2*2*2);
-  //cout<<blockNewVec[0]<<" "<<blockOldVec[0]<<endl;
-  ASSERT_EQ(blockOldVec.size(), blockNewVec.size());
-  ASSERT_EQ(2*2*2*2, blockOldVec.size());
-  ASSERT_EQ(2*2*2*2, blockNewVec.size());
- // cout<<"calculating mse"<<endl;
-  EXPECT_DOUBLE_EQ(0.0,mse(blockOldVec,blockNewVec));
-}
+//   Block4D block_old;
+//   block_old.SetDimension(2,2,2,2);
+//   inputLF.ReadBlock4DfromLightField(&block_old,0, 0, 0, 0);  
+//   vector<int> blockOldVec(block_old.mPixelData,block_old.mPixelData+2*2*2*2);
+//   Block4D_ block_new = inputLF.ReadBlock4DfromLightField_({2,2,2,2},{0,0,0,0},0);
+//   at::Tensor blockNew = block_new.data.to(torch::kInt).cpu().contiguous().view({-1});
+//   vector<int> blockNewVec(blockNew.data_ptr<int>(),blockNew.data_ptr<int>()+2*2*2*2);
+//   //cout<<blockNewVec[0]<<" "<<blockOldVec[0]<<endl;
+//   ASSERT_EQ(blockOldVec.size(), blockNewVec.size());
+//   ASSERT_EQ(2*2*2*2, blockOldVec.size());
+//   ASSERT_EQ(2*2*2*2, blockNewVec.size());
+//  // cout<<"calculating mse"<<endl;
+//   EXPECT_DOUBLE_EQ(0.0,mse(blockOldVec,blockNewVec));
+// }
 
 TEST(LightFieldTest,ReadWriteReadLoop){
   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
@@ -278,14 +277,7 @@ TEST(LightFieldTest,LightFieldFromBlocks){
   }
 
 }
-TEST(SGTTEST,CalcCovFun){
-    Block4D_ ones({2,2,2,2});
-    ones.Ones();
-    ones.data[0][0][0][0] = 35;
-    at::Tensor covFunH = ones.covFun(true);
-    at::Tensor covFunV = ones.covFun(false);
-    cout<<covFunH<<endl;
-}
+
 TEST(SGTTEST,isqrt){
     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
     string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
@@ -311,21 +303,6 @@ TEST(SGTTest,CalcDisparity){
   EXPECT_NEAR(2.75,ssi.getDisparityV(),0.3);
 }
 
-TEST(SGTTest,CalcRhos){
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-  std::cout<<"BLOCK CREATED"<<endl;
-  SgtSideInfo ssi;
-  ssi.setAngleV(0);
-  ssi.setAngleH(0);
-  std::cout<<"BLOCK CREATED"<<endl;
-  ssi.estimateRhos(block,3000);
-  //EXPECT_DOUBLE_EQ(0,ssi.getDisparity());
-
-}
 
 TEST(SGTTest,SideInfoCalc){
   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
@@ -335,20 +312,10 @@ TEST(SGTTest,SideInfoCalc){
   Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
 
   SgtSideInfo ssi(block,{-0.1,0.1});
-  cout<<ssi.getRhoS()<<" "<<ssi.getDisparityV()<<endl;
+  cout<<ssi.getDisparityV()<<endl;
 }
 
-TEST(SGTTEST,ModelCovMat){
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-  SgtSideInfo ssi(block,{-0.1,0.1});
-  at::Tensor modelCovMat = block.calcModelCovMatrix(ssi,true);
-  EXPECT_EQ(modelCovMat.size(0),9*16 );
-  EXPECT_EQ(modelCovMat.size(1),9*16 );
-}
+
 
 TEST(SGTTest,CompressDecompressHolyGrail){
   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
@@ -371,10 +338,6 @@ TEST(SGTTest,NoQuantizationScale){
   ones.Ones();
   ones = ones * 1023;
   SgtSideInfo ssi;
-  ssi.setRhoS(0.99);
-  ssi.setRhoU(0.99);
-  ssi.setRhoT(0.99);
-  ssi.setRhoV(0.99);
   ssi.setAngleV(1.00);
   ones.ssi = ssi;
   ones.sgtTransform(1);
@@ -383,25 +346,6 @@ TEST(SGTTest,NoQuantizationScale){
 
 }
 
-TEST(OldBlock,DCTTest){
-  LightField inputLF(9,9,512);
-  inputLF.mVerticalViewNumberOffset = 0;
-  inputLF.mHorizontalViewNumberOffset = 0;
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  //cout<<inputDirectory<<endl;
-  string extension = ".ppm";
-  inputLF.OpenLightFieldPPM(strdup(inputDirectory.c_str()), strdup(extension.c_str()), 9, 9, 3, 3, 'r');
-  Block4D block_old;
-  block_old.SetDimension(9,9,16,16);
-  inputLF.ReadBlock4DfromLightField(&block_old,0, 0, 0, 0);  
-  MultiscaleTransform DCTarray; 
-  DCTarray.SetDimension(9, 9, 16, 16);
-  DCTarray.mTransformGain_t = 1;
-  DCTarray.mTransformGain_s = 1;
-  DCTarray.mTransformGain_v = 1;
-  DCTarray.mTransformGain_u = 1;
-  DCTarray.Transform4D(block_old);
-}
 void RGB2YCbCr_BT601_test(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
   static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
   static const auto Cb_weights = at::tensor({-0.168736, -0.331264, 0.5}, at::kDouble).reshape({3, 1}); 

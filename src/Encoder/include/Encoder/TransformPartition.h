@@ -1,4 +1,3 @@
-#include "OldDCT/MultiscaleTransform.h"
 #include "Encoder/Hierarchical4DEncoder.h"
 #include <math.h>
 #include <string.h>
@@ -41,7 +40,6 @@ public:
     int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
-    Block4D mPartitionData;             /*!< DCT of all subblocks of the partition */
     Block4D_ mPartitionData_;
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */

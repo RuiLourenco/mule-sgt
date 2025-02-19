@@ -1,6 +1,4 @@
 #include <LightField/LightField.h>
-#include <LightField/Block4D.h>
-#include <OldDCT/MultiscaleTransform.h>
 #include <Encoder/Hierarchical4DEncoder.h>
 #include <Encoder/TransformPartition.h>
 //#include <LightField/Block4D_.h>
@@ -42,19 +40,7 @@ double totalTransformGain_(std::array<int64_t,4> length, std::array<int64_t,4> m
     return transformGain*1;
 
 }
-void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
-    
-    for(int n = 0; n < R.mlength_t*R.mlength_s*R.mlength_v*R.mlength_u; n++) {
-        int t;
-        Co.mPixelData[n] = R.mPixelData[n] - B.mPixelData[n];
-        t = B.mPixelData[n] + (Co.mPixelData[n]>>1);
-        Cg.mPixelData[n] = G.mPixelData[n] - t;
-        Y.mPixelData[n] = t + (Cg.mPixelData[n]>>1);
-        Co.mPixelData[n] += (Scale + 1)/2;
-        Cg.mPixelData[n] += (Scale + 1)/2;
-    }
-        
-}
+
 void RGB2YCoCg_(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
     Co = R.data - B.data;
     auto temp = B.data + Co.data.bitwise_right_shift(1);
@@ -927,8 +913,8 @@ void encodePartition(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_
     inputBlock.ssi = SgtSideInfo(angleV,angleH,disparityRange);
     //inputBlock.ssi.print();
     inputBlock.sgtTransform(currGain);
-    conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
-    conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
+    //conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
+    //conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
 
     ///cout<<"Transformed!"<<endl;
     entropyCoder.mSubbandLF_ = inputBlock;
@@ -977,99 +963,6 @@ void encodeBlock(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std:
     hdt.DoneEncoding();
 }
 
-
-
-at::Tensor decodeKLT(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile, at::Tensor covH, at::Tensor covV){
-     
-    hdt.RestartProbabilisticModel();
-
-    hdt.mSkipCount = 0;
-    hdt.mSkipMatrix = at::zeros({1,1,9*32,9*32});
-
-    //cout<<"Decoder Started!!"<<endl;
-    hdt.mInferiorBitPlane = hdt.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
-    std::cout<<"Minimum Bit Plane: "<<hdt.mInferiorBitPlane<<std::endl;
-
-    int partitionFlag = hdt.DecodePartitionFlag();
-    cout<<"Partition Flag DECODED! "<<partitionFlag<<endl;
-    //SgtSideInfo ssi = hdt.DecodeSsi(disparityRange);
-    // cout<<"SSI DECODED!"<<endl;
-    //ssi.print();     
-    hdt.mSubbandLF = Block4D_({9,9,32,32});
-    cout<<"Block Created!"<<endl;
-    hdt.mSubbandLF.emptyTransform();
-    cout<<"Block Emptied!"<<endl;
-
-    hdt.DecodeBlock(0, 0, 0, 0, hdt.mSubbandLF.transformSize[0], hdt.mSubbandLF.transformSize[1], hdt.mSubbandLF.transformSize[2], hdt.mSubbandLF.transformSize[3], hdt.mSuperiorBitPlane); 
-    write_tensor(log2(1+hdt.mSubbandLF.data.squeeze().abs()),inputImageFile);
-
-    cout<<"Block DECODED!"<<endl;
-    double gain = 288;
-    cout<<"Gain: "<<gain<<endl;
-    cout<<hdt.mSubbandLF.data.sizes()<<endl;
-    hdt.mSubbandLF.ikltTransform(gain,covH,covV);
-    cout<<"transformed!"<<endl;
-    at::Tensor flatTransform = hdt.mSubbandLF.getFlatBlock();
-    cout<<"returning"<<endl;
-    return flatTransform;
-}
-
-void encodePartitionKLT(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_ inputBlock, std::array<double,2> disparityRange, double& J0,double& conditionNumberH, double& conditionNumberV){
-    std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
-    double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
-    inputBlock.data = inputBlock.data.contiguous();
-    
-    entropyCoder.LoadOptimizerState();
-    //cout<<"Optimizer State Loaded!"<<endl;
-
-
-    double currGain = totalTransformGain_(length,length);
-    //cout<<"currGain: "<<currGain<<endl;
-    //inputBlock.ssi.print();
-    inputBlock.kltTransform(currGain);
-    conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
-    conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
-
-    ///cout<<"Transformed!"<<endl;
-    entropyCoder.mSubbandLF_ = inputBlock;
-    entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(scaledLambda);
-    std::cout<<entropyCoder.mInferiorBitPlane<<std::endl;
-
-    entropyCoder.LoadOptimizerState();
-    
-    ProbabilityModel *currentCoderModelState;
-    entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
-    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
-    double Energy = 0;
-    double rate = 0;
-    double distortion = 0;
-    if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
-        delete [] entropyCoder.mSegmentationTreeCodeBuffer;
-    }
-    entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
-    strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
-
-    J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
-    ProbabilityModel *coderModelState_0;
-    entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    entropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-
-    entropyCoder.EncodeInteger(entropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
-    entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-    //entropyCoder.EncodeSSI_(inputBlock.ssi);
-    std::cout<<"SIZES:"<<entropyCoder.mSubbandLF_.data.sizes()<<std::endl;
-    entropyCoder.EncodeSubblock_(scaledLambda);
-    std::cout<<"Encoded!"<<std::endl;
-
-}
-void encodeBlockKLT(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std::array<double,2> disparityRange, double& J0, double& conditionNumberH, double& conditionNumberV){
-    
-    hdt.RestartProbabilisticModel();
-    //std::cout<<"ILY"<<std::endl;
-
-    encodePartitionKLT(hdt, lambda,block, disparityRange, J0,conditionNumberH,conditionNumberV);
-    hdt.DoneEncoding();
-}
 at::Tensor decodeBlock(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile){
      
     hdt.RestartProbabilisticModel();
