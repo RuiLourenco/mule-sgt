@@ -245,9 +245,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
 
     if(J0 > 0) 
-        J0 += 1.0*lambda;
+        J0 += 1.0*mLambda;
     if(JS > 0)
-        JS += 2.0*lambda;
+        JS += 2.0*mLambda;
     
     
     
