@@ -4,6 +4,7 @@
 #include <boost/range/algorithm_ext.hpp>
 #include <boost/range/numeric.hpp>
 #include <opencv2/opencv.hpp>
+#include "osqp.h"
 
 
 #include <boost/range/irange.hpp>
@@ -137,6 +138,311 @@ void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> v
   write_image(mat,path,valueRange);
 #endif
 }
+
+
+#include <torch/torch.h>
+#include <osqp/osqp.h>
+
+// Function to convert a dense matrix (torch tensor) to CSC format
+void convertToSparseCSC(const torch::Tensor& denseTensor, std::vector<double> &values, std::vector<c_int> &indices_row, std::vector<c_int> &indptr) {
+    // Ensure the input tensor is a 2D tensor
+    if (denseTensor.dim() != 2) {
+        throw std::invalid_argument("The input tensor must be a 2D tensor.");
+    }
+
+    int64_t rows = denseTensor.size(0);
+    int64_t cols = denseTensor.size(1);
+
+    // Convert the tensor to a dense format (if it's not already dense)
+    auto dense = denseTensor.contiguous();
+
+    // Step 1: Collect the non-zero elements (values) and their indices
+
+    std::vector<c_int> indices_col;
+
+    for (int64_t col = 0; col < cols; ++col) {
+        for (int64_t row = 0; row < rows; ++row) {
+            if (dense[row][col].item<float>() != 0.0f) {
+                values.push_back(dense[row][col].item<float>());
+                indices_row.push_back(row);
+                indices_col.push_back(col);
+            }
+        }
+    }
+
+    // Step 2: Build the `indptr` (Cumulative counts of non-zero entries in each column)
+    
+    for (int64_t i = 0; i < indices_col.size(); ++i) {
+        indptr[indices_col[i] + 1]++;
+    }
+
+    // Perform cumulative sum on `indptr`
+    for (int64_t col = 1; col <= cols; ++col) {
+        indptr[col] += indptr[col - 1];
+    }
+
+    
+
+    // You can return these tensors as a tuple or just one of them
+    // Here we will just return values, indices_row, and indptr
+
+
+}
+
+at::Tensor SgtSideInfo::QPOptimization(at::Tensor P, at::Tensor q){
+    // Ensure P and q are contiguous
+    P = P.contiguous().to(torch::kDouble);
+    q = q.contiguous().to(torch::kDouble);
+    at::Tensor A = torch::eye(2,at::kDouble); 
+    std::vector<double> valuesA;
+    std::vector<c_int> indices_rowA;
+    std::vector<c_int> indptrA(A.size(1) + 1, 0);
+    convertToSparseCSC(A,valuesA,indices_rowA,indptrA);
+    csc* A_sparse = csc_matrix(A.size(0), A.size(1), valuesA.size(), valuesA.data(), indices_rowA.data(), indptrA.data());
+    // Get raw pointers to P and q
+    //double* P_data = P.data_ptr<double>();
+    double* q_data = q.data_ptr<double>();
+
+    // Inequality constraints: 0 <= x <= 0.99999
+    //torch::Tensor A_constraint = torch::ones({n,n}, torch::kDouble); // Identity matrix for bounds
+    // torch::Tensor l = torch::tensor({0.,0.,-OSQP_INFTY,-OSQP_INFTY}, torch::kDouble);       // Lower bounds (0)
+    // torch::Tensor u = torch::tensor({OSQP_INFTY,OSQP_INFTY,0.99999f,0.99999f}, torch::kDouble); // Upper bounds (0.99999)
+
+    // // Ensure A_constraint, l, and u are contiguous
+    // A_constraint = A_constraint.contiguous();
+    // l = l.contiguous();
+    // u = u.contiguous();
+
+
+
+    // Get raw pointers to A_constraint, l, and u
+    //double* A_constraint_data = A_constraint.data_ptr<double>();
+    double l_data[2] = {-0.8,-0.8};
+    double u_data[2] = {-log(0.99999),-log(0.99999)};
+    //std::cout<<l_data[0]<<" "<<u_data[0]<<std::endl;
+    std::vector<double> values;
+    std::vector<c_int> indices_row;
+    std::vector<c_int> indptr(P.size(1) + 1, 0);
+    convertToSparseCSC(P.triu(),values,indices_row,indptr);
+    // std::cout<<"Values: ";
+    // for(int i = 0;i<values.size();i++){
+    //     std::cout<<values[i]<<" ";
+    // }
+    // std::cout<<std::endl;
+    // std::cout<<"indices_row: ";
+    // for(int i = 0;i<indices_row.size();i++){
+    //     std::cout<<indices_row[i]<<" ";
+    // }
+    // std::cout<<std::endl;
+    // std::cout<<"indptr: ";
+    // for(int i = 0;i<indptr.size();i++){
+    //     std::cout<<indptr[i]<<" ";
+    // }
+    // std::cout<<std::endl;
+
+    csc* P_sparse = csc_matrix(P.size(0), P.size(1), values.size(), values.data(), indices_row.data(), indptr.data());
+    //std::cout<<P_sparse->x[values.size()-1]<<" "<<P_sparse->i[values.size()-1]<<" "<<P_sparse->p[0]<<std::endl;
+    //std::cout<<P[0][0]<<std::endl;
+    // OSQP data
+    OSQPData data;
+    data.n = 2;
+    data.m = 2; // Number of constraints
+    data.P = P_sparse; // Dense matrix
+    data.q = q_data;
+    data.A = A_sparse;
+    //data.A = convertToSparseCSC(A_constraint); // Dense matrix
+    data.l = l_data;
+    data.u = u_data;
+    //std::cout<<"I have initialized optimization data!"<<std::endl;
+    // OSQP settings
+    OSQPSettings settings;
+    osqp_set_default_settings(&settings);
+    settings.eps_abs = 1e-8;  // Absolute tolerance
+    settings.eps_rel = 1e-8;  // Relative tolerance
+    settings.eps_prim_inf = 1e-8; // Primal infeasibility tolerance
+    settings.eps_dual_inf = 1e-8; // Dual infeasibility tolerance
+    settings.polish = 1; // Enable solution polishing
+    settings.warm_start = 0;
+    settings.rho = 0.000001;
+
+    settings.verbose = 0; // Disable verbose output
+
+    // OSQP workspace
+    OSQPWorkspace* work;
+    //std::cout<<"TAG1"<<std::endl;
+
+    osqp_setup(&work, &data, &settings);
+    //std::cout<<"I have setup optimization data!"<<std::endl;
+
+
+    // Solve the problem
+    osqp_solve(work);
+
+    // Extract the solution
+    torch::Tensor x_torch = torch::from_blob(work->solution->x, {2}, torch::kDouble).clone();
+    //std::cout << "Solver status: " << work->info->status << std::endl;
+    //std::cout<<"x_torch: "<<x_torch.unsqueeze(0)<<std::endl;
+    // Clean up
+    osqp_cleanup(work);
+
+    return x_torch;
+}
+// Function to solve constrained least squares using OSQP
+at::Tensor SgtSideInfo::constrainedLeastSquares(at::Tensor A, at::Tensor b){
+    
+    // Ensure A and b are 2D and 1D tensors respectively
+    TORCH_CHECK(A.dim() == 2, "A must be a 2D tensor");
+    TORCH_CHECK(b.squeeze().dim() == 1, "b must be a 1D tensor");
+
+    // Get dimensions
+    int m = A.size(0); // Number of rows in A
+    int n = A.size(1); // Number of columns in A
+    //std::cout<<A.sizes()<<std::endl;
+
+    // Ensure A and b are contiguous and of type float
+    torch::Tensor A_contiguous = A.contiguous().to(torch::kDouble);
+    torch::Tensor b_contiguous = b.contiguous().to(torch::kDouble);
+
+    // Get raw pointers to the data
+    double* A_data = A_contiguous.data_ptr<double>();
+    double* b_data = b_contiguous.data_ptr<double>();
+
+    // Construct the QP problem
+    // Minimize 0.5 * x^T * P * x + q^T * x
+    // Subject to l <= A * x <= u
+
+    // P = A^T * A
+    torch::Tensor P = torch::matmul(A.t(), A);
+
+    // q = -A^T * b
+    torch::Tensor q = -torch::matmul(A.t(), b);
+
+    // // Ensure P and q are contiguous
+    // P = P.contiguous().to(torch::kDouble);
+    // q = q.contiguous().to(torch::kDouble);
+
+    // // Get raw pointers to P and q
+    // double* P_data = P.data_ptr<double>();
+    // double* q_data = q.data_ptr<double>();
+
+    // // Inequality constraints: 0 <= x <= 0.99999
+    // torch::Tensor A_constraint = torch::ones({n,n}, torch::kDouble); // Identity matrix for bounds
+    // // torch::Tensor l = torch::tensor({0.,0.,-OSQP_INFTY,-OSQP_INFTY}, torch::kDouble);       // Lower bounds (0)
+    // // torch::Tensor u = torch::tensor({OSQP_INFTY,OSQP_INFTY,0.99999f,0.99999f}, torch::kDouble); // Upper bounds (0.99999)
+
+    // // // Ensure A_constraint, l, and u are contiguous
+    // // A_constraint = A_constraint.contiguous();
+    // // l = l.contiguous();
+    // // u = u.contiguous();
+
+
+
+    // // Get raw pointers to A_constraint, l, and u
+    // //double* A_constraint_data = A_constraint.data_ptr<double>();
+    // double l_data[2] = {0.,0.};
+    // double u_data[2] = {0.99999f,0.99999f};
+    // std::cout<<l_data[0]<<" "<<u_data[0]<<std::endl;
+    // std::vector<double> values;
+    // std::vector<c_int> indices_row;
+    // std::vector<c_int> indptr(P.size(1) + 1, 0);
+    // convertToSparseCSC(P.triu(),values,indices_row,indptr);
+    // std::cout<<P.triu().sizes()<<std::endl;
+    // csc* P_sparse = csc_matrix(P.size(0), P.size(1), values.size(), values.data(), indices_row.data(), indptr.data());
+    // std::cout<<P_sparse->x[values.size()-1]<<" "<<P_sparse->i[values.size()-1]<<" "<<P_sparse->p[0]<<std::endl;
+    // std::cout<<P[0][0]<<std::endl;
+    // // OSQP data
+    // OSQPData data;
+    // data.n = n;
+    // data.m = 2; // Number of constraints
+    // data.P = P_sparse; // Dense matrix
+    // data.q = q_data;
+    // //data.A = convertToSparseCSC(A_constraint); // Dense matrix
+    // data.l = l_data;
+    // data.u = u_data;
+    // std::cout<<"I have initialized optimization data!"<<std::endl;
+    // // OSQP settings
+    // OSQPSettings settings;
+    // osqp_set_default_settings(&settings);
+
+    // settings.verbose = 1; // Disable verbose output
+
+    // // OSQP workspace
+    // OSQPWorkspace* work;
+    // std::cout<<"TAG1"<<std::endl;
+
+    // osqp_setup(&work, &data, &settings);
+    // std::cout<<"I have setup optimization data!"<<std::endl;
+
+
+    // // Solve the problem
+    // osqp_solve(work);
+
+    // // Extract the solution
+    // torch::Tensor x_torch = torch::from_blob(work->solution->x, {n}, torch::kFloat32).clone();
+
+    // // Clean up
+    // osqp_cleanup(work);
+
+    return QPOptimization(P,q);
+}
+// at::Tensor SgtSideInfo::constrainedLeastSquares(at::Tensor A, at::Tensor b){
+//     // Compute Quadratic and Linear term for QP: 
+//     // P = A^T A (Hessian matrix)
+//     // q = -A^T b (Linear term)
+//     std::cout<<"0"<<std::endl;
+//     torch::Tensor P = A.t().mm(A);
+//     torch::Tensor q = -A.t().mm(b);
+//     std::cout<<"1"<<std::endl;
+
+//     // Convert tensors to raw C arrays (OSQP requires raw pointers)
+//     auto P_data = P.contiguous().data_ptr<double>();
+//     auto q_data = q.contiguous().data_ptr<double>();
+
+//     std::cout<<"2"<<std::endl;
+
+//     // Setup OSQP problem
+//     OSQPSettings settings;
+//     osqp_set_default_settings(&settings);
+//     std::cout<<"3"<<std::endl;
+
+//     settings.alpha = 1.0;  // Step size parameter
+//     settings.verbose = true;
+
+//     OSQPWorkspace *work;
+//     OSQPData data;
+//     c_int n = 2;  // Number of variables
+//     std::cout<<"4"<<std::endl;
+//     std::cout<<A.sizes()<<std::endl;
+
+//     // Convert P (Hessian) into sparse format (only diagonal stored)
+//     csc *P_sparse = csc_matrix(P.size(0), P.size(1), P.numel(), P_data, nullptr, nullptr);
+//     //csc *A_sparse = csc_matrix(A_constrains.size(0), A_constrains.size(1), A_constrains.numel(), A_constrains_data.contiguous().data_ptr<double>(), nullptr, nullptr);
+//     std::cout<<"5"<<std::endl;
+//     std::vector<c_float> l(n, 0.0), u(n, 0.99999);
+    
+//     std::cout<<"6"<<std::endl;
+
+//     // Initialize OSQP data
+//     data.n = n;
+//     data.m = 0;
+//     data.P = P_sparse;
+//     data.q = q_data;
+//     data.l = l.data();
+//     data.u = u.data();
+
+//     std::cout<<"I have initialized optimization data!"<<std::endl;
+//     // Setup solver
+//     osqp_setup(&work, &data, &settings);
+//     std::cout<<"setup is complete!"<<std::endl;
+//     // Solve the problem
+//     osqp_solve(work);
+//     std::cout<<"I have found the solution! It should be "<<work->solution->x[0]<<" and "<<work->solution->x[1]<<std::endl;
+
+//     // Extract solution into a Torch tensor (from raw pointer)
+//     torch::Tensor x = torch::from_blob(work->solution->x, {n}, torch::kDouble);
+//     return x;
+
+// }
 
 void Block4D_::Extend_T(int length_t) {
     this->data.index({at::indexing::Slice(length_t,data.size(0)),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()}) = this->data.index({at::indexing::Slice(length_t-1,length_t),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()}).repeat({data.size(0)-length_t,1,1,1});
@@ -2639,16 +2945,17 @@ void SgtSideInfo::estimateRhosLS(const at::Tensor& cov, bool isHorizontal){
     auto A = torch::cat({abs(meshes[0].flatten().unsqueeze(1)),temp.flatten().unsqueeze(1)},1); 
 
 
-    auto A_t = A.t();
-    //std::cout<<A.sizes()<<" "<<b.sizes()<<std::endl;
-    auto beta = matmul(matmul(inverse(matmul(A_t,A)),A_t),b);
-
+    //auto A_t = A.t();
+    // //std::cout<<A.sizes()<<" "<<b.sizes()<<std::endl;
+    //auto beta = matmul(matmul(inverse(matmul(A_t,A)),A_t),b);
+    //std::cout<<"New Stuff Starts Here"<<std::endl;
+    auto beta = constrainedLeastSquares(A,b);
     //std::cout<<beta.sizes()<<std::endl;
 
-    auto r = ((matmul(A,beta) - b)*(matmul(A,beta) - b));
-    double current_cost = (r.sum()/(r.size(0)-1)).item<double>();
+    //auto r = ((matmul(A,beta) - b)*(matmul(A,beta) - b));
+    //double current_cost = (r.sum()/(r.size(0)-1)).item<double>();
     at::Tensor best_beta = beta.exp();
-    //std::cout<<"Rhos = "<<best_beta<<std::endl;
+    //std::cout<<"RhoS = "<<best_beta<<std::endl;
     if(isHorizontal){
     setRhoS(best_beta[0].item<double>());
     setRhoU(best_beta[1].item<double>());
