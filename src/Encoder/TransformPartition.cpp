@@ -97,6 +97,7 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl;
     return J0;
 }
+
 double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
     
     ProbabilityModel *currentCoderModelState;
@@ -354,7 +355,6 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
     if(mPartitionCode[mPartitionCodeIndex] == NOSPLITFLAG) {
       
         mPartitionCodeIndex++;
-        
         entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
         // std::cout<< "RhoS = "<<mSsiBuffer[mSsiBufferIndex].getRhoS()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoSCode()<<std::endl;
         // std::cout<< "RhoT = "<<mSsiBuffer[mSsiBufferIndex].getRhoT()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoTCode()<<std::endl;
