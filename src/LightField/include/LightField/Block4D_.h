@@ -47,7 +47,9 @@ class SgtSideInfo{
         SgtSideInfo(std::array<double,2> dispRange);
         SgtSideInfo(double disparityV,double disparityH, std::array<double,2> dispRange);
         void estimateRhosFromMonotony(Block4D_ block);
-        
+        at::Tensor QPOptimization(at::Tensor P, at::Tensor q);
+        at::Tensor constrainedLeastSquares(at::Tensor A, at::Tensor b);
+
         std::array<double,2> disparityRange;
 
         int getRhoPrecision() const;
