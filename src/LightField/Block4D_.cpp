@@ -52,7 +52,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 #define ADAPTIVE_RHO_CALC 1
 #define FLAT_TRANSFORM 1
 
-#define DEBUG 0
+#define DEBUG 1
 #define MATLAB_DEBUG 0
 
 void saveVectorAsMatlabScript(std::vector<double> vector,std::string name){
@@ -587,15 +587,79 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     }
     return transform;
 }
-  
+torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
+
+    double theta;
+    int64_t height,width;
+    if(isHorizontal){
+        theta = ssi.getAngleH();
+        height = this->size[1];
+        width = this->size[3];
+
+    }else{
+        theta = ssi.getAngleV();
+        height = this->size[0];
+        width = this->size[2];
+    }
+
+    int64_t num_nodes = width * height;
+    torch::Tensor laplacian = torch::zeros({num_nodes, num_nodes},at::kDouble);
+    
+    double radians = theta * M_PI / 180.0;
+    //int64_t mid_y = height / 2;
+    
+    for (int64_t y = 0; y < height; ++y) {
+        for (int64_t x = 0; x < width; ++x) {
+            //if(y==x) continue;
+            int64_t node = y * width + x;
+            int64_t degree = laplacian.index({node, node}).item<int64_t>();
+            
+            // Connect horizontally
+            if (x > 0) {
+                int64_t left = node - 1;
+                laplacian.index_put_({node, left}, -1);
+                laplacian.index_put_({left, node}, -1);
+                //laplacian.index_put_({node, node}, laplacian.index({node, node}) + 1);
+                //laplacian.index_put_({left, left}, laplacian.index({left, left}) + 1);
+            }
+            if (x < width - 1) {
+                int64_t right = node + 1;
+                laplacian.index_put_({node, right}, -1);
+                laplacian.index_put_({right, node}, -1);
+                //laplacian.index_put_({node, node}, laplacian.index({node, node}) + 1);
+                //laplacian.index_put_({right, right}, laplacian.index({right, right}) + 1);
+            }
+            
+            // Compute vertical connection
+            double x_intersect = x + tan(radians);
+            int64_t closest_x = std::round(x_intersect);
+            closest_x = std::clamp(closest_x, int64_t(0), width - 1);
+            if (y < height - 1) {
+                int64_t target = (y + 1) * width + closest_x;
+                laplacian.index_put_({node, target}, -1);
+                laplacian.index_put_({target, node}, -1);
+                //laplacian.index_put_({node, node}, laplacian.index({node, node}) + 1);
+                //laplacian.index_put_({target, target}, laplacian.index({target, target}) + 1);
+            }
+        }
+    }
+    std::cout<<"stuff"<<std::endl;
+    for(int i = 0; i < laplacian.size(0);++i){
+        laplacian[i][i] = -laplacian[i].sum();
+    }
+    std::cout<<"and things"<<std::endl;
+    return laplacian;
+}  
 
 void Block4D_::sgtTransform(double scale){
     //std::cout<<"SGT transform"<<std::endl;
     
     //ssi.print();
-    at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
-    at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
-   
+    at::Tensor modelCovMatH = this->computeLaplacian(ssi,true);
+    std::cout<<"Horizontal Over"<<std::endl;
+    at::Tensor modelCovMatV = this->computeLaplacian(ssi,false);
+       std::cout<<"Vertical Over"<<std::endl;
+
     at::Tensor eigValsH,eigValsV;
     
     
@@ -608,6 +672,11 @@ void Block4D_::sgtTransform(double scale){
     
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
+    std::cout<<"Got the Matrices!"<<std::endl;
+    at::Tensor basis = get2DBasis(sgtMatrixH, 1);
+    std::cout<<"WritingBasisImage"<<std::endl;
+    write_tensor(basis, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisViz.png");
+
     write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
     write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
@@ -1114,8 +1183,8 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
     this->ssi = ssi;
     //SgtSideInfo sortSSI(this->ssi.getAngleV(),this->ssi.getAngleH(),this->ssi.disparityRange);
     //std::cout<<"Inverse Transforming block of size: "<<this->data.sizes()<<std::endl;
-    at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
-    at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);  
+    at::Tensor modelCovMatH = this->computeLaplacian(ssi,true);
+    at::Tensor modelCovMatV = this->computeLaplacian(ssi,false);  
     at::Tensor eigValsH,eigValsV; 
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV = getSgtTransformMatrix(modelCovMatV,false,eigValsV);
@@ -1144,11 +1213,11 @@ at::Tensor Block4D_::sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrix
     at::Tensor block = flatBlock.to(at::kDouble);
     for(int i = 0; i < eigValsH.size(0); i++){
         if (eigValsH[i].item<double>() < 0) {
-            std::cerr<<"eigValsH < 0 Should happen Once!"<<std::endl;
+            //std::cerr<<"eigValsH < 0 Should happen Once!"<<std::endl;
            // exit(-2);
         }
         if (eigValsV[i].item<double>() < 0) {
-            std::cerr<<"eigValsV Should happen Once!< 0"<<std::endl;
+            //std::cerr<<"eigValsV Should happen Once!< 0"<<std::endl;
             //exit(-2);
         }
     }
@@ -1244,19 +1313,12 @@ at::Tensor Block4D_::getFlatBlockValid(){
     return flatBlock;
 }
 
-void Block4D_::sgtTransform(double scale,std::array<double,2> dispRange){
-
-    this->ssi = SgtSideInfo(*this,dispRange);
-    //ssi.print();
-    sgtTransform(scale);
-}
 
 
 void Block4D_::isgtTransform(double scale,SgtSideInfo ssi){
     at::Tensor recoveredBlock = isgtTransformData(scale,ssi);
     this->data = recoveredBlock;
     this->sgtDomain = false;
-    
 }
 
 
@@ -1288,15 +1350,6 @@ SgtSideInfo::SgtSideInfo(std::array<double,2> dispRange){
     this->angleRange = angleRangeFromDispRange(dispRange);
 }
 
-
-SgtSideInfo::SgtSideInfo(const Block4D_& block,std::array<double,2> dispRange){
-
-    this->disparityRange = dispRange;
-    this->angleRange = angleRangeFromDispRange(dispRange);
-
-    estimateDisparity(block);
-    
-}
 
 
 

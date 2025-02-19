@@ -72,6 +72,7 @@ class Block4D_
 private:
 
     at::Tensor getFlatBlockValid();
+    torch::Tensor computeLaplacian(SgtSideInfo ssi, bool isHorizontal);
     at::Tensor getFlatBlockAll();
     at::Tensor flat24DAll(const at::Tensor& flatBlock) const;
     at::Tensor flat24DValid(const at::Tensor& flatBlock) const;
