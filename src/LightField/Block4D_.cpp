@@ -49,8 +49,8 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
     return {meshes[0], meshes[1]};
 }
 
-#define ADAPTIVE_RHO_CALC 0
-#define FLAT_TRANSFORM 0
+#define ADAPTIVE_RHO_CALC 1
+#define FLAT_TRANSFORM 1
 
 #define DEBUG 0
 #define MATLAB_DEBUG 0
