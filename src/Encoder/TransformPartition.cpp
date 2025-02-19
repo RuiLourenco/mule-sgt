@@ -195,7 +195,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         Block4D_ transformedBlockS11(new_length);
         transformedBlockS11.emptyTransform();
         
-        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS11, new_position, new_length,  entropyCoder, lambda,ssiBufferS10, &partitionCodeS11);
+        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS11, new_position, new_length,  entropyCoder, ssiBufferS10, &partitionCodeS11);
         
         new_position[3] = position[3];
         new_length[3] = length[3]/2;
@@ -204,7 +204,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         transformedBlockS10.emptyTransform();
         
         
-        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS10, new_position, new_length, entropyCoder, lambda, ssiBufferS11, &partitionCodeS10);
+        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS10, new_position, new_length, entropyCoder, ssiBufferS11, &partitionCodeS10);
         //concatenates side info buffers
         ssiBufferS.insert(ssiBufferS.end(), ssiBufferS00.begin(), ssiBufferS00.end());
         ssiBufferS.insert(ssiBufferS.end(), ssiBufferS01.begin(), ssiBufferS01.end());
