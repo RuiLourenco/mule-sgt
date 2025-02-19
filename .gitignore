@@ -4,3 +4,5 @@
 /eval/
 /DebugDump/
 /zMatlabFiles/
+/DebugData/
+*.png
