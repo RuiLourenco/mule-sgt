@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
 
     std::cout<<"Opening Stuff and things:"<<std::endl;
     std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
-    std::string experiment = "Greek/64-8-angle3/";
+    std::string experiment = "SGFTDebug/";
     // std::string experiment = "Greek/64-8/";
     std::string path = folder + experiment;
     create_directory(path);
@@ -544,8 +544,6 @@ int main(int argc, char **argv) {
      hdt.DoneEncoding();
     fclose(outputFileNamePointer);
     cout<<"I'm exiting, the rest is just bullshit"<<endl;
-    inputLF.CloseLightField();
-
 }
 
 void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {

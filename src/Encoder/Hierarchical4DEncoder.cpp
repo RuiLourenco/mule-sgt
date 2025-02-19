@@ -550,7 +550,6 @@ void Hierarchical4DEncoder :: EncodePartitionFlag(int symbol) {
 void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
     //std::cout<<"Encode SSI: ";
     //ssi.print();
-    int precisionRho = ssi.getRhoPrecision();
     int precisionD = ssi.getAnglePrecision();
     //std::cout<<"precision: "<<precisionD<<" "<<precisionRho<<std::endl;
     //EncodeInteger(5,1);

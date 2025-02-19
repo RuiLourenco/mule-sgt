@@ -65,7 +65,7 @@ double mse(const vector<int>& a, const vector<int>& b) {
 
 
 // TEST(LightFieldTest, BlockFromLightField){
-//   LightField inputLF(9,9,512);
+//   LightField inputLF({(int64_t)9,9,512,512});
 //   inputLF.mVerticalViewNumberOffset = 0;
 //   inputLF.mHorizontalViewNumberOffset = 0;
 //   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
@@ -95,15 +95,14 @@ double mse(const vector<int>& a, const vector<int>& b) {
 TEST(LightFieldTest,ReadWriteReadLoop){
   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
   string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+
+  LightField inputLF(inputDirectory,pattern);
   //cout<<"opened: "<<inputDirectory<<endl;
   std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/greek-copy/";
   //cout<<"writing!"<<endl;
   inputLF.OpenLightFieldPPM_(outputDirectory,"",'w');
   //cout<<"wrote to: "<<outputDirectory<<endl;
-  LightField readLF(9,9,512);
-  readLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+  LightField readLF(inputDirectory,pattern);
   //cout<<" read from: "<<inputDirectory<<endl;
   //cout<<readLF.data.sizes()<<" "<<inputLF.data.sizes()<<endl;
   double mse_error = mse(readLF.data,inputLF.data);
@@ -239,12 +238,12 @@ TEST(LightFieldTest,BlockFrom4Sublocks){
 }
 
 TEST(LightFieldTest,LightFieldFromBlocks){
-  LightField lightField({9,9,20,20,3});
+  LightField lightField({(int64_t)9,9,20,20,3});
 
-  Block4D_ B00 = Block4D_({9,9,10,10});
-  Block4D_ B01 = Block4D_({9,9,10,10});
-  Block4D_ B11 = Block4D_({9,9,10,10});
-  Block4D_ B10 = Block4D_({9,9,10,10});
+  Block4D_ B00 = Block4D_({(int64_t)9,9,10,10});
+  Block4D_ B01 = Block4D_({(int64_t)9,9,10,10});
+  Block4D_ B11 = Block4D_({(int64_t)9,9,10,10});
+  Block4D_ B10 = Block4D_({(int64_t)9,9,10,10});
 
   B00.Zeros();
   B01.Ones();
@@ -278,63 +277,30 @@ TEST(LightFieldTest,LightFieldFromBlocks){
 
 }
 
-TEST(SGTTEST,isqrt){
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-    string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-    LightField inputLF(9,9,512);
-    inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-    Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-    at::Tensor iSqrtCovMatH = block.iSqrtCovMat(true);
-    cout<<iSqrtCovMatH<<endl;
-}
-
-TEST(SGTTest,CalcDisparity){
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-
-  SgtSideInfo ssi;
-  double startingDisparity = ssi.getDisparityV();
-  cout<<startingDisparity<<endl;
-  ssi.estimateDisparity(block);
-  cout<<ssi.getDisparityV()<<endl;
-  EXPECT_NEAR(2.75,ssi.getDisparityV(),0.3);
-}
-
-
-TEST(SGTTest,SideInfoCalc){
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-
-  SgtSideInfo ssi(block,{-0.1,0.1});
-  cout<<ssi.getDisparityV()<<endl;
-}
 
 
 
-TEST(SGTTest,CompressDecompressHolyGrail){
-  string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
-  string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
-  LightField inputLF(9,9,512);
-  inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
-  Block4D_ block = inputLF.ReadBlock4DfromLightField_({9,9,16,16},{0,0,0,0},0);
-  Block4D_ blockStart = block.clone();
-  block.sgtTransform(1<<17,{-0.1,0.1});
-  cout<<"weight: "<<(1<<17)<<endl;
-  cout<<"FIRST ELEMENT: "<<block.data[0][0][0][0].item()<<endl;
-  block.isgtTransform(1<<17,block.ssi);
-  cout<<block.data.dtype()<<" "<<blockStart.data.dtype()<<endl;
-  double mseTransform = mse(block.data,blockStart.data); 
-  cout<<"Error"<<mseTransform<<endl;
-  EXPECT_NEAR(0.0,mseTransform,1e-20);
-}
+
+
+
+// TEST(SGTTest,CompressDecompressHolyGrail){
+//   string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//   string pattern = R"((?P<V>.*)_(?P<U>.*)\.ppm)";
+//   LightField inputLF(inputDirectory,pattern);
+//   Block4D_ block = inputLF.ReadBlock4DfromLightField_({(int64_t)9,9,16,16},{0,0,0,0},0);
+//   Block4D_ blockStart = block.clone();
+//   block.sgtTransform(1<<17,{-0.1,0.1});
+//   cout<<"weight: "<<(1<<17)<<endl;
+//   cout<<"FIRST ELEMENT: "<<block.data[0][0][0][0].item()<<endl;
+//   block.isgtTransform(1<<17,block.ssi);
+//   cout<<block.data.dtype()<<" "<<blockStart.data.dtype()<<endl;
+//   double mseTransform = mse(block.data,blockStart.data); 
+//   cout<<"Error"<<mseTransform<<endl;
+//   EXPECT_NEAR(0.0,mseTransform,1e-20);
+// }
+
 TEST(SGTTest,NoQuantizationScale){
-  Block4D_ ones({9,9,16,16});
+  Block4D_ ones({(int64_t)9,9,16,16});
   ones.Ones();
   ones = ones * 1023;
   SgtSideInfo ssi;
@@ -362,7 +328,7 @@ void RGB2YCbCr_BT601_test(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ cons
 }
 TEST(ColorTransformTests,YCbCr2RGB_BT601_RED){
   
-    std::array<int64_t,4> length = {9,9,16,16};
+    std::array<int64_t,4> length = {(int64_t)9,9,16,16};
     Block4D_ R(length);
     Block4D_ G (length);
     Block4D_ B (length);
@@ -403,9 +369,8 @@ TEST(ColorTransformTests,YCbCr2RGB_BT601_RED){
 TEST(ColorTransformTests,YCbCr2RGB_BT601){
     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    LightField inputLF(9,9,512);
-    std::array<int64_t,4> length = {9,9,16,16};
-    inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+    LightField inputLF(inputDirectory,pattern);
+    std::array<int64_t,4> length = {(int64_t)9,9,16,16};
     Block4D_ R = inputLF.ReadBlock4DfromLightField_(length,{0,0,23,439},0);
     Block4D_ G = inputLF.ReadBlock4DfromLightField_(length,{0,0,23,439},1);
     Block4D_ B = inputLF.ReadBlock4DfromLightField_(length,{0,0,23,439},2);

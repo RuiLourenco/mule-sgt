@@ -187,8 +187,6 @@ int Hierarchical4DDecoder :: DecodePartitionFlag(void)  {
 
 SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(std::array<double,2> dispRange) {
     SgtSideInfo ssi(dispRange);
-    
-    int precisionRho = ssi.getRhoPrecision();
     int precisionAngle = ssi.getAnglePrecision();
     //std::cout<<precisionRho<<" "<<precisionAngle<<std::endl;
     ssi.setAngleVCode(DecodeInteger(precisionAngle));

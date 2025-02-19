@@ -91,10 +91,10 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
 
     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
-    int RHO_PRECISION = ssi0.getRhoPrecision();
+    //int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
-    J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;
-    //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl;
+    J0 += DISP_PRECISION*mLambda;
+    std::cout<<"Angle: "<< angle<<", Rate: "<<rate/(lengthTransform[0]*lengthTransform[1]*lengthTransform[2]*lengthTransform[3])<<std::endl;
     return J0;
 }
 
@@ -116,7 +116,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     double J0 = std::numeric_limits<double>::max();
     double minAngle = -75;
     double maxAngle = 75;
-    double angleStep = 3;
+    double angleStep = 5;
 
     int count = 0;
     for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later

@@ -24,6 +24,7 @@ LightField :: LightField(std::array<int64_t,5> size){
     
 }
 
+
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
     if(readOrWriteLightField == 'r'){
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);

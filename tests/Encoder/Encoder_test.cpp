@@ -329,7 +329,7 @@ TEST(EncoderTests,GreekRightWallDummy){
     create_directory(outputDirectory);
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     double lambda = 0;
-    LightField inputLF(9,9,512);
+    LightField inputLF({9,9,512,512,3});
     inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
     //std::array<int64_t,4> position = {0,0,64,448};
     

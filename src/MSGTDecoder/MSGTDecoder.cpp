@@ -382,7 +382,6 @@ int main(int argc, char **argv) {
     hdt.DoneDecoding();
     outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w');
     fclose(inputFileNamePointer);
-    outputLF.CloseLightField();  
 }
 
 void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {

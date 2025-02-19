@@ -10,6 +10,9 @@
 
 class LightField {
 public:    
+    LightField(LightField&&) = delete;
+    //LightField(std::initializer_list<int64_t> ilist);
+
     LightField() = default;
     LightField(std::string rooth_path,std::string pattern);
     LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);

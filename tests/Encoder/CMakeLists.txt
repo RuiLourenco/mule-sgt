@@ -9,7 +9,6 @@ target_link_libraries(Encoder_gtests
   Encoder
   Decoder
   LightField
-  OldDCT
   ProbabilityModel
   torch)
 
