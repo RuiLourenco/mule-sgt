@@ -22,7 +22,8 @@
 
 class Hierarchical4DEncoder {
 public:
-    int mRate  = 0;
+    double mRate  = 0;
+    double mDistortion = 0;
     Block4D mSubbandLF;   
     Block4D_ mSubbandLF_;   
     at::Tensor ignored;
