@@ -38,7 +38,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
     std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
     mPartitionData_ = Block4D_(length);
     double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
-
+    mLambda = scaledLambda;
 
     std::array<int64_t,4> position = {0,0,0,0};
     entropyCoder.LoadOptimizerState();
@@ -46,7 +46,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
     Block4D_ transformedBlock(length);
     transformedBlock.emptyTransform();
 
-    mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, entropyCoder, scaledLambda,mSsiBuffer, &mPartitionCode);
+    mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, entropyCoder, mSsiBuffer, &mPartitionCode);
     //std::cout<<"optimized!"<<std::endl;
     this->costImage = mLagrangianCost*at::ones({length[0],length[1],length[2],length[3]},at::kDouble);
     //std::cout<<"mLagrangianCost = "<<mLagrangianCost<<std::endl;
@@ -102,8 +102,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
-    J0 += RHO_PRECISION*4*lambda + DISP_PRECISION*lambda;
-
+double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
+    
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
@@ -148,7 +148,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         transformedBlockS00.emptyTransform();
         
         //Need to see what this is actually doing...
-        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS00, new_position, new_length, entropyCoder, lambda,ssiBufferS00, &partitionCodeS00);
+        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS00, new_position, new_length, entropyCoder, ssiBufferS00, &partitionCodeS00);
         
         new_position[3] = position[3] + length[3]/2;
         new_length[3] = length[3] - length[3]/2; //???? Why?
@@ -156,7 +156,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         Block4D_ transformedBlockS01(new_length);
         transformedBlockS01.emptyTransform();
         
-        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS01, new_position, new_length, entropyCoder, lambda,ssiBufferS01, &partitionCodeS01);
+        JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS01, new_position, new_length, entropyCoder,ssiBufferS01, &partitionCodeS01);
 
         new_position[2] = position[2] + length[2]/2;
         new_length[2] = length[2] - length[2]/2;
