@@ -62,14 +62,26 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
 double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angle){
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;
+    std::chrono::steady_clock::time_point begin;
+    std::chrono::steady_clock::time_point end;
+    begin = std::chrono::steady_clock::now();
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
     block_0.ssi.estimateRhos(block_0.data,3000);
+    end = std::chrono::steady_clock::now();
+    std::cout << "Side Info Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
+    begin  = std::chrono::steady_clock::now();
     block_0.sgtTransform(currGain);
+    end = std::chrono::steady_clock::now();
+        std::cout << "Transform Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+
     //std::cout<<"AFTER: ";
     //block_0.ssi.print();
+    begin  = std::chrono::steady_clock::now();
     SgtSideInfo ssi0 = block_0.ssi; 
     entropyCoder.mSubbandLF_ = block_0;
+    end = std::chrono::steady_clock::now();
+    std::cout << "Copy Block Compute = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
 
     double Energy;
@@ -88,13 +100,16 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     }
     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
-
+    begin  = std::chrono::steady_clock::now();
     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
     J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;
-    //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl;
+    end = std::chrono::steady_clock::now();
+    std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+
+    std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl<<std::endl;
     return J0;
 }
 
@@ -116,7 +131,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     double J0 = std::numeric_limits<double>::max();
     double minAngle = -75;
     double maxAngle = 75;
-    double angleStep = 3;
+    double angleStep = 1;
 
     int count = 0;
     for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
@@ -129,7 +144,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
             //block_0.ssi.print();
         }
         temp_block_0 = blockOrig;
-        std::cout<<"                       \rAngle Search: "<<count++<<"/"<<round((maxAngle-minAngle)/angleStep)<<std::flush;
+        //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<round((maxAngle-minAngle)/angleStep)<<std::flush;
     }
     std::cout<<std::endl;
 

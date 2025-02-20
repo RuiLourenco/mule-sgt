@@ -317,11 +317,6 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, &codeString_1, Energy,rateTemp,distortionTemp);
                         rate0+=rateTemp;
                         distortion0+=distortionTemp;
-                        if(position_t == 0 && position_s == 0 && position_v == 0 && position_u == 0) {
-                            if(length_v == 32 && length_u == 32) {
-                                std::cout<<"("<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<") "<<rateTemp/8<<" "<<distortionTemp<<" "<<J0<<std::endl;
-                            }
-                        }
                         
                         //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<" "<<rate0*lambda + distortion0<<std::endl;
 
@@ -347,7 +342,6 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     //evaluate the cost J1 to skip this subblock
     J1 += SignalEnergySum;
     distortion1 += SignalEnergySum;
-
     //Choose the lowest cost
     if((J0 < J1)||((bitplane == mInferiorBitPlane)&&(Significance == 0))) {
         //std::cout<<"j0 < j1"<<std::endl;

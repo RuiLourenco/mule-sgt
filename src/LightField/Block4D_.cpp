@@ -567,24 +567,31 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     //double eps = 1e-0; 
     //double k = 10;
     //at::Tensor cov1 = cov+at::eye(cov.size(-1),cov.options())*eps1;
+
     at::Tensor transform = klt(cov,eigVals);
+
+    
     at::Tensor normalizedTransform = transform.clone();
     double eps = 1/sqrt(transform.size(0)) *1e-5;
+    auto indexVec = transform[0] < - eps;
+    transform.index({at::indexing::Slice(),indexVec}) = -transform.index({at::indexing::Slice(),indexVec});
+    // for(int i = 0; i < transform.size(1); i++){
+    //     int bias = 0;
+    //     while(true){
 
-    for(int i = 0; i < transform.size(1); i++){
-        int bias = 0;
-        while(true){
-            double reference = transform[bias][i].item<double>();
-            if(abs(reference) > eps){
-                if(reference < 0){
-                    transform.index({at::indexing::Slice(),i}) =  -1 * transform.index({at::indexing::Slice(),i});                }
-                break;
-            }
+    //         double reference = transform[bias][i].item<double>();
+    //         if(abs(reference) > eps){
+        
+    //             if(reference < 0){
+    //                 transform.index({at::indexing::Slice(),i}) =  -1 * transform.index({at::indexing::Slice(),i});   
+    //             }          
+    //             break;
+    //         }
 
-            bias++;
+    //         bias++;
 
-        }
-    }
+    //     }
+    // }
     return transform;
 }
   at::Tensor Block4D_::batchedCovMatrix(bool isHorizontal) const {
@@ -782,11 +789,7 @@ at::Tensor Block4D_::secondModelOrderedBlock2SGT(at::Tensor flatTransform, SgtSi
     at::Tensor sgtCoefficients = at::zeros(sortedTransformCoefficients.sizes());
     sgtCoefficients = sgtCoefficients.index_put({indices},sortedTransformCoefficients);
     flatTransform = sgtCoefficients.reshape(flatTransform.sizes()).to(at::kDouble);
-    //this->ssi.print();
-    //secondModel.print();
-    // std::cout<<indEigOrder.index({at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
-    // std::cout<<sortedTransformCoefficients.index({at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
-    // std::cout<<sgtCoefficients.index({at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
+    
     
     return flatTransform;
 }
@@ -805,108 +808,27 @@ void Block4D_::sgtTransform(double scale){
     //std::cout<<"SGT transform"<<std::endl;
     
     //ssi.print();
+
+
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
-    //std::cout<<"Model Cov Mat Calculated"<<std::endl;
-    //std::cout<<"SSI:"<<std::endl;
-    //this->ssi.print();
-
-    //SgtSideInfo sortSSI(this->ssi.getAngleV(),this->ssi.getAngleH(),this->ssi.disparityRange);
-    //std::cout<<"Sort SSI:"<<std::endl;
-    //sortSSI.print();
-
-
-
-    // SgtSideInfo sortSSI(this->ssi.getAngle(),this->ssi.disparityRange);
-
-    // at::Tensor modelCovMatH = this->calcModelCovMatrix(sortSSI,true);
-    // at::Tensor modelCovMatV = this->calcModelCovMatrix(sortSSI,false);
-    
 
     
-    //at::Tensor diagP = at::diag(currCovV);
-    //std::cout<<"THIS IS THE DIAGONAL: "<<std::endl<<diagP.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-
-    //auto currCovFun = this->covFun(false);
-    //saveTensorAsMatlabScript(currCovFun,"currCovFun.mat");
-    //at::Tensor currCovV = this->covFun2Mat(this->covFun(false),false);
-    //at::Tensor currCovH = this->covFun2Mat(this->covFun(true),true);
-        //std::cout<<"Cov Mats Calculated"<<std::endl;
-
-        //at::Tensor sortModelCovMatV = this->calcModelCovMatrix(sortSSI,false);
     at::Tensor eigValsH,eigValsV;
-    //at::Tensor sgtMatrixH   = getSgtTransformMatrix(currCovH,true,eigValsH);
-    //at::Tensor sgtMatrixV =   getSgtTransformMatrix(currCovV,false,eigValsV);
-    
-
-
-
-    //saveTensorAsMatlabScript(getFlatBlock(),"flatBlock");
-    //std::cout<<"Scale: "<<scale<<std::endl;
-    
     at::Tensor flatBlock = scale * getFlatBlock();
-    //at::Tensor unweightedFlatBlock = getFlatBlock().to(at::kDouble);
-    //at::Tensor currCovHBatched = this->batchedCovMatrix(true);
-    //at::Tensor currCovVBatched = this->batchedCovMatrix(false);
-    //at::Tensor currCovH = unweightedFlatBlock.t().cov();
-    //at::Tensor currCovV = unweightedFlatBlock.cov();
-    //at::Tensor newCov = unweightedFlatBlock.cov();
-    //at::Tensor diagH = at::diag(currCovH);
-    //std::cout<<"DIAGONALH: "<<std::endl<<diagH.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-
-    //std::cout<<"variances:"<<unweightedFlatBlock.var({1}).index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-    //write_tensor(flatBlock, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/uncompressedBlock.png");
-    
-
-
-
-    //std::cout<<"SSI:"<<ssi.getRhoS()<<" "<<ssi.getRhoT()<<" "<<ssi.getRhoU()<<" "<<ssi.getRhoV()<<" "<<ssi.getDisparity()<<std::endl;
-    //at::Tensor sgtMatrixH   = getSgtTransformMatrix(currCovH,true,eigValsH);
-    //at::Tensor sgtMatrixV =   getSgtTransformMatrix(currCovV,false,eigValsV);
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
+
     saveTensorAsMatlabScript(sgtMatrixH,"sgtMatrixH_n47");
-    //reOrderSGTMatrices(sgtMatrixH, sgtMatrixV, sortSSI);
-
-    //auto [coeffsH,indH] = at::sort(sortCoeffsH,0,true);
-    //auto [coeffsV,indV] = at::sort(sortCoeffsV,0,true);
-
-    //eigValsH = eigValsH.index({indH});
-    //eigValsV = eigValsV.index({indV});
     
-
-    //std::cout<<coefficientProportion<<std::endl;
     
-
-    
-    //sgtMatrixH = sgtMatrixH.index({at::indexing::Slice(),indH});
-    //sgtMatrixV = sgtMatrixV.index({at::indexing::Slice(),indV});
-
- 
-    ///at::Tensor covMat = this->batchedCovMatrix(true);
-    //saveTensorAsMatlabScript(covMat,"covMatH");
-   
-    // std::cout<<at::mm(at::mm(sortedSgtMatrixH.t(),modelCovMatH),  sortedSgtMatrixH).index({at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-    // auto [c,indH] = at::sort(sortCoeffsH,0,true);
-    // auto [b,indV] = at::sort(sortCoeffsV,0,true);
-    //sgtMatrixH = sgtMatrixH.index({at::indexing::Slice(),indH});
-    //sgtMatrixV = sgtMatrixV.index({at::indexing::Slice(),indV});
-
-    //ssi.print();
-    //at::Tensor basisH = sgtMatrixH.index({at::indexing::Slice(),14}).reshape({9,32});
-    //at::Tensor basisV = sgtMatrixV.index({at::indexing::Slice(),14}).reshape({9,32});
-    //write_tensor(basisH, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisH.png");
-    //write_tensor(basisV, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisV.png");
-    //write_tensor(modelCovMatH, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/modelCovMatH.png");
-    //std::cout<<"Is Symmetric: "<<(sgtMatrixH-sgtMatrixH.t()).t().sum().sum()<<std::endl;
     this->eigenValuesH = eigValsH;
     this->eigenValuesV = eigValsV;
-    //std::cout<<"wut?"<<std::endl;
-    //at::Tensor flatTransform = frequencyOrderedSgt(flatBlock, sgtMatrixH, sgtMatrixV);
-    //std::cout<<"What?"<<std::endl; 
-    write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
+    
 
+    write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
+
     write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
     
 #if FLAT_TRANSFORM == 1
@@ -936,6 +858,7 @@ void Block4D_::sgtTransform(double scale){
     //at::Tensor transform = flatTransform.unsqueeze(0).unsqueeze(0);
     this->data = transform.round().to(at::kInt).contiguous();
     this->sgtDomain = true;
+
 }
 
 at::Tensor Block4D_::autoCorr(bool isHorizontal){
@@ -1612,55 +1535,20 @@ at::Tensor Block4D_::getOrderV(){
 
 at::Tensor Block4D_::sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV,const at::Tensor& eigValsH,const at::Tensor& eigValsV) {
     at::Tensor block = flatBlock.to(at::kDouble);
-    for(int i = 0; i < eigValsH.size(0); i++){
-        if (eigValsH[i].item<double>() < 0) {
-            std::cerr<<"eigValsH < 0"<<std::endl;
-           // exit(-2);
-        }
-        if (eigValsV[i].item<double>() < 0) {
-            std::cerr<<"eigValsV < 0"<<std::endl;
-            //exit(-2);
-        }
-    }
+    // for(int i = 0; i < eigValsH.size(0); i++){
+    //     if (eigValsH[i].item<double>() < 0) {
+    //         std::cerr<<"eigValsH < 0"<<std::endl;
+    //        // exit(-2);
+    //     }
+    //     if (eigValsV[i].item<double>() < 0) {
+    //         std::cerr<<"eigValsV < 0"<<std::endl;
+    //         //exit(-2);
+    //     }
+    // }
 
-    
-    
-    //std::cout<<block.index({at::indexing::Slice()})<<std::endl;
-    //std::cout<<"sgtMatrixV: "<<sgtMatrixV.mean({1}).index({at::indexing::Slice(0,10)})<<std::endl;
-    at::Tensor hTransform = at::mm(block, sgtMatrixH);
-    at::Tensor vTransform = at::mm(sgtMatrixV.t(), block);
-    saveTensorAsMatlabScript(hTransform,"hTransformn47");
-
-
-    write_tensor(log(1+(vTransform*vTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/vSGTOriginal.png");
-    write_tensor(log(1+(hTransform*hTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/hSGTOriginal.png");
-    //at::Tensor orderV,orderH;
-    //at::Tensor sgtMatrixVReordered = orderSGTByMonotony(vTransform,sgtMatrixV.t(),orderV).t();
-    //write_tensor(sgtMatrixVReordered,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/vReorderedSGT.png");
-    //write_tensor(sgtMatrixV,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/vSGTAfter.png");
-    //at::Tensor sgtMatrixHReordered = orderSGTByMonotony(hTransform.t(),sgtMatrixH.t(),orderH).t();
-    //this->orderH = orderH.to(at::kLong);
-    //this->orderV = orderV.to(at::kLong);
-    //std::cout<<"IN SGT FUNCTION!"<<this->orderH.sizes()<<std::endl;
-    //std::cout<<"IN SGT FUNCTION!"<<this->orderV.sizes()<<std::endl;
-    //hTransform = at::mm(block, sgtMatrixHReordered);
-    //vTransform = at::mm(sgtMatrixVReordered.t(), block);
-    //at::Tensor meanSquaredMagnitude = (hTransform*hTransform).mean({0}) ;
-    //std::cout<<"Beginning meanSquaredMagnitude:"<<std::endl<<meanSquaredMagnitude.index({at::indexing::Slice(0,14)}).unsqueeze(0)<<std::endl;
-
-    //write_tensor(sgtMatrixHReordered,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/hReorderedSGTMatrix.png");
-    //write_tensor(log(1+(vTransform*vTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/vSGTRecalc.png");
-    //write_tensor(log(1+(hTransform*hTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/hSGTRecalc.png");
-    
-
-    //at::Tensor transformNew = at::mm(at::mm(sgtMatrixVReordered.t(), block), sgtMatrixHReordered);
     at::Tensor transform = at::mm(at::mm(sgtMatrixV.t(), block), sgtMatrixH);
     
-   write_tensor(log(1+(transform * transform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/originalFinal4D.png");
-   // write_tensor(log(1+(transformNew * transformNew)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/reOrderedFinal.png");
-   // write_tensor((log(1+(transform * transform)) - log(1+(transformNew * transformNew))),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/differenceInOrder.png",{-2,2});
-    //at::Tensor transform = at::mm(at::mm(sgtMatrixV.t(), block), sgtMatrixH);
-    return transform   ;
+    return transform;
 }
 
 at::Tensor Block4D_::isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) {
