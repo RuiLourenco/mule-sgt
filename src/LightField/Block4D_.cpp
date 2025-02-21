@@ -591,6 +591,7 @@ torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
 
     double theta;
     int64_t height,width;
+    double verticalWeight = 1;
     if(isHorizontal){
         theta = ssi.getAngleH();
         height = this->size[1];
@@ -601,6 +602,7 @@ torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
         height = this->size[0];
         width = this->size[2];
     }
+    theta = 0;
 
     int64_t num_nodes = width * height;
     torch::Tensor laplacian = torch::zeros({num_nodes, num_nodes},at::kDouble);
@@ -636,8 +638,8 @@ torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
             closest_x = std::clamp(closest_x, int64_t(0), width - 1);
             if (y < height - 1) {
                 int64_t target = (y + 1) * width + closest_x;
-                laplacian.index_put_({node, target}, -1);
-                laplacian.index_put_({target, node}, -1);
+                laplacian.index_put_({node, target}, -1*verticalWeight);
+                laplacian.index_put_({target, node}, -1*verticalWeight);
                 //laplacian.index_put_({node, node}, laplacian.index({node, node}) + 1);
                 //laplacian.index_put_({target, target}, laplacian.index({target, target}) + 1);
             }
@@ -673,9 +675,9 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
     std::cout<<"Got the Matrices!"<<std::endl;
-    at::Tensor basis = get2DBasis(sgtMatrixH, 1);
-    std::cout<<"WritingBasisImage"<<std::endl;
-    write_tensor(basis, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisViz.png");
+    at::Tensor basis = get2DBasis(sgtMatrixH, 0);
+    std::cout<<"WritingBasisImage: "<<basis.max().item()<<" "<<basis.min().item()<<" "<<(basis.max()-basis.min()).item()<<std::endl;
+    write_tensor(basis, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisViz.png",{0.0589256,0.0589256+1.33851e-14});
 
     write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
@@ -1204,6 +1206,8 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
 at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     auto [L, Q] = torch::linalg::eigh(covMat, "U");
     eigVals = L;
+    std::cout<<"This should be Zero: "<<eigVals[0]<<std::endl;
+    std::cout<<"Eigen: "<< eigVals.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
     return Q; 
 }
 
