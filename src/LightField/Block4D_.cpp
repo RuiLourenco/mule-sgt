@@ -602,7 +602,6 @@ torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
         height = this->size[0];
         width = this->size[2];
     }
-    theta = 0;
 
     int64_t num_nodes = width * height;
     torch::Tensor laplacian = torch::zeros({num_nodes, num_nodes},at::kDouble);
@@ -1206,8 +1205,6 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
 at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     auto [L, Q] = torch::linalg::eigh(covMat, "U");
     eigVals = L;
-    std::cout<<"This should be Zero: "<<eigVals[0]<<std::endl;
-    std::cout<<"Eigen: "<< eigVals.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
     return Q; 
 }
 
