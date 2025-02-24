@@ -40,7 +40,7 @@ class SgtSideInfo{
         static constexpr double PRECISION_RHO = 1e-5; 
         static constexpr double MIN_RHO = 0.2;
         static constexpr double MAX_RHO = 1-1e-5;
-        static constexpr double PRECISION_ANGLE = 0.5;  
+        static constexpr double PRECISION_ANGLE = 10;  
         void print();
         SgtSideInfo(const Block4D_& block,std::array<double,2> dispRange);
         SgtSideInfo(int RhoSInt,int RhoTInt,int RhoUInt,int RhoVInt,int angleVInt,int angleHInt, std::array<double,2> dispRange);
@@ -92,10 +92,10 @@ class SgtSideInfo{
 
         SgtSideInfo() = default;
         void estimateAngleFromMonotony(Block4D_ block);
+        static std::array<double,2> angleRangeFromDispRange(std::array<double,2> dispRange);
 
 
     private:
-        std::array<double,2> angleRangeFromDispRange(std::array<double,2> dispRange);
 
         void estimateRhoAngle(const Block4D_& block);
         void estimateRhosLS(const at::Tensor& covFun, bool isHorizontal);
