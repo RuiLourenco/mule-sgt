@@ -97,6 +97,7 @@ void Hierarchical4DEncoder :: EncodeSubblock(double lambda) {
 }
 
 double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, char **codeString, double &signalEnergy, double &rate, double& distortion) {
+   
    //std::cout<<"Length = "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl; 
     //std::cout<<"In"<<std::endl;
     double rate0 = 0;
@@ -641,6 +642,7 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
         
         EncodeSegmentationFlag(0, bitplane);
         flagZero++;
+        
     
         flagIndex++;
         RdEncodeHexadecatree_(position, length, bitplane-1, flagIndex);
@@ -651,6 +653,8 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
     
     if(mSegmentationTreeCodeBuffer[flagIndex] == '2') {
         flagTwo++;
+        mIgnored += length[0] * length[1] * length[2] * length[3];
+        mIgnoreEfficiency = (double)mIgnored/(double)flagTwo;
         ignored.index({at::indexing::Slice(position[0],position[0]+length[0]),at::indexing::Slice(position[1],position[1]+length[1]),at::indexing::Slice(position[2],position[2]+length[2]),at::indexing::Slice(position[3],position[3]+length[3])}) = flagIndex*at::ones(length,at::kInt);
         EncodeSegmentationFlag(2, bitplane);
     
@@ -727,7 +731,6 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree(int position_t, int position_
     if(mSegmentationTreeCodeBuffer[flagIndex] == '2') {
         
         EncodeSegmentationFlag(2, bitplane);
-    
         flagIndex++;
 
         return;
@@ -883,7 +886,7 @@ void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
 }
 
 void Hierarchical4DEncoder :: DoneEncoding(void) {
-    std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<std::endl;
+    std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<" Ignore Efficiency = "<<mIgnoreEfficiency<<" "<<mIgnored<<std::endl;
     mEntropyCoder.Flush();      //flushes entropy encoder
     
 }

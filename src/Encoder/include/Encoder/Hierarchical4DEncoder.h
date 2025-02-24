@@ -34,6 +34,8 @@ public:
     int flagZero = 0;
     int flagOne = 0;
     int flagTwo = 0;
+    int mIgnored = 0;
+    double mIgnoreEfficiency;
     int mSuperiorBitPlane, mInferiorBitPlane;
     int mSegmentationFlagProbabilityModelIndex;
     int mSymbolProbabilityModelIndex;
