@@ -42,7 +42,7 @@ void Hierarchical4DDecoder :: RestartProbabilisticModel(void) {
 }
 
 void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane) {
-    
+    int* data = mSubbandLF.data.data_ptr<int>();
     if(bitplane < mInferiorBitPlane) {
         return;
     }
@@ -50,7 +50,8 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
     if(length_t*length_s*length_v*length_u == 1) {
         int coefficient =  DecodeCoefficient(bitplane);     
 
-        mSubbandLF.data[position_t][position_s][position_v][position_u] = coefficient;
+        //mSubbandLF.data[position_t][position_s][position_v][position_u] = coefficient;
+        data[mSubbandLF.LinearPosition(position_t,position_s,position_v,position_u)] = coefficient;
         return;
     }
     
@@ -114,7 +115,7 @@ void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int po
             for(int index_s = 0; index_s < length_s; index_s++) {
                 for(int index_v = 0; index_v < length_v; index_v++) {
                     for(int index_u = 0; index_u < length_u; index_u++) {
-                        mSubbandLF.data[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 0;
+                        data[mSubbandLF.LinearPosition(position_t+index_t,position_s+index_s,position_v+index_v,position_u+index_u)] = 0;
                         //mSkipMatrix[position_t+index_t][position_s+index_s][position_v+index_v][position_u+index_u] = 1;
 
                     }
