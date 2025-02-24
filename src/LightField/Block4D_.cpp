@@ -50,7 +50,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 }
 
 #define ADAPTIVE_RHO_CALC 1
-#define FLAT_TRANSFORM 1
+#define FLAT_TRANSFORM 0
 
 #define DEBUG 1
 #define MATLAB_DEBUG 0
@@ -591,7 +591,7 @@ torch::Tensor Block4D_::computeLaplacian(SgtSideInfo ssi, bool isHorizontal) {
 
     double theta;
     int64_t height,width;
-    double verticalWeight = 1;
+    double verticalWeight = 100;
     if(isHorizontal){
         theta = ssi.getAngleH();
         height = this->size[1];
@@ -674,9 +674,9 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
     std::cout<<"Got the Matrices!"<<std::endl;
-    at::Tensor basis = get2DBasis(sgtMatrixH, 0);
+    at::Tensor basis = get2DBasis(sgtMatrixH, 1);
     std::cout<<"WritingBasisImage: "<<basis.max().item()<<" "<<basis.min().item()<<" "<<(basis.max()-basis.min()).item()<<std::endl;
-    write_tensor(basis, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisViz.png",{0.0589256,0.0589256+1.33851e-14});
+    write_tensor(basis, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/basisViz.png",{-basis.max().item<double>(),basis.max().item<double>()});
 
     write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
