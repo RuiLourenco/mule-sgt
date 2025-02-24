@@ -573,25 +573,25 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     
     at::Tensor normalizedTransform = transform.clone();
     double eps = 1/sqrt(transform.size(0)) *1e-5;
-    auto indexVec = transform[0] < - eps;
-    transform.index({at::indexing::Slice(),indexVec}) = -transform.index({at::indexing::Slice(),indexVec});
-    // for(int i = 0; i < transform.size(1); i++){
-    //     int bias = 0;
-    //     while(true){
+    // auto indexVec = transform[0] < - eps;
+    // transform.index({at::indexing::Slice(),indexVec}) = -transform.index({at::indexing::Slice(),indexVec});
+    for(int i = 0; i < transform.size(1); i++){
+        int bias = 0;
+        while(true){
 
-    //         double reference = transform[bias][i].item<double>();
-    //         if(abs(reference) > eps){
+            double reference = transform[bias][i].item<double>();
+            if(abs(reference) > eps){
         
-    //             if(reference < 0){
-    //                 transform.index({at::indexing::Slice(),i}) =  -1 * transform.index({at::indexing::Slice(),i});   
-    //             }          
-    //             break;
-    //         }
+                if(reference < 0){
+                    transform.index({at::indexing::Slice(),i}) =  -1 * transform.index({at::indexing::Slice(),i});   
+                }          
+                break;
+            }
 
-    //         bias++;
+            bias++;
 
-    //     }
-    // }
+        }
+    }
     return transform;
 }
   at::Tensor Block4D_::batchedCovMatrix(bool isHorizontal) const {
@@ -828,32 +828,29 @@ void Block4D_::sgtTransform(double scale){
 
     write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
-
     write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
+
+    //flatTransform.index({at::indexing::Slice({flatTransform.size(0)/8,flatTransform.size(0)}),at::indexing::Slice({flatTransform.size(1)/8,flatTransform.size(1)})}) = 0 ;
+
+    
     
 #if FLAT_TRANSFORM == 1
     at::Tensor transform = flatTransform.unsqueeze(0).unsqueeze(0);
 #else
     at::Tensor transform = orderCoefficientsByFrequency(flatTransform,sgtMatrixH,sgtMatrixV);       
-    // int border_size = 4;
-    // at::Tensor vizTransform = at::ones({flatTransform.size(0)+border_size*8,flatTransform.size(1)+border_size*8},flatTransform.dtype());
-    // int begin_i = 0;
-    // for(int i = 0; i < 9; i++){
-    //     int begin_j = 0;
-    //     for(int j = 0; j < 9; j++){
-    //         //std::cout<<begin_i<<" "<<begin_i+32<<"| "<<begin_j<<" "<<begin_j+32<<std::endl;
-    //         vizTransform.index({at::indexing::Slice({begin_i,begin_i+32}),at::indexing::Slice({begin_j,begin_j+32})}) = transform[i][j]; 
-    //         begin_j += 32+border_size;
+    int border_size = 4;
+    at::Tensor vizTransform = at::ones({flatTransform.size(0)+border_size*8,flatTransform.size(1)+border_size*8},flatTransform.dtype());
+    int begin_i = 0;
+    for(int i = 0; i < 9; i++){
+        int begin_j = 0;
+        for(int j = 0; j < 9; j++){
+            vizTransform.index({at::indexing::Slice({begin_i,begin_i+32}),at::indexing::Slice({begin_j,begin_j+32})}) = transform[i][j]; 
+            begin_j += 32+border_size;
+        }
+        begin_i += 32+border_size;
 
-    //         std::string filename = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/4D"+std::to_string(i)+std::to_string(j)+".png";
-            
-    //         write_tensor(log2(1+(transform[i][j]*transform[i][j])),filename,{0,log2(1+(transform[0][0]*transform[0][0])).max().item<double>()});
-        
-    //     }
-    //     begin_i += 32+border_size;
-
-    // }
-    //write_tensor(log2(1+(vizTransform*vizTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/4DTransformViz.png",{0,log2(1+(vizTransform*vizTransform)).max().item<double>()});
+    }
+    write_tensor(log2(1+(vizTransform*vizTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/4DTransformViz.png",{0,log2(1+(vizTransform*vizTransform)).max().item<double>()});
 #endif
     //at::Tensor transform = flatTransform.unsqueeze(0).unsqueeze(0);
     this->data = transform.round().to(at::kInt).contiguous();
@@ -1012,6 +1009,7 @@ double deg2rad(double angle){
 }
 std::array<double,2> Block4D_::getMainFrequency(at::Tensor basisFunction,double angle, int index) const{
     using namespace torch::fft;
+    
     int scale = 4;
     double slope = -(angle);
     double orthAngle = slope+90;
@@ -1029,12 +1027,11 @@ std::array<double,2> Block4D_::getMainFrequency(at::Tensor basisFunction,double 
 
     auto block_dft = fftshift(fftn(basisFunction, fftSize).abs());
 
-    auto [peaks,w_k,w_m] = findLocalMaxima(block_dft,0.2);
-    // std::cout<<peaks<<std::endl;
-    // std::cout<<w_k<<std::endl;
-    // std::cout<<w_m<<std::endl;
+    auto [peaks,w_k,w_m] = findLocalMaxima(block_dft,0.4);
     #if DEBUG == 1
-    if(index == 96){
+    
+    
+    if(index == 70){
         write_tensor(block_dft,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/frequency.png");
     }
     #endif
@@ -1044,11 +1041,18 @@ std::array<double,2> Block4D_::getMainFrequency(at::Tensor basisFunction,double 
 
     w_k_unq = (w_k_unq - bias_v)*weight_v;
     w_m_unq = (w_m_unq - bias_h)*weight_h;
+ 
     //   std::cout<<peaks_unq<<" "<<unq<<std::endl;
     // std::cout<<w_k_unq<<std::endl;
     // std::cout<<w_m_unq<<std::endl;
     auto w = at::stack({w_k_unq,w_m_unq},0);
     at::Tensor w_th = at::mm(v_th.unsqueeze(0),w).squeeze();
+    //    if(index == 70){
+    //     std::cout<<"peaks:"<<std::endl<<peaks<<std::endl;
+    //     std::cout<<"w_k:"<<std::endl<<w_k_unq<<std::endl;
+    //     std::cout<<"w_m:"<<std::endl<<w_m_unq<<std::endl;
+    //     std::cout<<"w_th:"<<std::endl<<w_th<<std::endl;
+    // }
     auto w_th_min = w_th.abs().min();
     auto min_index = w_th.argmin();
     auto w_m_min = w_m_unq.index({min_index}).abs();
@@ -1127,14 +1131,29 @@ at::Tensor Block4D_::getOrdinalFrequencies(const at::Tensor& basisFrequencies) c
 at::Tensor getFullOrdinalFrequency(const at::Tensor& basisFrequenciesH, const at::Tensor& basisFrequenciesV,const at::Tensor& ordinalFrequenciesH, const at::Tensor& ordinalFrequenciesV, at::Tensor& frequencies){
     //at::Tensor fullOrdinalFrequencies = at::zeros({ordinalFrequenciesV.size(1),ordinalFrequenciesH.size(1),4},at::kDouble);
     //frequencies = at::zeros(fullOrdinalFrequencies.sizes(),at::kDouble);
+    
     at::Tensor ordinalH = ordinalFrequenciesH.permute({1, 0}).unsqueeze(0);
     at::Tensor ordinalV = ordinalFrequenciesV.permute({1, 0}).unsqueeze(1);
+    std::cout<<"ordinalH Size = " << ordinalH.sizes()<<std::endl;
     ordinalH = ordinalH.expand({ordinalFrequenciesV.size(1), ordinalFrequenciesH.size(1), 2});
     ordinalV = ordinalV.expand({ordinalFrequenciesV.size(1), ordinalFrequenciesH.size(1), 2});
     at::Tensor fullOrdinalFrequencies = torch::cat({ordinalV, ordinalH}, /*dim=*/2);
     at::Tensor indexes = torch::tensor({0,2,1,3},torch::kLong);
     fullOrdinalFrequencies = fullOrdinalFrequencies.index({at::indexing::Slice(),at::indexing::Slice(),indexes});
     fullOrdinalFrequencies = fullOrdinalFrequencies.flatten(0,1).t();
+#if DEBUG == 1
+    std::cout<<"Freq Sizes = "<<basisFrequenciesH.sizes()<<std::endl;
+    std::cout<<"Ordinal Sizes = "<<ordinalFrequenciesH.sizes()<<std::endl;
+    at::Tensor freqH = basisFrequenciesH.t().permute({1, 0}).unsqueeze(0);
+    at::Tensor freqV = basisFrequenciesV.t().permute({1, 0}).unsqueeze(1);
+    std::cout<<"ordinalH Size = " << ordinalH.sizes()<<std::endl;
+    freqH = freqH.expand({basisFrequenciesV.t().size(1),basisFrequenciesV.t().size(1),2});
+    freqV = freqV.expand({basisFrequenciesV.t().size(1),basisFrequenciesV.t().size(1),2});
+    frequencies = torch::cat({freqV,freqH},2);
+    frequencies = frequencies.index({at::indexing::Slice(),at::indexing::Slice(),indexes});
+    frequencies = frequencies.flatten(0,1).t().round(1);
+ 
+#endif 
     return fullOrdinalFrequencies;
 }
 at::Tensor Block4D_::to4DTransform(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const {
@@ -1278,12 +1297,14 @@ void Block4D_::view4DFrequencies(at::Tensor fullOrdinalFrequencies, at::Tensor f
 
 at::Tensor Block4D_::orderCoefficientsByFrequency(const at::Tensor& coefficientBlock,const at::Tensor& sgtMatrixH,const at::Tensor& sgtMatrixV) const{
     //std::cout<<"Ordering Coefficients"<<std::endl;
+    std::cout<<"MAX COEFFICIENT BIT SIZE: "<<log2(coefficientBlock.max().item<double>())<<std::endl;
     at::Tensor flatBlockDouble = coefficientBlock.to(at::kDouble);
-    //std::cout<<log2(1+(flatBlockDouble[37][0].abs().item<double>()))<<" "<<log2(1+(flatBlockDouble[37][0].abs().item<double>()))<<std::endl;
+    std::cout<<log2(1+(flatBlockDouble[70][0].abs().item<double>()))<<" "<<log2(1+(flatBlockDouble[0][70].abs().item<double>()))<<std::endl;
     double angleH = this->ssi.getAngleH();
     double angleV = this->ssi.getAngleV();
     at::Tensor basisFrequenciesH = getBasisFrequencies(sgtMatrixH,angleH);
     at::Tensor basisFrequenciesV = getBasisFrequencies(sgtMatrixV,angleV);
+    std::cout<<"basisFrequencies: "<<basisFrequenciesH[70];
     //std::cout<<"Index of Max Frequency: "<<basisFrequenciesV.index({at::indexing::Slice(),0}).argmax().item<int64_t>()<<std::endl;
     at::Tensor basisFrequenciesViewTH = basisFrequenciesH.index({at::indexing::Slice(),0}).squeeze().repeat({basisFrequenciesV.size(0),1});
     at::Tensor basisFrequenciesViewTV = basisFrequenciesV.index({at::indexing::Slice(),0}).t().repeat({basisFrequenciesH.size(0),1}).t();
@@ -1292,19 +1313,24 @@ at::Tensor Block4D_::orderCoefficientsByFrequency(const at::Tensor& coefficientB
 
     at::Tensor ordinalFrequenciesH = getOrdinalFrequencies(basisFrequenciesH);
     at::Tensor ordinalFrequenciesV = getOrdinalFrequencies(basisFrequenciesV);
+
+    std::cout<<"LOOK HERE: "<<ordinalFrequenciesH.t()[70]<<std::endl;
     //std::cout<<"RelevantH: "<<ordinalFrequenciesH.t()[0]<<std::endl;
-#if DEBUG == 1
-    std::cout<<"Acquired Basis Frequencies"<<std::endl;
-    //std::cout<<"RelevantH: "<<basisFrequenciesH[0]<<std::endl;
-    std::cout<<"RelevantV: "<<basisFrequenciesV[96]<<std::endl;
-    std::cout<<"RelevantV: "<<ordinalFrequenciesV.t()[96]<<std::endl;
-#endif    
+ 
     
         std::cout<<"Acquired Frquency Order of Basis"<<std::endl;
     at::Tensor frequencies;
     
     at::Tensor ordinalFrequenciesFull = getFullOrdinalFrequency(basisFrequenciesH, basisFrequenciesV,ordinalFrequenciesH,ordinalFrequenciesV, frequencies);
         std::cout<<"Acquired Full Coefficient Order"<<std::endl;
+
+        #if DEBUG == 1
+    //std::cout<<"Acquired Basis Frequencies"<<std::endl;
+    //std::cout<<"RelevantH: "<<basisFrequenciesH[0]<<std::endl;
+    //std::cout<<"RelevantV: "<<basisFrequenciesV[96]<<std::endl;
+    //std::cout<<"RelevantV: "<<ordinalFrequenciesV.t()[96]<<std::endl;
+    view4DFrequencies(ordinalFrequenciesFull, frequencies);
+#endif   
     //std::cout<<ordinalFrequenciesH.index({at::indexing::Slice(),at::indexing::Slice()})<<std::endl;
     //std::cout<<ordinalFrequenciesFull.index({at::indexing::Slice(),at::indexing::Slice({32,64})})<<std::endl;
     //std::cout<<"frequencies: "<<std::endl<<frequencies.index({at::indexing::Slice(),at::indexing::Slice(32,64)})<<std::endl;
