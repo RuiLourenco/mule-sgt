@@ -64,24 +64,24 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     char *partitionCodeS=NULL;
     std::chrono::steady_clock::time_point begin;
     std::chrono::steady_clock::time_point end;
-    begin = std::chrono::steady_clock::now();
+    //begin = std::chrono::steady_clock::now();
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
     block_0.ssi.estimateRhos(block_0.data,3000);
-    end = std::chrono::steady_clock::now();
-    std::cout << "Side Info Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    //end = std::chrono::steady_clock::now();
+    //std::cout << "Side Info Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
-    begin  = std::chrono::steady_clock::now();
+    //begin  = std::chrono::steady_clock::now();
     block_0.sgtTransform(currGain);
-    end = std::chrono::steady_clock::now();
-        std::cout << "Transform Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    //end = std::chrono::steady_clock::now();
+      //  std::cout << "Transform Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
     //std::cout<<"AFTER: ";
     //block_0.ssi.print();
-    begin  = std::chrono::steady_clock::now();
+    //begin  = std::chrono::steady_clock::now();
     SgtSideInfo ssi0 = block_0.ssi; 
     entropyCoder.mSubbandLF_ = block_0;
-    end = std::chrono::steady_clock::now();
-    std::cout << "Copy Block Compute = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    //end = std::chrono::steady_clock::now();
+    //std::cout << "Copy Block Compute = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
 
     double Energy;
@@ -100,16 +100,17 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     }
     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
-    begin  = std::chrono::steady_clock::now();
+    //begin  = std::chrono::steady_clock::now();
     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
+    //std::cout<<entropyCoder.mSuperiorBitPlane<<std::endl;
     double J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
     J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;
-    end = std::chrono::steady_clock::now();
-    std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    //end = std::chrono::steady_clock::now();
+    //std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 
-    std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl<<std::endl;
+    //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl<<std::endl;
     return J0;
 }
 
@@ -129,10 +130,11 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     double currGain = totalTransformGain(length);
     double J0 = std::numeric_limits<double>::max();
-    double minAngle = -75;
-    double maxAngle = 75;
-    double angleStep = 1;
-
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+    double minAngle = angleRange[0];
+    double maxAngle = angleRange[1];
+    double angleStep = SgtSideInfo::PRECISION_ANGLE;
+    if((maxAngle-minAngle)/angleStep != std::floor((maxAngle-minAngle)/angleStep)) maxAngle += angleStep;
     int count = 0;
     for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
         double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angle);
@@ -144,12 +146,12 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
             //block_0.ssi.print();
         }
         temp_block_0 = blockOrig;
-        //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<round((maxAngle-minAngle)/angleStep)<<std::flush;
+        std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
     }
     std::cout<<std::endl;
 
     SgtSideInfo ssi0 = block_0.ssi; 
-    //std::cout<<"SSI CHOSEN: ";
+    std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<std::endl;
     //ssi0.print();
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
@@ -421,7 +423,7 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         this->angleImageH.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityH()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         this->angleImageV.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mSsiBufferIndex-1].getDisparityV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         //std::cout<<"Weight = "<<weight<<std::endl;
-        //std::cout<<"mRate = "<<entropyCoder.mRate<<" mDistortion: "<<(double) entropyCoder.mDistortion/(weight*weight)<<std::endl;
+        std::cout<<"mRate = "<<entropyCoder.mRate<<" mDistortion: "<<(double) entropyCoder.mDistortion/(weight*weight)<<std::endl;
 
         //std::cout<<"Position: = "<<position[0]<<","<<position[1]<<","<<position[2]/9<<","<<position[3]/9<<" Length = "<<length[0]+8<<","<<length[1]+8<<","<<length[2]/9<<","<<length[3]/9<<" "<<(entropyCoder.currCost/(double)size)<< std::endl;
 
