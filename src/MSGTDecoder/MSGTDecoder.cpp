@@ -415,7 +415,7 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
     }
 }
 
-void YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
+void YCbCr2RGB_BT601_old(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
     auto CbTemp = Cb.data - ((Scale+1)/2);
     auto CrTemp = Cr.data - ((Scale+1)/2);
     R = Y - 0.0000071525 * CbTemp + 1.4020 * CrTemp;
@@ -430,6 +430,23 @@ void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D
     G = CgTemp + t;
     B.data = t - (CoTemp.bitwise_right_shift(1));
     R.data = B.data + CoTemp;          
+}
+
+void YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
+    int* Y_data = Y.data.data_ptr<int>();
+    int* Cb_data = Cb.data.data_ptr<int>();
+    int* Cr_data = Cr.data.data_ptr<int>();
+    int* R_data = R.data.data_ptr<int>();
+    int* G_data = G.data.data_ptr<int>();
+    int* B_data = B.data.data_ptr<int>();
+    for(int n = 0; n < R.size[0]*R.size[1]*R.size[2]*R.size[3]; n++) {
+        double pixel_Y = Y_data[n];
+        double pixel_Cb = Cb_data[n]-(Scale+1)/2;
+        double pixel_Cr = Cr_data[n]-(Scale+1)/2;
+        R_data[n] = round(pixel_Y - 0.0000071525 * pixel_Cb + 1.4020 * pixel_Cr);
+        G_data[n] = round(pixel_Y -0.34413 * pixel_Cb - 0.71414 * pixel_Cr);
+        B_data[n] = round(pixel_Y + 1.7720 * pixel_Cb - 0.000040249 * pixel_Cr);
+    }
 }
 
 unsigned long int BigEndianUnsignedIntegerRead(int precision, FILE *inputFilePointer) {

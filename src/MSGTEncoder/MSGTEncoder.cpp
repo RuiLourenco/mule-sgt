@@ -291,8 +291,8 @@ int main(int argc, char **argv) {
 
     std::cout<<"Opening Stuff and things:"<<std::endl;
     std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
-    std::string experiment = "TimingConsiderations/";
-    // std::string experiment = "Greek/64-8-angle1/";
+    //std::string experiment = "TimingConsiderations/";
+    std::string experiment = "Sideboard/32-32-angle10/";
     // std::string experiment = "Greek/64-8/";
     std::string path = folder + experiment;
     create_directory(path);
@@ -464,6 +464,7 @@ int main(int argc, char **argv) {
             }
         }
     }
+    //write_tensor(hdt.ignored[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/ignored.png");
     std::ofstream energy;
     std::ofstream rhoS;
     std::ofstream rhoT;
@@ -580,8 +581,24 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
     }
 }
 
-
 void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+    int* Y_data = Y.data.data_ptr<int>();
+    int* Cb_data = Cb.data.data_ptr<int>();
+    int* Cr_data = Cr.data.data_ptr<int>();
+    int* R_data = R.data.data_ptr<int>();
+    int* G_data = G.data.data_ptr<int>();
+    int* B_data = B.data.data_ptr<int>();
+    for(int n = 0; n < R.size[0]*R.size[1]*R.size[2]*R.size[3]; n++) {
+        double pixel =  0.299 * R_data[n] + 0.587 * G_data[n] + 0.114 * B_data[n];
+        Y_data[n] = round(pixel);
+        pixel = -0.16875 * R_data[n] -0.33126 * G_data[n] + 0.5 * B_data[n];
+        Cb_data[n] = round(pixel) + (Scale + 1)/2;
+        pixel = 0.5 * R_data[n] -0.41869 * G_data[n] -0.08131  * B_data[n];
+        Cr_data[n] = round(pixel) + (Scale + 1)/2;
+    }
+}
+
+void RGB2YCbCr_BT601_old(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
     static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
     static const auto Cb_weights = at::tensor({-0.16875, -0.33126, 0.5}, at::kDouble).reshape({3, 1}); 
     static const auto Cr_weights = at::tensor({0.5, -0.41869, -0.08131}, at::kDouble).reshape({3, 1}); 
