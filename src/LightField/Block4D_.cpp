@@ -2204,8 +2204,9 @@ int SgtSideInfo::codeRho(double rho) const{
 }
 int SgtSideInfo::codeAngle(double theta) const{
     //std::cout<<"Angle Range codeAngle: "<<this-> angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
-    //std::cout<<"theta: "<<theta<<" CodeScale: "<<getAngleCodeScale()<< " CodeBias: "<<getAngleCodeBias()<<std::endl;
-    return theta * getAngleCodeScale() + getAngleCodeBias();
+    //std::cout<<"theta: "<<theta<<" CodeScale: "<<getAngleCodeScale()<< " CodeBias: "<<getAngleCodeBias()<<" Double Result: "<<theta * getAngleCodeScale() + getAngleCodeBias()<<std::endl;
+    if(theta > angleRange[1] ) theta = angleRange[1];
+    return round(theta * getAngleCodeScale() + getAngleCodeBias());
 }
 
 double SgtSideInfo::DecodeRho(int rhoCode) const{
@@ -2301,11 +2302,11 @@ double SgtSideInfo::getAngleH() const{
     return angle;
 }
 int SgtSideInfo::getRhoPrecision() const{
-    int rhoPrecision = std::ceil(log2(codeRho(MAX_RHO)));
+    int rhoPrecision = std::ceil(log2(codeRho(MAX_RHO)+1));
     return rhoPrecision;
 }
 int SgtSideInfo::getAnglePrecision() const{
-    return std::ceil(log2(codeAngle(this->angleRange[1])));
+    return std::ceil(log2(codeAngle(this->angleRange[1])+1));
 }
 void SgtSideInfo::setRhoS(double rhoS){
     //std::cout<<"MAX_RHO = "<<MAX_RHO<<" rhoS = "<<rhoS<<std::endl;
@@ -2755,7 +2756,9 @@ void SgtSideInfo::estimateRhoAngle(const Block4D_& block){
 
 std::array<double,2> SgtSideInfo::angleRangeFromDispRange(std::array<double,2> dispRange){
     double minAngle = floor(180/acos(-1) * atan(dispRange[0]));
-    double maxAngle = ceil(180/acos(-1) * atan(dispRange[1]));
+    double maxAngle = 180/acos(-1) * atan(dispRange[1]);
+    double N = ceil((maxAngle - minAngle)/PRECISION_ANGLE);
+    maxAngle = minAngle + N * PRECISION_ANGLE;
     return {minAngle,maxAngle};
 }
 SgtSideInfo::SgtSideInfo(double angleV, double angleH, std::array<double,2> dispRange){
