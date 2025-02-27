@@ -114,8 +114,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     double currGain = totalTransformGain(length);
     double J0 = std::numeric_limits<double>::max();
-    double minAngle = 45;
-    double maxAngle = 45;
+    double minAngle = -75;
+    double maxAngle = 75;
     double angleStep = 5;
 
     int count = 0;
