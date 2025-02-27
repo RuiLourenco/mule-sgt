@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
-                    for(int spectralComponent = 0; spectralComponent <3; spectralComponent++){
+                    for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++){
                         if(par.verbosity > 0) cout<<"decoding spectral component "<<spectralComponent<<endl;
                         std::array<int64_t,5> currLfPosition = {verticalView,horizontalView,viewLine,viewColumn,spectralComponent};
 
@@ -277,9 +277,12 @@ int main(int argc, char **argv) {
                         //cout<<"Extend Block?"<<endl;
                         for(int n = 0; n < 4; n++) {
                             if(blockPosition[n] + maxPartitionSize[n] > lfSize[n]) {
-                                ExtendBlock4D(lfBlock,par.extensionMethod,extensionLength[n],n); 
-                                cout<<"Block Extended!"<<endl;
+                                std::cout<<"Before Extension: "<<lfBlock.data.sizes()<<endl;
 
+                                ExtendBlock4D(lfBlock,par.extensionMethod,extensionLength[n],n); 
+                                std::cout<<"After Extension: "<<lfBlock.data.sizes()<<endl;
+
+                                cout<<"Block Extended!"<<endl;
                             } 
                         }
                         lfBlock = lfBlock + (outputLF.mPGMScale + 1)/2;
@@ -353,10 +356,11 @@ int main(int argc, char **argv) {
                     //std::cout<<"RED BLOCK: "<<rBlock.data.min().item()<<" "<<rBlock.data.max().item()<<std::endl;
                     //std::cout<<"GREEN BLOCK: "<<gBlock.data.min().item()<<" "<<gBlock.data.max().item()<<std::endl;
                     //std::cout<<"BLUE BLOCK: "<<bBlock.data.min().item()<<" "<<bBlock.data.max().item()<<std::endl;
-                    
+                    std::cout<<"Are we Getting Here?"<<std::endl;
                     outputLF.WriteBlock4DtoLightField_(rBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],0});
                     outputLF.WriteBlock4DtoLightField_(gBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],1});
                     outputLF.WriteBlock4DtoLightField_(bBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],2});
+                    std::cout<<"Completed writing block to light field"<<std::endl;
                 }
             }
         }

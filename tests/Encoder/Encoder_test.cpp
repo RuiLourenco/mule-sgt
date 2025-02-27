@@ -335,11 +335,54 @@ void BigEndianSignedIntegerWrite_(long int value, int precision, FILE *outputFil
     
 // }
 
-TEST(EncoderTests,GreekRightWallDummy){
+// TEST(EncoderTests,GreekRightWallDummy){
 
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/RightWall/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(9,9,512);
+//     inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Greek Between Statues
+//     std::array<int64_t,4> position = {0,0,64,448};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 64;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,2);
+
+//     LightField outputLF({9,9,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+TEST(EncoderTests,FountainBug){
+
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/Fountain_Vincent2/";
     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
-    std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/RightWall/";
+    std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/FountainBug/";
     create_directory(outputDirectory);
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     double lambda = 0;
@@ -354,8 +397,8 @@ TEST(EncoderTests,GreekRightWallDummy){
     //Sideboard Dummy Cabinet
     //std::array<int64_t,4> position = {0,0,320,64};
 
-    //Greek Between Statues
-    std::array<int64_t,4> position = {0,0,64,448};
+    //Fountain Bug
+    std::array<int64_t,4> position = {0,0,0,512};
 
     //std::array<int64_t,4> position = {0,0,64,64};
 
@@ -367,12 +410,12 @@ TEST(EncoderTests,GreekRightWallDummy){
     //std::array<int64_t,4> position = {0,0,64,128};
     //std::array<int64_t,4> position = {0,0,384,256};   
     //std::array<int64_t,4> position = {0,0,256,320};
-    int length = 64;
-    Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,0);
-    Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,1);
-    Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({9,9,length,length},position,2);
+    int length = 32;
+    Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,0);
+    Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,1);
+    Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,2);
 
-    LightField outputLF({9,9,length,length,3});
+    LightField outputLF({15,15,length,length,3});
     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});

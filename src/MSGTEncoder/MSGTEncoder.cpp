@@ -196,11 +196,13 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("extension-none", po::bool_switch()->default_value(false),  "Sets Extention to None")
         ("bt601", po::bool_switch()->default_value(false),  "Sets Color Transform to YCbCr BT601")
         ("ycocg", po::bool_switch()->default_value(false),  "Sets Color Transform to YCOCG")
+        ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
 
 
     po::variables_map vm;
+    
     po::store(po::parse_command_line(argc, argv,options),vm);
     if (vm.count("help")){
         cout << options << endl;
@@ -216,6 +218,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         cout << e.what() << endl;
         return -1;
     }
+    if(vm["isLenslet13x13"].as<bool>()) par.isLenslet13x13 = true;
     if(vm["bt601"].as<bool>()) par.colorTransformType = BT601;
     if(vm["ycocg"].as<bool>()) par.colorTransformType = YCOCG;
     if(vm["extension-repeat"].as<bool>()) par.extensionMethod = REPEAT_LAST;
@@ -269,8 +272,8 @@ int main(int argc, char **argv) {
 
     LightField inputLF;
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,'r');
-       
+    inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
+    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
     Block4D_ lfBlock(par.maxPartitionSize);  
     Block4D_ rBlock(par.maxPartitionSize); 
     Block4D_ gBlock(par.maxPartitionSize); 
@@ -292,7 +295,7 @@ int main(int argc, char **argv) {
     std::cout<<"Opening Stuff and things:"<<std::endl;
     std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
     //std::string experiment = "TimingConsiderations/";
-    std::string experiment = "Sideboard/32-8-angle10/";
+    std::string experiment = "Greek/64-4-angle3/";
     // std::string experiment = "Greek/64-8/";
     std::string path = folder + experiment;
     create_directory(path);
@@ -439,26 +442,31 @@ int main(int argc, char **argv) {
                         hdt.RestartProbabilisticModel();
                         tp.RDoptimizeTransform_(lfBlock, hdt,par.disparityRange,par.transformGain, par.Lambda);
                         tp.EncodePartition_(hdt, par.Lambda);
+                        std::cout<<"Encoding Successful!"<<std::endl;
                         // std::cout<<"Encoded"<<std::endl;
-                        // std::cout<<tp.costImage.sizes()<<std::endl;
-                        lfEnergy.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.costImage;
-                        // // std::cout<<"Cost Image Fine"<<std::endl;
-                        lfRhoS.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoSImage;
-                        // // std::cout<<"RhoS Fine"<<std::endl;
+                        int sizeV = std::min(par.maxPartitionSize[2],inputLF.data.size(2)-viewLine);
+                        int sizeH = std::min(par.maxPartitionSize[3],inputLF.data.size(3)-viewColumn);
+                        std::cout<<tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)}).sizes()<<std::endl;
+                        
+                        std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
+                        lfEnergy.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                         std::cout<<"Cost Image Fine"<<std::endl;
+                        lfRhoS.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoSImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        //  std::cout<<"RhoS Fine"<<std::endl;
 
-                        lfRhoT.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoTImage;
-                        // // std::cout<<"RhoT Fine"<<std::endl;
-                        lfRhoU.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoUImage;
+                        lfRhoT.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoTImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        std::cout<<"RhoT Fine"<<std::endl;
+                        lfRhoU.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoUImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
                         // // std::cout<<"RhoU Fine"<<std::endl;
-                        lfRhoV.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rhoVImage;
+                        lfRhoV.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoVImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
                         // //std::cout<<"RhoV Fine"<<std::endl;
-                        lfAngleV.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.angleImageV;
+                        lfAngleV.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.angleImageV.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
                         //std::cout<<"AngleV Fine"<<std::endl;
-                        lfAngleH.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.angleImageH;
+                        lfAngleH.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.angleImageH.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
                         //std::cout<<"AngleH Fine"<<std::endl;
-                        lfRate.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.rateImage;
-                        lfDistortion.index({at::indexing::Slice(viewLine,viewLine+par.maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+par.maxPartitionSize[3]),spectralComponent}) = tp.distortionImage;
-                        //std::cout<<"Rate Fine"<<std::endl;
+                        lfRate.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rateImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        lfDistortion.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.distortionImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        std::cout<<"Distortion Fine"<<std::endl;
                     }            
                 }
             }

@@ -13,6 +13,7 @@
 class LightField {
 public:    
     LightField() = default;
+    void OpenLightFieldPPM_(std::string rootPath, std::string pattern, std::array<int64_t,2> firstView, std::array<int64_t,2> viewSize);
     LightField(std::string rooth_path,std::string pattern);
     LightField(int numberOfCacheVerticalViews, int numberOfCacheHorizontalViews, int numberOfViewCacheLines);
     LightField(std::array<int64_t,5> sizes);
