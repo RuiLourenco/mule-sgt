@@ -120,7 +120,14 @@ void LightField :: OpenLightFieldPGM(char *viewFileNamePrefix, char *viewFileNam
     }
 }
 
+void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, std::array<int64_t,2> firstView, std::array<int64_t,2> viewSize) {
+        this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
+        std::cout<<"First View: "<<firstView[0]<<" "<<firstView[1]<<" View Size: "<<viewSize[0]<<" "<<viewSize[1]<<std::endl;
+        write_tensor(this->data[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/firstViewBeforeTrim.png",{0,1024});
+        this->data = this->data.index({at::indexing::Slice({firstView[0],firstView[0]+viewSize[0]}),at::indexing::Slice({firstView[1],firstView[1]+viewSize[1]}),at::indexing::Slice(),at::indexing::Slice()});
+        write_tensor(this->data[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/firstViewAfterTrim.png",{0,1024});
 
+}
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
     if(readOrWriteLightField == 'r'){
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
@@ -1045,12 +1052,15 @@ void LightField :: WriteBlock4DtoLightField(Block4D *targetBlock, int position_t
     }
 }
 void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position){
-    
-    this->data.index({at::indexing::Slice(position[0],position[0]+sourceBlock.data.size(0)),
-                     at::indexing::Slice(position[1],position[1]+sourceBlock.data.size(1)),
-                     at::indexing::Slice(position[2],position[2]+sourceBlock.data.size(2)),
-                     at::indexing::Slice(position[3],position[3]+sourceBlock.data.size(3)),
-                     position[4]}) = sourceBlock.data.index({at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()});
+    std::array<int64_t,4> length = {std::min(this->data.size(0) - position[0],sourceBlock.data.size(0)),
+                                    std::min(this->data.size(1) - position[1],sourceBlock.data.size(1)),
+                                    std::min(this->data.size(2) - position[2],sourceBlock.data.size(2)),
+                                    std::min(this->data.size(3) - position[3],sourceBlock.data.size(3))};
+    this->data.index({at::indexing::Slice(position[0],position[0]+length[0]),
+                     at::indexing::Slice(position[1],position[1]+length[1]),
+                     at::indexing::Slice(position[2],position[2]+length[2]),
+                     at::indexing::Slice(position[3],position[3]+length[3]),
+                     position[4]}) = sourceBlock.data.index({at::indexing::Slice(0,length[0]),at::indexing::Slice(0,length[1]),at::indexing::Slice(0,length[2]),at::indexing::Slice(0,length[3])});
                     
 
 
