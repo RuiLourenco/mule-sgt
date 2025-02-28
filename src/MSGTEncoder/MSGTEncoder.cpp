@@ -555,8 +555,6 @@ int main(int argc, char **argv) {
      hdt.DoneEncoding();
     fclose(outputFileNamePointer);
     cout<<"I'm exiting, the rest is just bullshit"<<endl;
-    inputLF.CloseLightField();
-
 }
 
 void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {

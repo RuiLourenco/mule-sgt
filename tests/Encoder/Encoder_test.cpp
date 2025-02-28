@@ -386,8 +386,7 @@ TEST(EncoderTests,FountainBug){
     create_directory(outputDirectory);
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     double lambda = 0;
-    LightField inputLF(9,9,512);
-    inputLF.OpenLightFieldPPM_(inputDirectory,pattern,'r');
+    LightField inputLF(inputDirectory,pattern);
     //std::array<int64_t,4> position = {0,0,64,448};
     
     //Sideboard Dummy BACKWALL
