@@ -659,6 +659,19 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     splitHexaDecaTree(size,{0,0,0,0},positions);
     return positions;
 }
+
+
+void Block4D_::computeStructureTensor(at::Tensor& secondMomentum){
+    double Dt = computeAverageMomentum(secondMomentum,0);
+    double Ds = computeAverageMomentum(secondMomentum,1);
+    double Du = computeAverageMomentum(secondMomentum,2);
+    double Dv = computeAverageMomentum(secondMomentum,3);
+
+    at::Tensor structureTensor = torch::tensor({{Dt*Dt,Dt*Ds,Dt*Du,Dt*Dv},{Ds*Dt,Ds*Ds,Ds*Du,Ds*Dv},{Du*Dt,Du*Ds,Du*Du,Du*Dv},{Dv*Dt,Dv*Ds,Dv*Du,Dv*Dv}},at::kDouble);
+    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+    std::cout<<"L = "<<L<<std::endl;
+    std::cout<<"Q = "<<Q<<std::endl;
+}
 void Block4D_::splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions){
     int64_t numElems = length[0]*length[1]*length[2]*length[3];
     //std::cout<<"Position: "<<position[0]<<","<<position[1]<<","<<position[2]<<","<<position[3]<<" Length: "<<length[0]<<","<<length[1]<<","<<length[2]<<","<<length[3]<<std::endl;
