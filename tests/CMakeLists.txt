@@ -6,7 +6,6 @@ FetchContent_Declare(
   GIT_TAG        release-1.12.0
 )
 FetchContent_MakeAvailable(googletest)
-add_subdirectory(LightField)
 add_subdirectory(IO)
 add_subdirectory(Encoder)
 
