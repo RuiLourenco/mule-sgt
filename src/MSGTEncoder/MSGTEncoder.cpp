@@ -604,29 +604,32 @@ void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R,
     }
 }
 
-void RGB2YCbCr_BT601_old(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
-    static const auto Cb_weights = at::tensor({-0.16875, -0.33126, 0.5}, at::kDouble).reshape({3, 1}); 
-    static const auto Cr_weights = at::tensor({0.5, -0.41869, -0.08131}, at::kDouble).reshape({3, 1}); 
-    static const int D = 1<<((int)log2(Scale+1)-8);
-    static const int Y8bitBias = 0;
-    static const int CbCr8bitBias = (1<<7);
+// void RGB2YCbCr_BT601_old(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+//     static const std::array<double,3> Y_weights = {0.299, 0.587, 0.114});  
+//     static const auto Cb_weights = at::tensor({-0.16875, -0.33126, 0.5}, at::kDouble).reshape({3, 1}); 
+//     static const auto Cr_weights = at::tensor({0.5, -0.41869, -0.08131}, at::kDouble).reshape({3, 1}); 
+//     static const int D = 1<<((int)log2(Scale+1)-8);
+//     static const int Y8bitBias = 0;
+//     static const int CbCr8bitBias = (1<<7);
+//     R.data.to(at::kDouble);
+//     G.data.to(at::kDouble);
+//     B.data.to(at::kDouble);
 
-    auto Ey = R.data.to(at::kDouble)/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
-    Y = ((255 * Ey + Y8bitBias) * D).round().to(at::kInt)/D;
-    auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + Cb.data.to(at::kDouble)/Scale * Y_weights[2];
-    Cb = ((255 * Ecb + CbCr8bitBias)*D).round().to(at::kInt)/D;
-    auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + Cr.data.to(at::kDouble)/Scale * Y_weights[2];
-    Cr = ((255 * Ecr + CbCr8bitBias)*D).round().to(at::kInt)/D; 
-    Y.validPositions = R.validPositions;
-    Cb.validPositions = R.validPositions;
-    Cr.validPositions = R.validPositions;
-}
+//     auto Ey = R/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
+//     Y = ((255 * Ey + Y8bitBias) * D).round().to(at::kInt)/D;
+//     auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + Cb.data.to(at::kDouble)/Scale * Y_weights[2];
+//     Cb = ((255 * Ecb + CbCr8bitBias)*D).round().to(at::kInt)/D;
+//     auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + Cr.data.to(at::kDouble)/Scale * Y_weights[2];
+//     Cr = ((255 * Ecr + CbCr8bitBias)*D).round().to(at::kInt)/D; 
+//     Y.validPositions = R.validPositions;
+//     Cb.validPositions = R.validPositions;
+//     Cr.validPositions = R.validPositions;
+// }
 
 void RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    Co = R.data - B.data;
-    auto temp = B.data + Co.data.bitwise_right_shift(1);
-    Cg = G.data - temp;
+    Co = R - B;
+    auto temp = B + Co.data.bitwise_right_shift(1);
+    Cg = G - temp;
     Y = temp + Cg.data.bitwise_right_shift(1);
     Co.data+= (Scale + 1)/2;
     Cg.data+= (Scale + 1)/2;

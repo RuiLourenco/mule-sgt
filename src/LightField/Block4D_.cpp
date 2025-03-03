@@ -465,16 +465,16 @@ Block4D_::operator at::Tensor() const{
     return this->data;
 }
 
-Block4D_::Block4D_(const at::Tensor& data){
-    this->data = data;
-    this->size = {data.size(0),data.size(1),data.size(2),data.size(3)};
-#if FLAT_TRANSFORM == 1
-    this->transformSize = {1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]};
-#else 
-    this->transformSize = {this->size[0],this->size[1],this->size[2],this->size[3]};
-#endif
-    this->sgtDomain = false;
-}   
+// Block4D_::Block4D_(const at::Tensor& data){
+//     this->data = data;
+//     this->size = {data.size(0),data.size(1),data.size(2),data.size(3)};
+// #if FLAT_TRANSFORM == 1
+//     this->transformSize = {1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]};
+// #else 
+//     this->transformSize = {this->size[0],this->size[1],this->size[2],this->size[3]};
+// #endif
+//     this->sgtDomain = false;
+// }   
 Block4D_::Block4D_(std::array<int64_t,4> size){
     this->data = torch::zeros({size[0], size[1], size[2], size[3]}, torch::kInt);
     this->sgtDomain = false;
@@ -661,17 +661,17 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
 }
 
 
-void Block4D_::computeStructureTensor(at::Tensor& secondMomentum){
-    double Dt = computeAverageMomentum(secondMomentum,0);
-    double Ds = computeAverageMomentum(secondMomentum,1);
-    double Du = computeAverageMomentum(secondMomentum,2);
-    double Dv = computeAverageMomentum(secondMomentum,3);
+// void Block4D_::computeStructureTensor(at::Tensor& secondMomentum){
+//     double Dt = computeAverageMomentum(secondMomentum,0);
+//     double Ds = computeAverageMomentum(secondMomentum,1);
+//     double Du = computeAverageMomentum(secondMomentum,2);
+//     double Dv = computeAverageMomentum(secondMomentum,3);
 
-    at::Tensor structureTensor = torch::tensor({{Dt*Dt,Dt*Ds,Dt*Du,Dt*Dv},{Ds*Dt,Ds*Ds,Ds*Du,Ds*Dv},{Du*Dt,Du*Ds,Du*Du,Du*Dv},{Dv*Dt,Dv*Ds,Dv*Du,Dv*Dv}},at::kDouble);
-    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
-    std::cout<<"L = "<<L<<std::endl;
-    std::cout<<"Q = "<<Q<<std::endl;
-}
+//     at::Tensor structureTensor = torch::tensor({{Dt*Dt,Dt*Ds,Dt*Du,Dt*Dv},{Ds*Dt,Ds*Ds,Ds*Du,Ds*Dv},{Du*Dt,Du*Ds,Du*Du,Du*Dv},{Dv*Dt,Dv*Ds,Dv*Du,Dv*Dv}},at::kDouble);
+//     auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+//     std::cout<<"L = "<<L<<std::endl;
+//     std::cout<<"Q = "<<Q<<std::endl;
+// }
 void Block4D_::splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions){
     int64_t numElems = length[0]*length[1]*length[2]*length[3];
     //std::cout<<"Position: "<<position[0]<<","<<position[1]<<","<<position[2]<<","<<position[3]<<" Length: "<<length[0]<<","<<length[1]<<","<<length[2]<<","<<length[3]<<std::endl;
@@ -2888,88 +2888,136 @@ void Block4D_::Shift_UVPlane(int shift, int position_t, int position_s){
         this->data[position_t][position_s] = this->data[position_t][position_s].bitwise_right_shift(-shift);
     }
 }
-void Block4D_::YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
-    // std::cout<<"Data type = "<<Y.data.dtype()<<std::endl;
-    // std::cout<<"Decoding Scale = "<<Scale<<std::endl;
-    // std::cout<<"Chrominance Bias Correction: "<<((Scale+1)/2)<<std::endl;
-    at::Tensor Ytemp = Y.data.to(at::kDouble);
-    auto CbTemp = (Cb.data - ((Scale+1)/2)).to(at::kDouble);
-    auto CrTemp = (Cr.data - ((Scale+1)/2)).to(at::kDouble);
+// void Block4D_::YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
+//     // std::cout<<"Data type = "<<Y.data.dtype()<<std::endl;
+//     // std::cout<<"Decoding Scale = "<<Scale<<std::endl;
+//     // std::cout<<"Chrominance Bias Correction: "<<((Scale+1)/2)<<std::endl;
+//     Block4d_ Ytemp = Y.clone()data.to(at::kDouble);
+//     auto CbTemp = (Cb.data - ((Scale+1)/2)).to(at::kDouble);
+//     auto CrTemp = (Cr.data - ((Scale+1)/2)).to(at::kDouble);
 
-    //std::cout<<Ytemp[0][0][0][0].item()<<" "<<CbTemp[0][0][0][0].item()<<" "<<CrTemp[0][0][0][0].item()<<std::endl;
-    R = (Ytemp - 0.0000071525 * CbTemp + 1.4020 * CrTemp).round().to(at::kInt);
-    G = (Ytemp- 0.34413 * CbTemp - 0.71414 * CrTemp).round().to(at::kInt);
-    B = (Ytemp + 1.7720 * CbTemp - 0.000040249 * CrTemp).round().to(at::kInt);
-   //std::cout<<Ytemp[0][0][0][0].item()<<" "<<-0.34413 * CbTemp[0][0][0][0].item<double>()<<" "<<- 0.71414 *(CrTemp[0][0][0][0].item<double>())<<" "<<G.data[0][0][0][0]<<std::endl;
+//     //std::cout<<Ytemp[0][0][0][0].item()<<" "<<CbTemp[0][0][0][0].item()<<" "<<CrTemp[0][0][0][0].item()<<std::endl;
+//     R = (Ytemp - 0.0000071525 * CbTemp + 1.4020 * CrTemp).round().to(at::kInt);
+//     G = (Ytemp- 0.34413 * CbTemp - 0.71414 * CrTemp).round().to(at::kInt);
+//     B = (Ytemp + 1.7720 * CbTemp - 0.000040249 * CrTemp).round().to(at::kInt);
+//    //std::cout<<Ytemp[0][0][0][0].item()<<" "<<-0.34413 * CbTemp[0][0][0][0].item<double>()<<" "<<- 0.71414 *(CrTemp[0][0][0][0].item<double>())<<" "<<G.data[0][0][0][0]<<std::endl;
 
-}
+// }
 
-void Block4D_::YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
-    auto CoTemp = Co.data - (Scale+1)/2;
-    auto CgTemp = Cg.data - (Scale+1)/2;
-    auto t = Y - (CgTemp.bitwise_right_shift(1));
-    G = CgTemp + t;
-    B.data = t - (CoTemp.bitwise_right_shift(1));
-    R.data = B.data + CoTemp;          
-}
-void Block4D_::RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
-    static const auto Cb_weights = at::tensor({-0.168736, -0.331264, 0.5}, at::kDouble).reshape({3, 1}); 
-    static const auto Cr_weights = at::tensor({0.5, -0.418688, -0.081312}, at::kDouble).reshape({3, 1}); 
-    static const int D = 1<<((int)log2(Scale+1)-8);
-    static const int Y8bitBias = 0;
-    static const int CbCr8bitBias = (1<<9);
-    //std::cout<<"D = "<<D<<" CbCr8bitBias = "<<CbCr8bitBias<<" Y8bitBias = "<<Y8bitBias<<std::endl;
+// void Block4D_::YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
+//     auto CoTemp = Co.data - (Scale+1)/2;
+//     auto CgTemp = Cg.data - (Scale+1)/2;
+//     auto t = Y - (CgTemp.bitwise_right_shift(1));
+//     G = CgTemp + t;
+//     B.data = t - (CoTemp.bitwise_right_shift(1));
+//     R.data = B.data + CoTemp;          
+// }
+// void Block4D_::RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+//     static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
+//     static const auto Cb_weights = at::tensor({-0.168736, -0.331264, 0.5}, at::kDouble).reshape({3, 1}); 
+//     static const auto Cr_weights = at::tensor({0.5, -0.418688, -0.081312}, at::kDouble).reshape({3, 1}); 
+//     static const int D = 1<<((int)log2(Scale+1)-8);
+//     static const int Y8bitBias = 0;
+//     static const int CbCr8bitBias = (1<<9);
+//     //std::cout<<"D = "<<D<<" CbCr8bitBias = "<<CbCr8bitBias<<" Y8bitBias = "<<Y8bitBias<<std::endl;
 
-    auto Ey = R.data.to(at::kDouble)/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
-    //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Y_weights[0].item()<<" Ey min = "<<Ey.min().item()<<" max = "<<Ey.max().item()<<std::endl;
+//     auto Ey = R.data.to(at::kDouble)/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
+//     //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Y_weights[0].item()<<" Ey min = "<<Ey.min().item()<<" max = "<<Ey.max().item()<<std::endl;
 
-    Y.data = ((1023 * Ey + Y8bitBias)).round().to(at::kInt);
+//     Y.data = ((1023 * Ey + Y8bitBias)).round().to(at::kInt);
 
-    auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + B.data.to(at::kDouble)/Scale * Cb_weights[2];
-    //std::cout<<"ECb min = "<<Ecb.min().item()<<" max = "<<Ecb.max().item()<<std::endl;
-    Cb.data = ((1023 * Ecb + CbCr8bitBias)).round().to(at::kInt);
-    auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + B.data.to(at::kDouble)/Scale * Cr_weights[2];
-    //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Cr_weights[0]<<" Ecr min = "<<Ecr.min().item()<<" max = "<<Ecr.max().item()<<std::endl;
+//     auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + B.data.to(at::kDouble)/Scale * Cb_weights[2];
+//     //std::cout<<"ECb min = "<<Ecb.min().item()<<" max = "<<Ecb.max().item()<<std::endl;
+//     Cb.data = ((1023 * Ecb + CbCr8bitBias)).round().to(at::kInt);
+//     auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + B.data.to(at::kDouble)/Scale * Cr_weights[2];
+//     //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Cr_weights[0]<<" Ecr min = "<<Ecr.min().item()<<" max = "<<Ecr.max().item()<<std::endl;
     
-    Cr.data = ((1023 * Ecr + CbCr8bitBias)).round().to(at::kInt); 
-    Y.validPositions = R.validPositions;
-    Cb.validPositions = R.validPositions;
-    Cr.validPositions = R.validPositions;
+//     Cr.data = ((1023 * Ecr + CbCr8bitBias)).round().to(at::kInt); 
+//     Y.validPositions = R.validPositions;
+//     Cb.validPositions = R.validPositions;
+//     Cr.validPositions = R.validPositions;
+// }
+
+// void Block4D_::RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+//     Co = R.data - B.data;
+//     auto temp = B.data + Co.data.bitwise_right_shift(1);
+//     Cg = G.data - temp;
+//     Y = temp + Cg.data.bitwise_right_shift(1);
+//     Co.data+= (Scale + 1)/2;
+//     Cg.data+= (Scale + 1)/2;
+//     Y.validPositions = R.validPositions;
+//     Co.validPositions = R.validPositions;
+//     Cg.validPositions = R.validPositions;        
+// }
+
+Block4D_ Block4D_::operator + (const Block4D_ &B) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data + B.data;
+    return newBlock;
+}
+Block4D_ Block4D_::operator * (const Block4D_ &B) const{
+    Block4D_ newBlock = this ->clone();
+    newBlock.data = this->data * B.data;
+    return newBlock;
+}
+Block4D_ Block4D_::operator - (const Block4D_ &B) const {
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data - B.data;
+    return newBlock;
+}
+Block4D_ Block4D_::operator + (const at::Tensor &B) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data + B;
+    return newBlock;
+}
+Block4D_ Block4D_::operator * (const at::Tensor &B) const{
+    Block4D_ newBlock = this ->clone();
+    newBlock.data = this->data * B;
+    return newBlock;
+}
+Block4D_ Block4D_::operator - (const at::Tensor &B) const {
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data - B;
+    return newBlock;
 }
 
-void Block4D_::RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    Co = R.data - B.data;
-    auto temp = B.data + Co.data.bitwise_right_shift(1);
-    Cg = G.data - temp;
-    Y = temp + Cg.data.bitwise_right_shift(1);
-    Co.data+= (Scale + 1)/2;
-    Cg.data+= (Scale + 1)/2;
-    Y.validPositions = R.validPositions;
-    Co.validPositions = R.validPositions;
-    Cg.validPositions = R.validPositions;        
+Block4D_ operator * (const int a,const Block4D_ &B ){
+    return B * a;
 }
 
-Block4D_ Block4D_::operator + (const Block4D_ &B){
-    return Block4D_(this->data + B.data);
+Block4D_ operator + (const int a,const Block4D_ &B ){
+    return B + a;
 }
-Block4D_ Block4D_::operator * (const Block4D_ &B){
-    return Block4D_(this->data * B.data);
+
+Block4D_ operator - (const int a,const Block4D_ &B ){
+    return -1 * (B - a);
 }
-Block4D_ Block4D_::operator - (const Block4D_ &B){
-    return Block4D_(this->data - B.data);
+
+Block4D_ Block4D_::operator / (const int a) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data / a;
+    return newBlock;
 }
-Block4D_ Block4D_::operator / (const int &a){
-    return Block4D_(this->data / a);
+Block4D_ Block4D_::operator / (const double a) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data / a;
+    return newBlock;
 }
-Block4D_ Block4D_::operator + (const int &a){
-    return Block4D_(this->data + a);
+Block4D_ Block4D_::operator + (const int a) const {
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data + a;
+    return newBlock;
 }
-Block4D_ Block4D_::operator - (const int &a){
-    return Block4D_(this->data - a);
+Block4D_ Block4D_::operator - (const int a) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data - a;
+    return newBlock;
+
 }
-Block4D_ Block4D_::operator * (const int &a){
-    return Block4D_(this->data * a);
+Block4D_ Block4D_::operator * (const int a) const{
+    Block4D_ newBlock = this->clone();
+    newBlock.data = this->data *a;
+    return newBlock;
 }
 void Block4D_::operator += (const Block4D_ &B){
     this->data = this->data + B.data;
@@ -2981,6 +3029,7 @@ void Block4D_::operator *= (const Block4D_ &B){
     this->data = this->data * B.data;
 }
 void Block4D_::operator = (const Block4D_ &B){
+    
     this->data = B.data;
     this->size = B.size;
     this->transformSize = B.transformSize;
@@ -2992,7 +3041,9 @@ void Block4D_::operator = (const Block4D_ &B){
 }
 
 Block4D_ Block4D_::clone() const{
-    Block4D_ newBlock = Block4D_(this->data.clone());
+
+    Block4D_ newBlock(this->size);
+    newBlock.data = this->data.clone();    
     newBlock.size = this->size;
     newBlock.transformSize = this->transformSize;
     newBlock.sgtDomain = this->sgtDomain;

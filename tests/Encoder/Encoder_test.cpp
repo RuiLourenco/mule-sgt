@@ -42,38 +42,38 @@ double totalTransformGain_(std::array<int64_t,4> length, std::array<int64_t,4> m
     return transformGain*1;
 
 }
-void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
+// void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
     
-    for(int n = 0; n < R.mlength_t*R.mlength_s*R.mlength_v*R.mlength_u; n++) {
-        int t;
-        Co.mPixelData[n] = R.mPixelData[n] - B.mPixelData[n];
-        t = B.mPixelData[n] + (Co.mPixelData[n]>>1);
-        Cg.mPixelData[n] = G.mPixelData[n] - t;
-        Y.mPixelData[n] = t + (Cg.mPixelData[n]>>1);
-        Co.mPixelData[n] += (Scale + 1)/2;
-        Cg.mPixelData[n] += (Scale + 1)/2;
-    }
+//     for(int n = 0; n < R.mlength_t*R.mlength_s*R.mlength_v*R.mlength_u; n++) {
+//         int t;
+//         Co.mPixelData[n] = R.mPixelData[n] - B.mPixelData[n];
+//         t = B.mPixelData[n] + (Co.mPixelData[n]>>1);
+//         Cg.mPixelData[n] = G.mPixelData[n] - t;
+//         Y.mPixelData[n] = t + (Cg.mPixelData[n]>>1);
+//         Co.mPixelData[n] += (Scale + 1)/2;
+//         Cg.mPixelData[n] += (Scale + 1)/2;
+//     }
         
-}
-void RGB2YCoCg_(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    Co = R.data - B.data;
-    auto temp = B.data + Co.data.bitwise_right_shift(1);
-    Cg = G.data - temp;
-    Y = temp + Cg.data.bitwise_right_shift(1);
-    Co.data+= (Scale + 1)/2;
-    Cg.data+= (Scale + 1)/2;
-    Y.validPositions = R.validPositions;
-    Co.validPositions = R.validPositions;
-    Cg.validPositions = R.validPositions;        
-}
-void YCoCg2RGB_(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
-    auto CoTemp = Co.data - (Scale+1)/2;
-    auto CgTemp = Cg.data - (Scale+1)/2;
-    auto t = Y - (CgTemp.bitwise_right_shift(1));
-    G = CgTemp + t;
-    B.data = t - (CoTemp.bitwise_right_shift(1));
-    R.data = B.data + CoTemp;          
-}
+// }
+// void RGB2YCoCg_(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+//     Co = R - B;
+//     auto temp = B + Co.data.bitwise_right_shift(1);
+//     Cg = G - temp;
+//     Y = temp + Cg.data.bitwise_right_shift(1);
+//     Co.data+= (Scale + 1)/2;
+//     Cg.data+= (Scale + 1)/2;
+//     Y.validPositions = R.validPositions;
+//     Co.validPositions = R.validPositions;
+//     Cg.validPositions = R.validPositions;        
+// }
+// void YCoCg2RGB_(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
+//     auto CoTemp = Co.data - (Scale+1)/2;
+//     auto CgTemp = Cg.data - (Scale+1)/2;
+//     auto t = Y - (CgTemp.bitwise_right_shift(1));
+//     G = CgTemp + t;
+//     B.data = t - (CoTemp.bitwise_right_shift(1));
+//     R.data = B.data + CoTemp;          
+// }
 unsigned long int BigEndianUnsignedIntegerRead_(int precision, FILE *inputFilePointer) {
 
     if(precision > sizeof(long int)) {

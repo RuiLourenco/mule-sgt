@@ -42,10 +42,12 @@ class SgtSideInfo{
         static constexpr double MAX_RHO = 1-1e-5;
         static constexpr double PRECISION_ANGLE = 3;  
         void print();
+        
         SgtSideInfo(const Block4D_& block,std::array<double,2> dispRange);
         SgtSideInfo(int RhoSInt,int RhoTInt,int RhoUInt,int RhoVInt,int angleVInt,int angleHInt, std::array<double,2> dispRange);
         SgtSideInfo(std::array<double,2> dispRange);
         SgtSideInfo(double disparityV,double disparityH, std::array<double,2> dispRange);
+
         void estimateRhosFromMonotony(Block4D_ block);
         at::Tensor QPOptimization(at::Tensor P, at::Tensor q);
         at::Tensor constrainedLeastSquares(at::Tensor A, at::Tensor b);
@@ -168,6 +170,7 @@ public:
     at::Tensor blockAsEigenOrderedVector(at::Tensor flatBlock, at::Tensor eigenValuesH, at::Tensor eigenValuesV);
     std::array<int64_t,4> size;
     std::array<int64_t,4> transformSize;
+    std::array<int64_t,4> lightFieldPosition;
     SgtSideInfo ssi;
      at::Tensor data;
     ValidPositions validPositions;
@@ -211,7 +214,7 @@ public:
     //operator const at::Tensor&() const;
     Block4D_() = default;
     //Block4D_(at::Tensor data);
-    Block4D_(const at::Tensor& data);
+    //Block4D_(const at::Tensor& data);
     //Block4D_(at::Tensor& data);
     Block4D_(std::array<int64_t,4> size);
     Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10, const Block4D_& B11, bool views);
@@ -220,13 +223,22 @@ public:
     void Zeros(void);
     
 
-    Block4D_ operator + (const Block4D_ &B);
-    Block4D_ operator * (const Block4D_ &B);
-    Block4D_ operator - (const Block4D_ &B);
-    Block4D_ operator + (const int &a);
-    Block4D_ operator * (const int &a);
-    Block4D_ operator - (const int &a);
-    Block4D_ operator / (const int &a);
+    Block4D_ operator + (const Block4D_ &B) const;
+    Block4D_ operator * (const Block4D_ &B) const;
+    Block4D_ operator - (const Block4D_ &B) const;
+    Block4D_ operator + (const at::Tensor &B) const;
+    Block4D_ operator * (const at::Tensor &B) const;
+    Block4D_ operator - (const at::Tensor &B) const;
+
+    friend Block4D_ operator + (const int a,const Block4D_ & B);
+    friend Block4D_ operator - (const int a,const Block4D_ & B);
+    friend Block4D_ operator * (const int a,const Block4D_ & B);
+    Block4D_ operator + (const int a) const;
+    Block4D_ operator * (const int a) const;
+    Block4D_ operator - (const int a) const;
+    Block4D_ operator / (const int a) const;
+    Block4D_ operator / (const double a) const;
+   
     void operator += (const Block4D_ &B);
     void operator *= (const Block4D_ &B);
     void operator -= (const Block4D_ &B);

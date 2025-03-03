@@ -66,7 +66,7 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     std::chrono::steady_clock::time_point end;
     //begin = std::chrono::steady_clock::now();
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
-    block_0.ssi.estimateRhos(block_0.data,3000);
+    block_0.ssi.estimateRhos(block_0,3000);
     //end = std::chrono::steady_clock::now();
     //std::cout << "Side Info Calc = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
 

@@ -418,20 +418,20 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
     }
 }
 
-void YCbCr2RGB_BT601_old(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
-    auto CbTemp = Cb.data - ((Scale+1)/2);
-    auto CrTemp = Cr.data - ((Scale+1)/2);
-    R = Y - 0.0000071525 * CbTemp + 1.4020 * CrTemp;
-    G = Y -0.34413 * CbTemp - 0.71414 * CrTemp;
-    B = Y + 1.7720 * CbTemp - 0.000040249 * CrTemp;
-}
+// void YCbCr2RGB_BT601_old(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
+//     Block4D_ CbTemp = Cb - ((Scale+1)/2);
+//     Block4D_ CrTemp = Cr - ((Scale+1)/2);
+//     R = Y - CbTemp * 0.0000071525  +CrTemp * 1.4020 ;
+//     G = Y -CbTemp * 0.34413  - CrTemp * 0.71414;
+//     B = Y + 1.7720 * CbTemp - 0.000040249 * CrTemp;
+// }
 
 void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
-    auto CoTemp = Co.data - (Scale+1)/2;
-    auto CgTemp = Cg.data - (Scale+1)/2;
-    auto t = Y - (CgTemp.bitwise_right_shift(1));
+    auto CoTemp = Co- (Scale+1)/2;
+    auto CgTemp = Cg - (Scale+1)/2;
+    auto t = Y - (CgTemp.data.bitwise_right_shift(1));
     G = CgTemp + t;
-    B.data = t - (CoTemp.bitwise_right_shift(1));
+    B.data = t - (CoTemp.data.bitwise_right_shift(1));
     R.data = B.data + CoTemp;          
 }
 
