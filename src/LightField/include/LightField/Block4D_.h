@@ -218,6 +218,7 @@ public:
     //Block4D_(at::Tensor& data);
     Block4D_(std::array<int64_t,4> size);
     Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10, const Block4D_& B11, bool views);
+    Block4D_ copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset);
     void Shift_UVPlane(int shift, int position_t, int position_s);
     void Ones(void);
     void Zeros(void);

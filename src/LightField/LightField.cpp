@@ -8,6 +8,7 @@
 /*                         Gradient Calculations                      */    
 /******************************************************************** */
 
+// Function to create 1D Gaussian kernel
 torch::Tensor create_gaussian_kernel(int size, float sigma) {
     torch::Tensor kernel = torch::zeros({size});
     int center = size / 2;
@@ -30,117 +31,394 @@ torch::Tensor create_gaussian_derivative_kernel(int size, float sigma) {
     torch::Tensor kernel = torch::zeros({size});
     int center = size / 2;
     
-    float sum = 0.0f;
     for (int i = 0; i < size; i++) {
         float x = i - center;
-        float value = -x * std::exp(-(x * x) / (2 * sigma * sigma));
+        // Derivative of Gaussian: -x/(sigma^2) * exp(-x^2/(2*sigma^2))
+        float value = -x * std::exp(-(x * x) / (2 * sigma * sigma)) / (sigma * sigma);
         kernel[i] = value;
-        sum += std::abs(value);
     }
     
-    // Normalize the kernel
-    kernel /= sum;
+    // Normalize the kernel to ensure it sums to zero and has appropriate magnitude
+    float pos_sum = 0.0f;
+    float neg_sum = 0.0f;
+    for (int i = 0; i < size; i++) {
+        float val = kernel[i].item<float>();
+        if (val > 0) pos_sum += val;
+        else neg_sum -= val;
+    }
+    
+    float scale = std::max(pos_sum, neg_sum);
+    if (scale > 0) kernel /= scale;
+    
     return kernel;
 }
 
-torch::Tensor compute_first_order_derivatives_efficient(const torch::Tensor& input, int kernel_size = 5, float sigma = 1.0) {
-    // Check dimensions
+// Function to compute partial derivatives using Gaussian filters
+torch::Tensor compute_first_order_derivatives(const torch::Tensor& input, int kernel_size = 5, float sigma = 1.0) {
+    // Check if input is 4D
     if (input.dim() != 4) {
         throw std::runtime_error("Input tensor must be 4D");
     }
     
-    // Get dimensions
-    int64_t dim0 = input.size(0);
-    int64_t dim1 = input.size(1);
-    int64_t dim2 = input.size(2);
-    int64_t dim3 = input.size(3);
+    // Get input dimensions
+    auto dims = input.sizes();
+    int64_t dim0 = dims[0], dim1 = dims[1], dim2 = dims[2], dim3 = dims[3];
     
     // Create Gaussian and derivative kernels
     torch::Tensor gaussian_kernel = create_gaussian_kernel(kernel_size, sigma);
     torch::Tensor derivative_kernel = create_gaussian_derivative_kernel(kernel_size, sigma);
     
-    // Prepare output tensor
+    // Initialize the 5D output tensor (4D input + 1D for derivatives)
     torch::Tensor output = torch::zeros({dim0, dim1, dim2, dim3, 4}, input.options());
+    
+    // Helper function to apply 1D convolution along specific dimension
+    auto apply_1d_filter = [&](const torch::Tensor& tensor, const torch::Tensor& filter, int dim) -> torch::Tensor {
+        // Create padding configuration
+        int pad_size = filter.size(0) / 2;
+        std::vector<int64_t> padding(2 * tensor.dim(), 0);
+        padding[2 * dim] = pad_size;
+        padding[2 * dim + 1] = pad_size;
+        
+        // Pad the tensor
+        auto padded = torch::nn::functional::pad(tensor, torch::nn::functional::PadFuncOptions(padding));
+        
+        // Output tensor
+        auto result = tensor.clone();
+        
+        // For each position in the output
+        torch::NoGradGuard no_grad;
+        
+        // Use different approaches based on dimension
+        if (dim == 0) {
+            for (int64_t i = 0; i < dim0; i++) {
+                // Apply filter
+                for (int64_t k = 0; k < filter.size(0); k++) {
+                    int64_t idx = i + k - pad_size;
+                    if (idx >= 0 && idx < dim0) {
+                        result[i] += padded[idx] * filter[k].item<float>();
+                    }
+                }
+            }
+        } else if (dim == 1) {
+            for (int64_t b = 0; b < dim0; b++) {
+                for (int64_t i = 0; i < dim1; i++) {
+                    // Apply filter
+                    for (int64_t k = 0; k < filter.size(0); k++) {
+                        int64_t idx = i + k - pad_size;
+                        if (idx >= 0 && idx < dim1) {
+                            result[b][i] += padded[b][idx] * filter[k].item<float>();
+                        }
+                    }
+                }
+            }
+        } else if (dim == 2) {
+            for (int64_t b = 0; b < dim0; b++) {
+                for (int64_t c = 0; c < dim1; c++) {
+                    for (int64_t i = 0; i < dim2; i++) {
+                        // Apply filter
+                        for (int64_t k = 0; k < filter.size(0); k++) {
+                            int64_t idx = i + k - pad_size;
+                            if (idx >= 0 && idx < dim2) {
+                                result[b][c][i] += padded[b][c][idx] * filter[k].item<float>();
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (dim == 3) {
+            for (int64_t b = 0; b < dim0; b++) {
+                for (int64_t c = 0; c < dim1; c++) {
+                    for (int64_t h = 0; h < dim2; h++) {
+                        for (int64_t i = 0; i < dim3; i++) {
+                            // Apply filter
+                            for (int64_t k = 0; k < filter.size(0); k++) {
+                                int64_t idx = i + k - pad_size;
+                                if (idx >= 0 && idx < dim3) {
+                                    result[b][c][h][i] += padded[b][c][h][idx] * filter[k].item<float>();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return result;
+    };
+    
+    // Compute derivatives for each dimension
+    for (int dim = 0; dim < 4; dim++) {
+        // Start with the input tensor
+        torch::Tensor processed = input.clone();
+        
+        // Smooth all dimensions except the current one
+        for (int other_dim = 0; other_dim < 4; other_dim++) {
+            if (other_dim != dim) {
+                processed = apply_1d_filter(processed, gaussian_kernel, other_dim);
+            }
+        }
+        
+        // Apply derivative kernel along the current dimension
+        torch::Tensor derivative = apply_1d_filter(processed, derivative_kernel, dim);
+        
+        // Store in the output tensor
+        for (int64_t i = 0; i < dim0; i++) {
+            for (int64_t j = 0; j < dim1; j++) {
+                for (int64_t k = 0; k < dim2; k++) {
+                    for (int64_t l = 0; l < dim3; l++) {
+                        output[i][j][k][l][dim] = derivative[i][j][k][l];
+                    }
+                }
+            }
+        }
+    }
+    
+    return output;
+}
+
+// Alternative implementation using separable convolutions for better efficiency
+torch::Tensor compute_first_order_derivatives_separable(const torch::Tensor& input, int kernel_size = 5, float sigma = 1.0) {
+    // Check if input is 4D
+    if (input.dim() != 4) {
+        throw std::runtime_error("Input tensor must be 4D");
+    }
+    
+    // Get dimensions
+    auto dims = input.sizes();
+    int64_t dim0 = dims[0], dim1 = dims[1], dim2 = dims[2], dim3 = dims[3];
+    
+    // Create Gaussian and derivative kernels
+    torch::Tensor gaussian_kernel = create_gaussian_kernel(kernel_size, sigma);
+    torch::Tensor derivative_kernel = create_gaussian_derivative_kernel(kernel_size, sigma);
+    
+    // Initialize the 5D output tensor
+    torch::Tensor output = torch::zeros({dim0, dim1, dim2, dim3, 4}, input.options());
+    
+    // Work with a CPU tensor for consistent indexing
+    bool was_cuda = input.is_cuda();
+    torch::Tensor cpu_input = was_cuda ? input.to(torch::kCPU) : input;
     
     // For each dimension
     for (int dim = 0; dim < 4; dim++) {
-        // Clone the input for processing
-        torch::Tensor processed = input.clone();
+        // Create a copy to work with
+        torch::Tensor smoothed = cpu_input.clone();
         
-        // Apply the appropriate reshaping and padding based on dimension
+        // Apply explicit separable convolution
+        int pad_size = kernel_size / 2;
+        
+        // Smoothing along all dimensions except current one
+        for (int other_dim = 0; other_dim < 4; other_dim++) {
+            if (other_dim == dim) continue;
+            
+            // Create temporary result tensor
+            torch::Tensor temp_result = torch::zeros_like(smoothed);
+            
+            // Apply convolution based on dimension
+            if (other_dim == 0) {
+                for (int64_t i = 0; i < dim0; i++) {
+                    for (int64_t j = 0; j < dim1; j++) {
+                        for (int64_t k = 0; k < dim2; k++) {
+                            for (int64_t l = 0; l < dim3; l++) {
+                                float sum = 0.0f;
+                                for (int64_t f = 0; f < kernel_size; f++) {
+                                    int64_t idx = i - pad_size + f;
+                                    if (idx >= 0 && idx < dim0) {
+                                        sum += smoothed[idx][j][k][l].item<float>() * gaussian_kernel[f].item<float>();
+                                    }
+                                }
+                                temp_result[i][j][k][l] = sum;
+                            }
+                        }
+                    }
+                }
+            } else if (other_dim == 1) {
+                for (int64_t i = 0; i < dim0; i++) {
+                    for (int64_t j = 0; j < dim1; j++) {
+                        for (int64_t k = 0; k < dim2; k++) {
+                            for (int64_t l = 0; l < dim3; l++) {
+                                float sum = 0.0f;
+                                for (int64_t f = 0; f < kernel_size; f++) {
+                                    int64_t idx = j - pad_size + f;
+                                    if (idx >= 0 && idx < dim1) {
+                                        sum += smoothed[i][idx][k][l].item<float>() * gaussian_kernel[f].item<float>();
+                                    }
+                                }
+                                temp_result[i][j][k][l] = sum;
+                            }
+                        }
+                    }
+                }
+            } else if (other_dim == 2) {
+                for (int64_t i = 0; i < dim0; i++) {
+                    for (int64_t j = 0; j < dim1; j++) {
+                        for (int64_t k = 0; k < dim2; k++) {
+                            for (int64_t l = 0; l < dim3; l++) {
+                                float sum = 0.0f;
+                                for (int64_t f = 0; f < kernel_size; f++) {
+                                    int64_t idx = k - pad_size + f;
+                                    if (idx >= 0 && idx < dim2) {
+                                        sum += smoothed[i][j][idx][l].item<float>() * gaussian_kernel[f].item<float>();
+                                    }
+                                }
+                                temp_result[i][j][k][l] = sum;
+                            }
+                        }
+                    }
+                }
+            } else if (other_dim == 3) {
+                for (int64_t i = 0; i < dim0; i++) {
+                    for (int64_t j = 0; j < dim1; j++) {
+                        for (int64_t k = 0; k < dim2; k++) {
+                            for (int64_t l = 0; l < dim3; l++) {
+                                float sum = 0.0f;
+                                for (int64_t f = 0; f < kernel_size; f++) {
+                                    int64_t idx = l - pad_size + f;
+                                    if (idx >= 0 && idx < dim3) {
+                                        sum += smoothed[i][j][k][idx].item<float>() * gaussian_kernel[f].item<float>();
+                                    }
+                                }
+                                temp_result[i][j][k][l] = sum;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Update smoothed with temp result
+            smoothed = temp_result;
+        }
+        
+        // Apply derivative filter along the current dimension
+        torch::Tensor derivative = torch::zeros_like(smoothed);
+        
         if (dim == 0) {
-            // Dimension 0 (batch dimension)
-            processed = processed.permute({1, 0, 2, 3});
-            processed = processed.reshape({1, dim1, dim0, dim2 * dim3});
-            
-            // Prepare kernels
-            auto gauss_kernel = gaussian_kernel.reshape({1, 1, kernel_size});
-            auto deriv_kernel = derivative_kernel.reshape({1, 1, kernel_size});
-            
-            // Apply convolution
-            auto pad_size = kernel_size / 2;
-            auto pad = torch::nn::functional::pad(processed, torch::nn::functional::PadFuncOptions({0, 0, pad_size, pad_size}));
-            processed = torch::conv1d(pad, deriv_kernel, {}, 1);
-            
-            // Reshape back
-            processed = processed.reshape({dim1, dim0, dim2, dim3});
-            processed = processed.permute({1, 0, 2, 3});
-        } 
-        else if (dim == 1) {
-            // Dimension 1
-            processed = processed.reshape({dim0 * dim1, 1, dim2, dim3});
-            
-            // Prepare kernels for channel dimension
-            auto gauss_kernel = gaussian_kernel.reshape({1, 1, kernel_size, 1});
-            auto deriv_kernel = derivative_kernel.reshape({1, 1, kernel_size, 1});
-            
-            // Apply 2D convolution with 1D kernels
-            auto pad_size = kernel_size / 2;
-            auto pad = torch::nn::functional::pad(processed, torch::nn::functional::PadFuncOptions({0, 0, pad_size, pad_size}));
-            processed = torch::conv2d(pad, deriv_kernel, {}, 1);
-            
-            // Reshape back
-            processed = processed.reshape({dim0, dim1, dim2, dim3});
-        }
-        else if (dim == 2) {
-            // Dimension 2 (height)
-            processed = processed.permute({0, 3, 1, 2});
-            processed = processed.reshape({dim0 * dim3, dim1, dim2, 1});
-            
-            // Prepare kernels
-            auto gauss_kernel = gaussian_kernel.reshape({1, 1, kernel_size, 1});
-            auto deriv_kernel = derivative_kernel.reshape({1, 1, kernel_size, 1});
-            
-            // Apply convolution
-            auto pad_size = kernel_size / 2;
-            auto pad = torch::nn::functional::pad(processed, torch::nn::functional::PadFuncOptions({0, 0, pad_size, pad_size}));
-            processed = torch::conv2d(pad, deriv_kernel, {}, 1);
-            
-            // Reshape back
-            processed = processed.reshape({dim0, dim3, dim1, dim2});
-            processed = processed.permute({0, 2, 3, 1});
-        }
-        else {  // dim == 3
-            // Dimension 3 (width)
-            processed = processed.permute({0, 2, 1, 3});
-            processed = processed.reshape({dim0 * dim2, dim1, 1, dim3});
-            
-            // Prepare kernels
-            auto gauss_kernel = gaussian_kernel.reshape({1, 1, 1, kernel_size});
-            auto deriv_kernel = derivative_kernel.reshape({1, 1, 1, kernel_size});
-            
-            // Apply convolution
-            auto pad_size = kernel_size / 2;
-            auto pad = torch::nn::functional::pad(processed, torch::nn::functional::PadFuncOptions({pad_size, pad_size, 0, 0}));
-            processed = torch::conv2d(pad, deriv_kernel, {}, 1);
-            
-            // Reshape back
-            processed = processed.reshape({dim0, dim2, dim1, dim3});
-            processed = processed.permute({0, 2, 1, 3});
+            for (int64_t i = 0; i < dim0; i++) {
+                for (int64_t j = 0; j < dim1; j++) {
+                    for (int64_t k = 0; k < dim2; k++) {
+                        for (int64_t l = 0; l < dim3; l++) {
+                            float sum = 0.0f;
+                            for (int64_t f = 0; f < kernel_size; f++) {
+                                int64_t idx = i - pad_size + f;
+                                if (idx >= 0 && idx < dim0) {
+                                    sum += smoothed[idx][j][k][l].item<float>() * derivative_kernel[f].item<float>();
+                                }
+                            }
+                            derivative[i][j][k][l] = sum;
+                        }
+                    }
+                }
+            }
+        } else if (dim == 1) {
+            for (int64_t i = 0; i < dim0; i++) {
+                for (int64_t j = 0; j < dim1; j++) {
+                    for (int64_t k = 0; k < dim2; k++) {
+                        for (int64_t l = 0; l < dim3; l++) {
+                            float sum = 0.0f;
+                            for (int64_t f = 0; f < kernel_size; f++) {
+                                int64_t idx = j - pad_size + f;
+                                if (idx >= 0 && idx < dim1) {
+                                    sum += smoothed[i][idx][k][l].item<float>() * derivative_kernel[f].item<float>();
+                                }
+                            }
+                            derivative[i][j][k][l] = sum;
+                        }
+                    }
+                }
+            }
+        } else if (dim == 2) {
+            for (int64_t i = 0; i < dim0; i++) {
+                for (int64_t j = 0; j < dim1; j++) {
+                    for (int64_t k = 0; k < dim2; k++) {
+                        for (int64_t l = 0; l < dim3; l++) {
+                            float sum = 0.0f;
+                            for (int64_t f = 0; f < kernel_size; f++) {
+                                int64_t idx = k - pad_size + f;
+                                if (idx >= 0 && idx < dim2) {
+                                    sum += smoothed[i][j][idx][l].item<float>() * derivative_kernel[f].item<float>();
+                                }
+                            }
+                            derivative[i][j][k][l] = sum;
+                        }
+                    }
+                }
+            }
+        } else if (dim == 3) {
+            for (int64_t i = 0; i < dim0; i++) {
+                for (int64_t j = 0; j < dim1; j++) {
+                    for (int64_t k = 0; k < dim2; k++) {
+                        for (int64_t l = 0; l < dim3; l++) {
+                            float sum = 0.0f;
+                            for (int64_t f = 0; f < kernel_size; f++) {
+                                int64_t idx = l - pad_size + f;
+                                if (idx >= 0 && idx < dim3) {
+                                    sum += smoothed[i][j][k][idx].item<float>() * derivative_kernel[f].item<float>();
+                                }
+                            }
+                            derivative[i][j][k][l] = sum;
+                        }
+                    }
+                }
+            }
         }
         
-        // Store result in output tensor
-        output.index_put_({torch::indexing::Ellipsis, dim}, processed);
+        // Store in output tensor
+        for (int64_t i = 0; i < dim0; i++) {
+            for (int64_t j = 0; j < dim1; j++) {
+                for (int64_t k = 0; k < dim2; k++) {
+                    for (int64_t l = 0; l < dim3; l++) {
+                        output[i][j][k][l][dim] = derivative[i][j][k][l];
+                    }
+                }
+            }
+        }
+    }
+    
+    // Move back to GPU if needed
+    if (was_cuda) {
+        output = output.to(torch::kCUDA);
+    }
+    
+    return output;
+}
+
+// Function to verify correctness with autograd
+torch::Tensor verify_with_autograd(const torch::Tensor& input) {
+    // Clone and set requires grad
+    torch::Tensor x = input.clone().detach().requires_grad_(true);
+    
+    // Get dimensions
+    auto dims = x.sizes();
+    int64_t dim0 = dims[0], dim1 = dims[1], dim2 = dims[2], dim3 = dims[3];
+    
+    // Output tensor to store derivatives
+    torch::Tensor output = torch::zeros({dim0, dim1, dim2, dim3, 4}, x.options());
+    
+    // For each element in the tensor, compute partial derivatives
+    for (int64_t i = 0; i < dim0; i++) {
+        for (int64_t j = 0; j < dim1; j++) {
+            for (int64_t k = 0; k < dim2; k++) {
+                for (int64_t l = 0; l < dim3; l++) {
+                    // Get the scalar at this position
+                    torch::Tensor scalar = x[i][j][k][l];
+                    
+                    // Zero out existing gradients
+                    if (x.grad().defined()) {
+                        x.grad().zero_();
+                    }
+                    
+                    // Backpropagate
+                    scalar.backward(torch::Tensor(), true);
+                    
+                    // Get gradient
+                    torch::Tensor grad = x.grad().clone();
+                    
+                    // Store in output tensor
+                    for (int dim = 0; dim < 4; dim++) {
+                        output[i][j][k][l][dim] = grad[i][j][k][l];
+                    }
+                }
+            }
+        }
     }
     
     return output;
@@ -152,7 +430,7 @@ torch::Tensor compute_first_order_derivatives_efficient(const torch::Tensor& inp
 /*******************************************************************************/
 
 void LightField::computeGradients(){
-    this->gradients = compute_first_order_derivatives_efficient(this->data);
+    this->gradients = compute_first_order_derivatives_separable(this->data.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), 0}));
 }
 LightField::LightField(std::string root_path,std::string pattern) {
     OpenLightFieldPPM_(root_path,pattern,'r');

@@ -123,8 +123,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     char *partitionCodeS=NULL;
     
     std::vector<SgtSideInfo> ssiBufferS;
-    Block4D_ block_0(length);
-    block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
+    Block4D_ block_0 = inputBlock.copySubblock(length,position);
+    //Block4D_ block_0(length);
+    //block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
     Block4D_ blockOrig = block_0;
     Block4D_ temp_block_0 = block_0;
 
@@ -244,7 +245,6 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         strcat(partitionCodeS, partitionCodeS11);
         strcat(partitionCodeS, partitionCodeS10);
         transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS10,transformedBlockS11,false);
-        
         transformedBlockS.sgtDomain = true;
         //std::cout<<transformedBlockS.data.sizes()<<std::endl;        
         
@@ -310,7 +310,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         delete(*partitionCode);
         *partitionCode = code;
         entropyCoder.SetOptimizerProbabilisticModelState(coderModelState_s);
-        transformedBlock.CopySubblockFrom(transformedBlockS, {0,0,0,0},{0,0,0,0});
+        //transformedBlock.CopySubblockFrom(transformedBlockS, {0,0,0,0},{0,0,0,0});
+        transformedBlock = transformedBlockS;
         currSsiBuffer.insert(currSsiBuffer.end(),ssiBufferS.begin(), ssiBufferS.end());
     }
     if(no_split == 1) {
@@ -322,7 +323,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         delete(*partitionCode);
         *partitionCode = code;
         entropyCoder.SetOptimizerProbabilisticModelState(coderModelState_0);
-        transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
+        //transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
+        transformedBlock = block_0;
         currSsiBuffer.push_back(block_0.ssi);
     }
 
@@ -384,12 +386,15 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         entropyCoder.EncodeSSI_(mSsiBuffer[mSsiBufferIndex++]);
 
         std::array<int64_t,4> trueLength = length;
-        
-
-        entropyCoder.mSubbandLF_ = Block4D_(length);
-        entropyCoder.mSubbandLF_.emptyTransform();
         std::array<int64_t,4> positionTransform = {0,0,position[2]*length[0],position[3]*length[1]};
-        entropyCoder.mSubbandLF_.CopySubblockFrom(mPartitionData_, positionTransform,{0,0,0,0});
+        std::cout<<" isSgt? "<<entropyCoder.mSubbandLF_.sgtDomain<<std::endl;
+
+        entropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,positionTransform);
+        
+        //entropyCoder.mSubbandLF_ = Block4D_(length);
+        //entropyCoder.mSubbandLF_.emptyTransform();
+        //entropyCoder.mSubbandLF_.CopySubblockFrom(mPartitionData_, positionTransform,{0,0,0,0});
+
         //std::cout<<"mSubbandLF_ Size: "<<entropyCoder.mSubbandLF_.data.size(2)<<"x"<<entropyCoder.mSubbandLF_.data.size(3)<<std::endl;
         //std::cout<<"mPartitionData_ Size: "<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;
         //std::cout<<"Size: "<<length[2]<<"x"<<length[3]<<std::endl;

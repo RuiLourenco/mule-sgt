@@ -294,8 +294,8 @@ int main(int argc, char **argv) {
 
     std::cout<<"Opening Stuff and things:"<<std::endl;
     std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
-    //std::string experiment = "TimingConsiderations/";
-    std::string experiment = "Greek/64-4-angle3/";
+    std::string experiment = "ImplementationDebug/";
+    //std::string experiment = "Greek/64-4-angle3/";
     // std::string experiment = "Greek/64-8/";
     std::string path = folder + experiment;
     create_directory(path);

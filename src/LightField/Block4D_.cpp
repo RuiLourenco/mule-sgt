@@ -525,6 +525,50 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
 
     this->sgtDomain = B00.sgtDomain;
 }
+std::ostream &operator<<(std::ostream &os, std::array<int64_t,4> vec) { 
+    return os << "[" << vec[0] << ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
+}
+Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset){
+    
+    Block4D_ deepCopy = this->clone();
+    //Block4D_ deepCopy2 = this->clone();
+
+    for( int i = 0; i < 4; i++){
+        deepCopy.lightFieldPosition[i] = this->lightFieldPosition[i] + sourceOffset[i];
+    }
+    std::array<int64_t,4> length = {std::min(subblockLength[0], this->size[0]-sourceOffset[0]),
+                                    std::min(subblockLength[1], this->size[1]-sourceOffset[1]),
+                                    std::min(subblockLength[2], this->size[2]-sourceOffset[2]),
+                                    std::min(subblockLength[3], this->size[3]-sourceOffset[3])};
+    
+    deepCopy.size = length;
+#if FLAT_TRANSFORM == 1
+    deepCopy.transformSize = {1,1,length[0]*length[2],length[1]*length[3]};
+#else
+    deepCopy.transformSize = length;
+#endif
+
+    if(this->sgtDomain){
+        length = deepCopy.transformSize;
+    }
+   
+    deepCopy.data  = deepCopy.data.index({at::indexing::Slice(sourceOffset[0],sourceOffset[0]+length[0]),
+                                        at::indexing::Slice(sourceOffset[1],sourceOffset[1]+length[1]),
+                                        at::indexing::Slice(sourceOffset[2],sourceOffset[2]+length[2]),
+                                        at::indexing::Slice(sourceOffset[3],sourceOffset[3]+length[3])
+                                        });
+
+                        
+    std::cout<<"final size: "<<deepCopy.data.sizes()<<std::endl;
+    std::cout<<"Output Size: "<< deepCopy.size<<std::endl;
+    std::cout<<"Output Transform Size: "<<deepCopy.transformSize<<std::endl;
+       
+
+    return deepCopy;
+
+
+    
+}
 /**
  * Copies a subblock from another Block4D_ object to the current Block4D_ object.
  *
@@ -3038,6 +3082,7 @@ void Block4D_::operator = (const Block4D_ &B){
     this->includesInvalidCorners = B.includesInvalidCorners;
     this->orderH = B.orderH;
     this->orderV = B.orderV;
+    this->lightFieldPosition = B.lightFieldPosition;
 }
 
 Block4D_ Block4D_::clone() const{
@@ -3051,6 +3096,7 @@ Block4D_ Block4D_::clone() const{
     newBlock.includesInvalidCorners = this->includesInvalidCorners;
     newBlock.orderH = this->orderH;
     newBlock.orderV = this->orderV;
+    newBlock.lightFieldPosition = this->lightFieldPosition;
 
     return newBlock;
 }
