@@ -1021,167 +1021,167 @@ void encodeBlock(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std:
 
 
 
-at::Tensor decodeKLT(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile, at::Tensor covH, at::Tensor covV){
+// at::Tensor decodeKLT(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile, at::Tensor covH, at::Tensor covV){
      
-    hdt.RestartProbabilisticModel();
+//     hdt.RestartProbabilisticModel();
 
-    hdt.mSkipCount = 0;
-    hdt.mSkipMatrix = at::zeros({1,1,9*32,9*32});
+//     hdt.mSkipCount = 0;
+//     hdt.mSkipMatrix = at::zeros({1,1,9*32,9*32});
 
-    //cout<<"Decoder Started!!"<<endl;
-    hdt.mInferiorBitPlane = hdt.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
-    std::cout<<"Minimum Bit Plane: "<<hdt.mInferiorBitPlane<<std::endl;
+//     //cout<<"Decoder Started!!"<<endl;
+//     hdt.mInferiorBitPlane = hdt.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
+//     std::cout<<"Minimum Bit Plane: "<<hdt.mInferiorBitPlane<<std::endl;
 
-    int partitionFlag = hdt.DecodePartitionFlag();
-    cout<<"Partition Flag DECODED! "<<partitionFlag<<endl;
-    //SgtSideInfo ssi = hdt.DecodeSsi(disparityRange);
-    // cout<<"SSI DECODED!"<<endl;
-    //ssi.print();     
-    hdt.mSubbandLF = Block4D_({9,9,32,32});
-    cout<<"Block Created!"<<endl;
-    hdt.mSubbandLF.emptyTransform();
-    cout<<"Block Emptied!"<<endl;
+//     int partitionFlag = hdt.DecodePartitionFlag();
+//     cout<<"Partition Flag DECODED! "<<partitionFlag<<endl;
+//     //SgtSideInfo ssi = hdt.DecodeSsi(disparityRange);
+//     // cout<<"SSI DECODED!"<<endl;
+//     //ssi.print();     
+//     hdt.mSubbandLF = Block4D_({9,9,32,32});
+//     cout<<"Block Created!"<<endl;
+//     hdt.mSubbandLF.emptyTransform();
+//     cout<<"Block Emptied!"<<endl;
 
-    hdt.DecodeBlock(0, 0, 0, 0, hdt.mSubbandLF.transformSize[0], hdt.mSubbandLF.transformSize[1], hdt.mSubbandLF.transformSize[2], hdt.mSubbandLF.transformSize[3], hdt.mSuperiorBitPlane); 
-    write_tensor(log2(1+hdt.mSubbandLF.data.squeeze().abs()),inputImageFile);
+//     hdt.DecodeBlock(0, 0, 0, 0, hdt.mSubbandLF.transformSize[0], hdt.mSubbandLF.transformSize[1], hdt.mSubbandLF.transformSize[2], hdt.mSubbandLF.transformSize[3], hdt.mSuperiorBitPlane); 
+//     write_tensor(log2(1+hdt.mSubbandLF.data.squeeze().abs()),inputImageFile);
 
-    cout<<"Block DECODED!"<<endl;
-    double gain = 288;
-    cout<<"Gain: "<<gain<<endl;
-    cout<<hdt.mSubbandLF.data.sizes()<<endl;
-    hdt.mSubbandLF.ikltTransform(gain,covH,covV);
-    cout<<"transformed!"<<endl;
-    at::Tensor flatTransform = hdt.mSubbandLF.getFlatBlock();
-    cout<<"returning"<<endl;
-    return flatTransform;
-}
+//     cout<<"Block DECODED!"<<endl;
+//     double gain = 288;
+//     cout<<"Gain: "<<gain<<endl;
+//     cout<<hdt.mSubbandLF.data.sizes()<<endl;
+//     hdt.mSubbandLF.ikltTransform(gain,covH,covV);
+//     cout<<"transformed!"<<endl;
+//     at::Tensor flatTransform = hdt.mSubbandLF.getFlatBlock();
+//     cout<<"returning"<<endl;
+//     return flatTransform;
+// }
 
-void encodePartitionKLT(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_ inputBlock, std::array<double,2> disparityRange, double& J0,double& conditionNumberH, double& conditionNumberV){
-    std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
-    double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
-    inputBlock.data = inputBlock.data.contiguous();
+// void encodePartitionKLT(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_ inputBlock, std::array<double,2> disparityRange, double& J0,double& conditionNumberH, double& conditionNumberV){
+//     std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
+//     double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
+//     inputBlock.data = inputBlock.data.contiguous();
     
-    entropyCoder.LoadOptimizerState();
-    //cout<<"Optimizer State Loaded!"<<endl;
+//     entropyCoder.LoadOptimizerState();
+//     //cout<<"Optimizer State Loaded!"<<endl;
 
 
-    double currGain = totalTransformGain_(length,length);
-    //cout<<"currGain: "<<currGain<<endl;
-    //inputBlock.ssi.print();
-    inputBlock.kltTransform(currGain);
-    conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
-    conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
+//     double currGain = totalTransformGain_(length,length);
+//     //cout<<"currGain: "<<currGain<<endl;
+//     //inputBlock.ssi.print();
+//     inputBlock.kltTransform(currGain);
+//     conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
+//     conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
 
-    ///cout<<"Transformed!"<<endl;
-    entropyCoder.mSubbandLF_ = inputBlock;
-    entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(scaledLambda);
-    std::cout<<entropyCoder.mInferiorBitPlane<<std::endl;
+//     ///cout<<"Transformed!"<<endl;
+//     entropyCoder.mSubbandLF_ = inputBlock;
+//     entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(scaledLambda);
+//     std::cout<<entropyCoder.mInferiorBitPlane<<std::endl;
 
-    entropyCoder.LoadOptimizerState();
+//     entropyCoder.LoadOptimizerState();
     
-    ProbabilityModel *currentCoderModelState;
-    entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
-    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
-    double Energy = 0;
-    double rate = 0;
-    double distortion = 0;
-    if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
-        delete [] entropyCoder.mSegmentationTreeCodeBuffer;
-    }
-    entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
-    strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
+//     ProbabilityModel *currentCoderModelState;
+//     entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+//     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
+//     double Energy = 0;
+//     double rate = 0;
+//     double distortion = 0;
+//     if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
+//         delete [] entropyCoder.mSegmentationTreeCodeBuffer;
+//     }
+//     entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
+//     strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
 
-    J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
-    ProbabilityModel *coderModelState_0;
-    entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    entropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+//     J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, lambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
+//     ProbabilityModel *coderModelState_0;
+//     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
+//     entropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
 
-    entropyCoder.EncodeInteger(entropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
-    entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-    //entropyCoder.EncodeSSI_(inputBlock.ssi);
-    std::cout<<"SIZES:"<<entropyCoder.mSubbandLF_.data.sizes()<<std::endl;
-    entropyCoder.EncodeSubblock_(scaledLambda);
-    std::cout<<"Encoded!"<<std::endl;
+//     entropyCoder.EncodeInteger(entropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
+//     entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
+//     //entropyCoder.EncodeSSI_(inputBlock.ssi);
+//     std::cout<<"SIZES:"<<entropyCoder.mSubbandLF_.data.sizes()<<std::endl;
+//     entropyCoder.EncodeSubblock_(scaledLambda);
+//     std::cout<<"Encoded!"<<std::endl;
 
-}
-void encodeBlockKLT(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std::array<double,2> disparityRange, double& J0, double& conditionNumberH, double& conditionNumberV){
+// }
+// void encodeBlockKLT(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std::array<double,2> disparityRange, double& J0, double& conditionNumberH, double& conditionNumberV){
     
-    hdt.RestartProbabilisticModel();
-    //std::cout<<"ILY"<<std::endl;
+//     hdt.RestartProbabilisticModel();
+//     //std::cout<<"ILY"<<std::endl;
 
-    encodePartitionKLT(hdt, lambda,block, disparityRange, J0,conditionNumberH,conditionNumberV);
-    hdt.DoneEncoding();
-}
-at::Tensor decodeBlock(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile){
+//     encodePartitionKLT(hdt, lambda,block, disparityRange, J0,conditionNumberH,conditionNumberV);
+//     hdt.DoneEncoding();
+// }
+// at::Tensor decodeBlock(Hierarchical4DDecoder& hdt, double lambda, std::array<double,2> disparityRange, std::string inputImageFile){
      
-    hdt.RestartProbabilisticModel();
+//     hdt.RestartProbabilisticModel();
 
-    hdt.mSkipCount = 0;
-    hdt.mSkipMatrix = at::zeros({1,1,9*32,9*32});
+//     hdt.mSkipCount = 0;
+//     hdt.mSkipMatrix = at::zeros({1,1,9*32,9*32});
 
-    //cout<<"Decoder Started!!"<<endl;
-    hdt.mInferiorBitPlane = hdt.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
-    std::cout<<"Minimum Bit Plane: "<<hdt.mInferiorBitPlane<<std::endl;
+//     //cout<<"Decoder Started!!"<<endl;
+//     hdt.mInferiorBitPlane = hdt.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
+//     std::cout<<"Minimum Bit Plane: "<<hdt.mInferiorBitPlane<<std::endl;
 
-    int partitionFlag = hdt.DecodePartitionFlag();
-    cout<<"Partition Flag DECODED! "<<partitionFlag<<endl;
-    SgtSideInfo ssi = hdt.DecodeSsi(disparityRange);
-     cout<<"SSI DECODED!"<<endl;
-    ssi.print();     
-    hdt.mSubbandLF = Block4D_({9,9,32,32});
-    cout<<"Block Created!"<<endl;
-    hdt.mSubbandLF.emptyTransform();
-    cout<<"Block Emptied!"<<endl;
+//     int partitionFlag = hdt.DecodePartitionFlag();
+//     cout<<"Partition Flag DECODED! "<<partitionFlag<<endl;
+//     SgtSideInfo ssi = hdt.DecodeSsi(disparityRange);
+//      cout<<"SSI DECODED!"<<endl;
+//     ssi.print();     
+//     hdt.mSubbandLF = Block4D_({9,9,32,32});
+//     cout<<"Block Created!"<<endl;
+//     hdt.mSubbandLF.emptyTransform();
+//     cout<<"Block Emptied!"<<endl;
 
-    hdt.DecodeBlock(0, 0, 0, 0, hdt.mSubbandLF.transformSize[0], hdt.mSubbandLF.transformSize[1], hdt.mSubbandLF.transformSize[2], hdt.mSubbandLF.transformSize[3], hdt.mSuperiorBitPlane); 
-    write_tensor(log2(1+hdt.mSubbandLF.data.squeeze().abs()),inputImageFile);
+//     hdt.DecodeBlock(0, 0, 0, 0, hdt.mSubbandLF.transformSize[0], hdt.mSubbandLF.transformSize[1], hdt.mSubbandLF.transformSize[2], hdt.mSubbandLF.transformSize[3], hdt.mSuperiorBitPlane); 
+//     write_tensor(log2(1+hdt.mSubbandLF.data.squeeze().abs()),inputImageFile);
 
-    cout<<"Block DECODED!"<<endl;
-    double gain = 288;
-    cout<<"Gain: "<<gain<<endl;
-    cout<<hdt.mSubbandLF.data.sizes()<<endl;
-    hdt.mSubbandLF.isgtTransform(gain,ssi);
-    cout<<"transformed!"<<endl;
-    at::Tensor flatTransform = hdt.mSubbandLF.getFlatBlock();
-    cout<<"returning"<<endl;
-    return flatTransform;
-
-
-//     at::Tensor flatTransform =at::mm(at::mm(sgtMatrixV, flatBlock), sgtMatrixH.t()).round().to(at::kInt);
-//     std::cout<<"Now, somewhere between the sacred silence and the sacred noise!"<<std::endl;
-//     at::Tensor newData = hdd.mSubbandLF.flat24D(flatTransform);
-//     cout<<"encoded:"<<endl;
-//     cout<<blockY.getFlatBlock().index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<endl;
-//     cout<<"decoded"<<endl;
-//     cout<<flatTransform.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<endl;
-//     cout<<"PSNR_Y = "<<10*log10((1023*1023)/(mse(flatTransform+512,blockY.getFlatBlock()+512)))<<endl;
-
-//         write_tensor(log2(1+flatBlock.squeeze().abs()),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/flatBlock.png");
-//         write_tensor(flatTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/flatTransform.png");
-//         write_tensor(newData[4][4],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/decoded.png");
-
-//     cout<<"Decoded Max: "<<newData.max().item()<<endl;
-//     hdd.RestartProbabilisticModel();    
+//     cout<<"Block DECODED!"<<endl;
+//     double gain = 288;
+//     cout<<"Gain: "<<gain<<endl;
+//     cout<<hdt.mSubbandLF.data.sizes()<<endl;
+//     hdt.mSubbandLF.isgtTransform(gain,ssi);
+//     cout<<"transformed!"<<endl;
+//     at::Tensor flatTransform = hdt.mSubbandLF.getFlatBlock();
+//     cout<<"returning"<<endl;
+//     return flatTransform;
 
 
-//     // //hdd.mSuperiorBitPlane = hdt.mSuperiorBitPlane;
-//     // hdd.mSuperiorBitPlane = 30;
-//     // FILE *inputFileNamePointer;
-//     // if((inputFileNamePointer = fopen(outputDirectory.c_str(), "rb")) == NULL) {
-//     //     printf("Error: input file %s not found\n", outputDirectory.c_str());
-//     //     exit(0);
-//     // }
+// //     at::Tensor flatTransform =at::mm(at::mm(sgtMatrixV, flatBlock), sgtMatrixH.t()).round().to(at::kInt);
+// //     std::cout<<"Now, somewhere between the sacred silence and the sacred noise!"<<std::endl;
+// //     at::Tensor newData = hdd.mSubbandLF.flat24D(flatTransform);
+// //     cout<<"encoded:"<<endl;
+// //     cout<<blockY.getFlatBlock().index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<endl;
+// //     cout<<"decoded"<<endl;
+// //     cout<<flatTransform.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)})<<endl;
+// //     cout<<"PSNR_Y = "<<10*log10((1023*1023)/(mse(flatTransform+512,blockY.getFlatBlock()+512)))<<endl;
 
-//     // hdd.StartDecoder(inputFileNamePointer);
-//     // pd.mPartitionData = Block4D_({9,9,64,64});
-//     // hdd.RestartProbabilisticModel();
-//     // pd.DecodePartition(hdd);
-//     // cout<<"Decoded Max: "<<pd.mPartitionData.data.max().item()<<endl;
+// //         write_tensor(log2(1+flatBlock.squeeze().abs()),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/flatBlock.png");
+// //         write_tensor(flatTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/flatTransform.png");
+// //         write_tensor(newData[4][4],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/decoded.png");
+
+// //     cout<<"Decoded Max: "<<newData.max().item()<<endl;
+// //     hdd.RestartProbabilisticModel();    
 
 
-//     // std::cout<<mse(pd.mPartitionData,R)<<std::endl;   
-//     fclose(inputFileNamePointer);
-}
+// //     // //hdd.mSuperiorBitPlane = hdt.mSuperiorBitPlane;
+// //     // hdd.mSuperiorBitPlane = 30;
+// //     // FILE *inputFileNamePointer;
+// //     // if((inputFileNamePointer = fopen(outputDirectory.c_str(), "rb")) == NULL) {
+// //     //     printf("Error: input file %s not found\n", outputDirectory.c_str());
+// //     //     exit(0);
+// //     // }
+
+// //     // hdd.StartDecoder(inputFileNamePointer);
+// //     // pd.mPartitionData = Block4D_({9,9,64,64});
+// //     // hdd.RestartProbabilisticModel();
+// //     // pd.DecodePartition(hdd);
+// //     // cout<<"Decoded Max: "<<pd.mPartitionData.data.max().item()<<endl;
+
+
+// //     // std::cout<<mse(pd.mPartitionData,R)<<std::endl;   
+// //     fclose(inputFileNamePointer);
+// }
 // TEST(DecoderTests,AngleInfluence){
 //     vector<double> lambdaVec = {25,250,2500,25000,250000};
 //     //double lambda = 25000;

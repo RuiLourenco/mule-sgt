@@ -1,4 +1,6 @@
 #include "LightField/LightField.h"
+#include "LightField/Block4D_.h"
+
 #include <string.h>
 #include <stdlib.h>
 #include "IO/io.h"
@@ -430,7 +432,9 @@ torch::Tensor verify_with_autograd(const torch::Tensor& input) {
 /*******************************************************************************/
 
 void LightField::computeGradients(){
+    std::cout<<"Computing Gradients"<<std::endl;
     this->gradients = compute_first_order_derivatives_separable(this->data.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), 0}));
+    std::cout<<"Gradients Computed!"<<std::endl;
 }
 LightField::LightField(std::string root_path,std::string pattern) {
     OpenLightFieldPPM_(root_path,pattern,'r');
@@ -457,9 +461,7 @@ LightField :: LightField(std::array<int64_t,5> size){
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, std::array<int64_t,2> firstView, std::array<int64_t,2> viewSize) {
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
         std::cout<<"First View: "<<firstView[0]<<" "<<firstView[1]<<" View Size: "<<viewSize[0]<<" "<<viewSize[1]<<std::endl;
-        write_tensor(this->data[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/firstViewBeforeTrim.png",{0,1024});
         this->data = this->data.index({at::indexing::Slice({firstView[0],firstView[0]+viewSize[0]}),at::indexing::Slice({firstView[1],firstView[1]+viewSize[1]}),at::indexing::Slice(),at::indexing::Slice()});
-        write_tensor(this->data[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/firstViewAfterTrim.png",{0,1024});
         computeGradients();
 }
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
@@ -475,7 +477,7 @@ void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern,
 
 
 Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
-    Block4D_ block(size);
+    Block4D_ block(size,position,this);
     std::array<int64_t,4> actualSize;
     for(int n = 0; n<4; n++){
         actualSize[n] = std::min(data.size(n) - position[n],size[n]);

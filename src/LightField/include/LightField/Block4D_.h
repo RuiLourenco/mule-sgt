@@ -5,6 +5,7 @@
 
 #define PI 3.141592653589793
 #include <torch/torch.h>
+#include "LightField.h"
 #include <array>
 
 class Block4D_;
@@ -122,8 +123,13 @@ private:
     at::Tensor covFun2MatValid(const at::Tensor& covFun, bool isHorizontal) const;
     at::Tensor covFun2MatAll(const at::Tensor& covFun) const;
     static void splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions);
-
 public: 
+    void saveBlockGradient(int64_t dimension) const;
+    double computeGradientSum(int64_t dimension1, int64_t dimension2) const;
+    at::Tensor structureTensor() const;
+    std::array<double,2> computeAnglesFromStructureTensor() const;
+    at::Tensor fetchBlockGradient(int64_t dimension) const;
+    LightField* lightField = nullptr;
     at::Tensor autoCorr(bool isHorizontal);
     at::Tensor corrFun(bool isHorizontal) const;
     at::Tensor eigenValuesH = at::empty({0});
@@ -216,7 +222,7 @@ public:
     //Block4D_(at::Tensor data);
     //Block4D_(const at::Tensor& data);
     //Block4D_(at::Tensor& data);
-    Block4D_(std::array<int64_t,4> size);
+    Block4D_(std::array<int64_t,4> size,std::array<int64_t,4> lightFieldSize, LightField* lightField);
     Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10, const Block4D_& B11, bool views);
     Block4D_ copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset);
     void Shift_UVPlane(int shift, int position_t, int position_s);

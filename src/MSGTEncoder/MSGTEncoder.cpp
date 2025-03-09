@@ -274,13 +274,9 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    Block4D_ lfBlock(par.maxPartitionSize);  
-    Block4D_ rBlock(par.maxPartitionSize); 
-    Block4D_ gBlock(par.maxPartitionSize); 
-    Block4D_ bBlock(par.maxPartitionSize);
-    Block4D_ yBlock(par.maxPartitionSize); 
-    Block4D_ cbBlock(par.maxPartitionSize);
-    Block4D_ crBlock(par.maxPartitionSize);
+
+    Block4D_ yBlock,cbBlock,crBlock; 
+
     
     Hierarchical4DEncoder hdt;
     TransformPartition tp;
@@ -357,12 +353,10 @@ int main(int argc, char **argv) {
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
-                    rBlock.Zeros();
-                    gBlock.Zeros();
-                    bBlock.Zeros();
-                    rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
-                    gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
-                    bBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,2);
+
+                    Block4D_ rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
+                    Block4D_ gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
+                    Block4D_ bBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,2);
                     std::cout<<" Read Block 4D"<<std::endl;
         
                     if(par.isLenslet13x13 == 1) {
@@ -417,6 +411,7 @@ int main(int argc, char **argv) {
 
                     for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++) {
                         if(par.verbosity > 0) printf("\nProcessing spectral component %d\n", spectralComponent);
+                        Block4D_ lfBlock;
                         if(spectralComponent == 0){
                             lfBlock = yBlock;
                         }

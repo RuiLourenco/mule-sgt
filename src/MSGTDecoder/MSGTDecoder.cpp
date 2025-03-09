@@ -197,14 +197,9 @@ int main(int argc, char **argv) {
     hdt.StartDecoder(inputFileNamePointer);
     LightField outputLF(lfSize);
     outputLF.mPGMScale = PGMScale;
-    Block4D_ lfBlock(maxPartitionSize);  
-    Block4D_ rBlock(maxPartitionSize); 
-    Block4D_ gBlock(maxPartitionSize); 
-    Block4D_ bBlock(maxPartitionSize);
-    Block4D_ yBlock(maxPartitionSize); 
-    Block4D_ cbBlock(maxPartitionSize);
-    Block4D_ crBlock(maxPartitionSize);
-    
+    Block4D_ lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
+
+
 
     array<int64_t,4> totalSize;
     for (int n = 0; n < 4; n++) {
@@ -216,7 +211,6 @@ int main(int argc, char **argv) {
         extensionLength[n] = lfSize[n] % maxPartitionSize[n];
     }
     PartitionDecoder pd;
-    pd.mPartitionData = Block4D_(maxPartitionSize);
 
     at::Tensor lfEntropy = at::zeros(lfSize,at::kDouble);
 
@@ -234,42 +228,13 @@ int main(int argc, char **argv) {
 
                         if(par.verbosity > 0) 
                             printf("Decoding 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
-                        lfBlock.Zeros();
+                        pd.mPartitionData = Block4D_(maxPartitionSize,blockPosition,&outputLF);
+
                         hdt.RestartProbabilisticModel();
                         pd.DecodePartition(hdt,par.disparityRange);
-                        //lfEntropy.index({at::indexing::Slice(verticalView,verticalView+maxPartitionSize[0]),at::indexing::Slice(horizontalView,horizontalView+maxPartitionSize[1]),at::indexing::Slice(viewLine,viewLine+maxPartitionSize[2]),at::indexing::Slice(viewColumn,viewColumn+maxPartitionSize[3]),spectralComponent}) =pd.entropyImage;
-
-                        if(spectralComponent == 0){
-                            std::ofstream skipFile;
-                            skipFile.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/skip2D.m", std::ios::out | std::ios::trunc);
-                            std::cout<<hdt.mSkipMatrix.sizes()<<std::endl;
-                            skipFile<<"twoDimSkip = [";
-                            for(int n = 0; n<maxPartitionSize[0]*maxPartitionSize[2];n++){
-                                if(n!= 0) skipFile<<";"<<endl;
-                                for(int m = 0; m<maxPartitionSize[1]*maxPartitionSize[3];m++){
-                                    if(m!= 0) skipFile<<",";
-                                    skipFile<<hdt.mSkipMatrix[0][0][n][m].item();
-                                }
-                            }   
-                            skipFile<<"];"<<endl;
-                            // skipFile<<"rowMajorSkip("<<l+1<<","<<k+1<<",:,:) = [";
-                            // for(int n = 0; n<maxPartitionSize[2];n++){
-                                            
-                            //     for(int m = 0; m<maxPartitionSize[3];m++){
-                            //         if(m!= 0) skipFile<<",";
-                            //         skipFile<<hdt.mSkipMatrix[l][k][n][m].item();
-                            //     }
-                            // }
-                            // skipFile<<"];"<<endl;
-                        }
-                    
+                                      
                 
-                        
-                        
-                        
-                        
-                        
-                        
+        
                         lfBlock = pd.mPartitionData;
                         cout<<"lfBlock is copied!!"<<endl;
                         //if(par.verbosity > 0) cout<<lfBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<endl;
@@ -296,6 +261,7 @@ int main(int argc, char **argv) {
                             crBlock = lfBlock;
                         }
                     }
+
                     if(par.colorTransformType == BT601){
                         YCbCr2RGB_BT601( rBlock, gBlock, bBlock,yBlock, cbBlock, crBlock, outputLF.mPGMScale);
                     }

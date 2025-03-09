@@ -51,7 +51,7 @@ public:
     double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsi,char **partitionCode);
     void EncodePartition_(Hierarchical4DEncoder &entropyCoder, double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda);
-    double EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angle);
+    double EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angleH, double angleV);
 
 };
    

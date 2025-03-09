@@ -52,7 +52,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 #define ADAPTIVE_RHO_CALC 1
 #define FLAT_TRANSFORM 1
 
-#define DEBUG 0
+#define DEBUG 1
 #define MATLAB_DEBUG 0
 
 void saveVectorAsMatlabScript(std::vector<double> vector,std::string name){
@@ -475,16 +475,17 @@ Block4D_::operator at::Tensor() const{
 // #endif
 //     this->sgtDomain = false;
 // }   
-Block4D_::Block4D_(std::array<int64_t,4> size){
+Block4D_::Block4D_(std::array<int64_t,4> size,std::array<int64_t,4>lightFieldPosition,LightField* lightField)
+    : size(size), lightFieldPosition(lightFieldPosition), lightField(lightField){
     this->data = torch::zeros({size[0], size[1], size[2], size[3]}, torch::kInt);
     this->sgtDomain = false;
-    this->size = size;
 #if FLAT_TRANSFORM == 1
     this->transformSize = {1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]};
 #else 
     this->transformSize = {this->size[0],this->size[1],this->size[2],this->size[3]};
 #endif
-    }
+    
+}
 void Block4D_::emptyTransform(){
     this->data = torch::zeros({this->transformSize[0], this->transformSize[1], this->transformSize[2], this->transformSize[3]}, torch::kInt);
     this->sgtDomain = true;
@@ -524,6 +525,8 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
     //std::cout<<" Inside Transform: "<<this->transformSize[0]<<"x"<<this->transformSize[1]<<"x"<<this->transformSize[2]<<"x"<<this->transformSize[3]<<std::endl;
 
     this->sgtDomain = B00.sgtDomain;
+    this->lightFieldPosition = B00.lightFieldPosition;
+    this->lightField = B00.lightField;
 }
 std::ostream &operator<<(std::ostream &os, std::array<int64_t,4> vec) { 
     return os << "[" << vec[0] << ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
@@ -558,10 +561,7 @@ Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array
                                         at::indexing::Slice(sourceOffset[3],sourceOffset[3]+length[3])
                                         });
 
-                        
-    std::cout<<"final size: "<<deepCopy.data.sizes()<<std::endl;
-    std::cout<<"Output Size: "<< deepCopy.size<<std::endl;
-    std::cout<<"Output Transform Size: "<<deepCopy.transformSize<<std::endl;
+
        
 
     return deepCopy;
@@ -705,6 +705,52 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
 }
 
 
+at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
+    at::Tensor blockGradient = lightField->gradients.index({at::indexing::Slice({lightFieldPosition[0],lightFieldPosition[0]+size[0]}),
+                                                            at::indexing::Slice({lightFieldPosition[1],lightFieldPosition[1]+size[1]}),
+                                                            at::indexing::Slice({lightFieldPosition[2],lightFieldPosition[2]+size[2]}),
+                                                            at::indexing::Slice({lightFieldPosition[3],lightFieldPosition[3]+size[3]}),
+                                                           dimension}).squeeze();
+    return blockGradient;
+}
+
+double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) const{
+    at::Tensor blockGradient = fetchBlockGradient(dimension1) * fetchBlockGradient(dimension2);
+    return blockGradient.sum().item<double>();
+}
+at::Tensor Block4D_::structureTensor() const{
+    at::Tensor secondMomentum = torch::zeros({4,4},torch::kDouble);
+    for(int i = 0; i < 4; i++){
+        for(int j = 0; j < 4; j++){
+            secondMomentum[i][j] = computeGradientSum(i,j);
+        }
+    }
+    std::cout<<std::endl;
+    //std::cout<<"L = "<<L<<std::endl;
+    //std::cout<<"Q = "<<Q<<std::endl;
+    return secondMomentum;
+}
+std::array<double,2> Block4D_::computeAnglesFromStructureTensor() const{
+
+
+    //std::cout<<"Light Field Position:"<<this->lightFieldPosition<<std::endl;
+    //std::cout<<"Size:"<<this->size<<std::endl;
+
+    at::Tensor structureTensor = this->structureTensor();
+    std::cout<<structureTensor<<std::endl;
+    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+    std::array<double,2> angles;
+    //std::cout<<Q<<std::endl;
+    angles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
+    angles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
+    return angles;
+}
+
+void Block4D_::saveBlockGradient(int64_t dimension) const{
+    at::Tensor blockGradient = fetchBlockGradient(dimension);
+    write_tensor(blockGradient[4][4],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradientExample.png");
+    std::cout<<"Tensor Written!"<<std::endl;
+}
 // void Block4D_::computeStructureTensor(at::Tensor& secondMomentum){
 //     double Dt = computeAverageMomentum(secondMomentum,0);
 //     double Ds = computeAverageMomentum(secondMomentum,1);
@@ -867,6 +913,7 @@ void Block4D_::sgtTransform(double scale){
     //ssi.print();
 
 
+
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
 
@@ -882,7 +929,15 @@ void Block4D_::sgtTransform(double scale){
     this->eigenValuesH = eigValsH;
     this->eigenValuesV = eigValsV;
     
-
+    //saveBlockGradient(0);
+    //double Dt = computeGradientSum(0,0);
+    //double Ds = computeGradientSum(1,1);
+    //double Dv = computeGradientSum(2,2);
+    //double Du = computeGradientSum(3,3);
+    //std::cout<<" Ds/Du: "<<Ds/Du<<std::endl;
+    //std::cout<<" Dt/Dv: "<<Dt/Dv<<std::endl;
+    //std::cout<<" Ds/Dt: "<<Ds/Dt<<std::endl;
+    //std::cout<<" Du/Dv: "<<Du/Dv<<std::endl;
     write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
     write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
@@ -2497,6 +2552,8 @@ at::Tensor Block4D_::normalizeCov(at::Tensor cov){
      cov = cov / cov[s_center][u_center];
     return cov;
 }
+
+
 void SgtSideInfo::estimateDisparity(const Block4D_& block){
     //std::cout<<"We're estimating disparity... I think I ruined something!"<<std::endl;
     at::Tensor covFunH = Block4D_::normalizeCov(block.covFun(true));
@@ -3083,11 +3140,12 @@ void Block4D_::operator = (const Block4D_ &B){
     this->orderH = B.orderH;
     this->orderV = B.orderV;
     this->lightFieldPosition = B.lightFieldPosition;
+    this->lightField = B.lightField;
 }
 
 Block4D_ Block4D_::clone() const{
 
-    Block4D_ newBlock(this->size);
+    Block4D_ newBlock(this->size,this->lightFieldPosition,this->lightField);
     newBlock.data = this->data.clone();    
     newBlock.size = this->size;
     newBlock.transformSize = this->transformSize;
@@ -3097,6 +3155,7 @@ Block4D_ Block4D_::clone() const{
     newBlock.orderH = this->orderH;
     newBlock.orderV = this->orderV;
     newBlock.lightFieldPosition = this->lightFieldPosition;
+    newBlock.lightField = this->lightField;
 
     return newBlock;
 }

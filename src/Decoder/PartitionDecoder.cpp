@@ -118,12 +118,17 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
 
     if(flagCode == NOSPLITFLAGSYMBOL) {
         //std::cout<<" Decoding SSI"<<std::endl;
+
         SgtSideInfo ssi = entropyDecoder.DecodeSsi(disparityRange);
         ssi.print();
         //std::cout<<"SSI Decoded"<<std::endl;
 
         //std::cout<<"Creating block 4D for the entropy decoder"<<std::endl;
-        entropyDecoder.mSubbandLF = Block4D_(length);
+        std::array<int64_t,4> newLFPosition = mPartitionData.lightFieldPosition;
+        for(int i = 0; i < 4; i++){
+            newLFPosition[i] += position[i];
+        }
+        entropyDecoder.mSubbandLF = Block4D_(length,newLFPosition,mPartitionData.lightField);
 
         //std::cout<<"Block Created"<<std::endl;
         //std::cout<<"Transform Size = "<<entropyDecoder.mSubbandLF.transformSize[0]<<"x"<<entropyDecoder.mSubbandLF.transformSize[1]<<"x"<<entropyDecoder.mSubbandLF.transformSize[2]<<"x"<<entropyDecoder.mSubbandLF.transformSize[3]<<std::endl;

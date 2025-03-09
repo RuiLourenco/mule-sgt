@@ -1,6 +1,5 @@
 #include <torch/torch.h>
 #include "View.h"
-#include "Block4D_.h"
 #include <array>
 
 
@@ -8,7 +7,7 @@
 #ifndef LIGHTFIELD_H
 #define LIGHTFIELD_H
 
-
+class Block4D_;
 class LightField {
 public:    
     LightField() = default;

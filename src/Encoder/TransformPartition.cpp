@@ -35,20 +35,21 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
     mPartitionCode = new char [1];
     mPartitionCode[0] = 0;          //initializes the partition code string as the null string
     mEvaluateOptimumBitPlane = 1;
-    std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
-    mPartitionData_ = Block4D_(length);
-    double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
+    //std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
+    mPartitionData_ = Block4D_(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+    double scaledLambda = lambda;
+    for (int i = 0; i < 4; i++){
+        scaledLambda *= inputBlock.size[i];
+    }
     mLambda = scaledLambda;
-
-    std::array<int64_t,4> position = {0,0,0,0};
     entropyCoder.LoadOptimizerState();
 
-    Block4D_ transformedBlock(length);
+    Block4D_ transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
     transformedBlock.emptyTransform();
 
-    mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, position, length, entropyCoder, mSsiBuffer, &mPartitionCode);
+    mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, entropyCoder, mSsiBuffer, &mPartitionCode);
     //std::cout<<"optimized!"<<std::endl;
-    this->costImage = mLagrangianCost*at::ones({length[0],length[1],length[2],length[3]},at::kDouble);
+    this->costImage = mLagrangianCost*at::ones(inputBlock.size,at::kDouble);
     //std::cout<<"mLagrangianCost = "<<mLagrangianCost<<std::endl;
         
     mPartitionData_ = transformedBlock;
@@ -59,12 +60,13 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchic
 
 }
 
-double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angle){
+double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angleV, double angleH){
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;
     std::chrono::steady_clock::time_point begin;
     std::chrono::steady_clock::time_point end;
     //begin = std::chrono::steady_clock::now();
+    double angle = (angleV + angleH)/2;
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
     block_0.ssi.estimateRhos(block_0,3000);
     //end = std::chrono::steady_clock::now();
@@ -110,20 +112,33 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, Hierarchical4
     //end = std::chrono::steady_clock::now();
     //std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
     block_0.ssi.print();
-    //std::cout<<"Angle: "<< angle<<", Rate: "<<rate<<", Distortion: "<<distortion<<", J0: "<<J0<<std::endl<<std::endl;
+    double weight = totalTransformGain(block_0.size);
+    distortion = distortion/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
+    rate = rate/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
+    distortion = (double) distortion/(weight*weight);
+    distortion = 10 * log10((1024*1024)/distortion);
+    std::cout<<"Angle: ("<< angleH<<","<<angleV<<") Rate: "<<rate<<" bpp, Distortion: "<<distortion<<" dB, J0: "<<J0<<std::endl<<std::endl;
     return J0;
 }
 
 double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsiBuffer,char **partitionCode) {
-    
+
     ProbabilityModel *currentCoderModelState;
     entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
     
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;
+    std::array<int64_t,4> lightFieldPosition = inputBlock.lightFieldPosition;
+    for(int i = 0; i < 4; i++){
+        lightFieldPosition[i] += position[i];
+    }
     
     std::vector<SgtSideInfo> ssiBufferS;
     Block4D_ block_0 = inputBlock.copySubblock(length,position);
+    std::cout<<"Light Field Position: "<<block_0.lightFieldPosition[0]<<" "<<block_0.lightFieldPosition[1]<<" "<<block_0.lightFieldPosition[2]<<" "<<block_0.lightFieldPosition[3]<<std::endl;
+    std::cout<<"Position: "<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]<<std::endl;
+    //std::cout<<"Light Field Position: "<<block_0.lightFieldPosition<<std::endl;
+
     //Block4D_ block_0(length);
     //block_0.CopySubblockFrom(inputBlock,position,{0,0,0,0});
     Block4D_ blockOrig = block_0;
@@ -138,22 +153,32 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     //if((maxAngle-minAngle)/angleStep != std::floor((maxAngle-minAngle)/angleStep)) maxAngle += angleStep;
     std::cout<<"Angle Range: "<<minAngle<<" "<<maxAngle<<std::endl;
     int count = 0;
-    for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
-        double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angle);
-        if (J0_curr < J0){
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            //std::cout<<"tempBlock: ";
-            //tempBlock.ssi.print();
-            //block_0.ssi.print();
-        }
-        temp_block_0 = blockOrig;
-        std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
-    }
+    // for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
+    //     double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angle,angle);
+    //     if (J0_curr < J0){
+    //         J0 = J0_curr;
+    //         block_0 = temp_block_0;
+    //         //std::cout<<"tempBlock: ";
+    //         //tempBlock.ssi.print();
+    //         //block_0.ssi.print();
+    //     }
+    //     temp_block_0 = blockOrig;
+    //     //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
+    
+    // }
     std::cout<<std::endl;
+    //Evaluate Structure Tensor
+    std::array<double,2> angles = blockOrig.computeAnglesFromStructureTensor();
+    double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angles[0],angles[1]);
+    if (J0_curr < J0){
+        J0 = J0_curr;
+        block_0 = temp_block_0;
+    }
+
+
 
     SgtSideInfo ssi0 = block_0.ssi; 
-    std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<std::endl;
+    std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<" "<<ssi0.getAngleV()<<std::endl;
     ssi0.print();
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
@@ -162,7 +187,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     //std::cout<<"HERE"<<std::endl;
 
     double JS = -1.0;
-    Block4D_ transformedBlockS(length);
+    Block4D_ transformedBlockS(length,lightFieldPosition,inputBlock.lightField);
     transformedBlockS.emptyTransform();
 
     //If you can split more in the spatial dimension
@@ -181,12 +206,11 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         partitionCodeS10[0] = 0;
         partitionCodeS11[0] = 0;
        
-        std::array<int64_t,4> new_position, new_length;
+        std::array<int64_t,4> new_position, new_length, new_lightField_position;
         //position remains the same
-        new_position[0] = position[0];
-        new_position[1] = position[1];
-        new_position[2] = position[2];
-        new_position[3] = position[3];
+        new_position = position;
+        new_lightField_position = lightFieldPosition;
+
         
         //length is halved in the spatial dimensions!
         new_length[0] = length[0];
@@ -195,32 +219,37 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         new_length[3] = length[3]/2;
           
         //optimize partition for Block_S returning JS, the transformed Block_S, partitionCode_S and arithmetic_model_S
-        Block4D_ transformedBlockS00(new_length);
+        Block4D_ transformedBlockS00(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS00.emptyTransform();
         
         //Need to see what this is actually doing...
         JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS00, new_position, new_length, entropyCoder, ssiBufferS00, &partitionCodeS00);
         
         new_position[3] = position[3] + length[3]/2;
-        new_length[3] = length[3] - length[3]/2; //???? Why?
+        //new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
+        new_length[3] = length[3] - length[3]/2; 
                  
-        Block4D_ transformedBlockS01(new_length);
+        Block4D_ transformedBlockS01(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS01.emptyTransform();
         
         JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS01, new_position, new_length, entropyCoder,ssiBufferS01, &partitionCodeS01);
 
         new_position[2] = position[2] + length[2]/2;
+        //new_lightField_position[2] = lightFieldPosition[2] + new_position[2];
+
         new_length[2] = length[2] - length[2]/2;
         
-        Block4D_ transformedBlockS11(new_length);
+        Block4D_ transformedBlockS11(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS11.emptyTransform();
         
         JS += RDoptimizeTransformStep_(inputBlock, transformedBlockS11, new_position, new_length,  entropyCoder, ssiBufferS10, &partitionCodeS11);
         
         new_position[3] = position[3];
+        new_lightField_position[3] = lightFieldPosition[2] + new_position[3];
+        
         new_length[3] = length[3]/2;
         
-        Block4D_ transformedBlockS10(new_length);
+        Block4D_ transformedBlockS10(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS10.emptyTransform();
         
         
