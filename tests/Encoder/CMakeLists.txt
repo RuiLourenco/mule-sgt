@@ -11,6 +11,7 @@ target_link_libraries(Encoder_gtests
   LightField
   OldDCT
   ProbabilityModel
+  DebugTools
   torch)
 
 add_test(Encoder_gtests Encoder_gtests )

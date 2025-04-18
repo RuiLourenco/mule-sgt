@@ -71,9 +71,17 @@ void Hierarchical4DEncoder :: EncodeSubblock_(double lambda) {
     double distortion = 0;
     std::array<int64_t,4> size = {mSubbandLF_.data.size(0),mSubbandLF_.data.size(1),mSubbandLF_.data.size(2),mSubbandLF_.data.size(3)};
     this->ignored = at::zeros(size,at::kInt);
-
     strcpy(mSegmentationTreeCodeBuffer,"");
+    this->mSubbandLF_.data = this->mSubbandLF_.data.contiguous();
     this->currCost = RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy, rate,distortion);
+    // std::cout<<"First Coeffs = "<<mSubbandLF_.data[0][0][0][0].item<int>()<<" "<<mSubbandLF_.data[0][0][31][31].item<int>()<<" "<<mSubbandLF_.data[0][0][31][0].item<int>()<<std::endl;
+    // std::cout<<"absolute rate = "<<rate<<" "<<"absolute distortion = "<<distortion<<" Ratio = "<<distortion/(lambda * rate)<<std::endl;
+    // std::cout<<"size = "<<size[0]<<" "<<size[1]<<" "<<size[2]<<" "<<size[3]<<std::endl;
+    // std::cout<<"mSubbandLF size: "<<mSubbandLF_.size[0]<<" "<<mSubbandLF_.size[1]<<" "<<mSubbandLF_.size[2]<<" "<<mSubbandLF_.size[3]<<std::endl;
+    // std::cout<<"mSubbandLF transform size: "<<mSubbandLF_.transformSize[0]<<" "<<mSubbandLF_.transformSize[1]<<" "<<mSubbandLF_.transformSize[2]<<" "<<mSubbandLF_.transformSize[3]<<std::endl;
+    // std::cout<<"mSubbandLF lfPosition: "<<mSubbandLF_.lightFieldPosition[0]<<" "<<mSubbandLF_.lightFieldPosition[1]<<" "<<mSubbandLF_.lightFieldPosition[2]<<" "<<mSubbandLF_.lightFieldPosition[3]<<std::endl;
+    // std::cout<<"lambda: "<<lambda<<" mSuperiorBitplane: "<<mSuperiorBitPlane<<" inferiorBitPlane = "<<mInferiorBitPlane<<std::endl;
+    // std::cout<<"currCost = "<<currCost<<std::endl;
     this->mRate = rate/(size[0]*size[1]*size[2]*size[3]);
     this->mDistortion = distortion/(size[0]*size[1]*size[2]*size[3]);
 
@@ -104,6 +112,8 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     double rate1 = 0;
     double distortion0 = 0;
     double distortion1 = 0;
+
+  
     // bool start = position[0] == 0 && position[1] == 0 && position[2] == 0 && position[3] == 0;
     // bool smallRelevant = position[0] <4  && position[1] < 4  && position[2] < 4 && position[3] < 4 && length[0] ==9 && length[1] == 9 && length[2] == 64 && length[3] == 64;
     // bool relevant = (start && smallRelevant)&& false;
@@ -151,6 +161,13 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     if(length_t*length_s*length_v*length_u == 1) {
         //evaluate the cost to encode coefficient
         int magnitude = data[mSubbandLF_.LinearPosition(position_t,position_s,position_v,position_u)];
+        // if(this->mSubbandLF_.lightFieldPosition[2] == 32 && this->mSubbandLF_.lightFieldPosition[3] == 32){
+        //     if(position[2] < 8 && position[3] < 8){
+        //         std::cout<<"Magnitude = "<<magnitude<<" "<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]<<std::endl;
+        //         std::cout<<"Tensor Direct = "<<this->mSubbandLF_.data[position[0]][position[1]][position[2]][position[3]].item<int>()<<" "<< mSubbandLF_.LinearPosition(position_t,position_s,position_v,position_u)<<std::endl;
+            
+        //     }
+        // }
         //int magnitude = mSubbandLF_.data[position_t][position_s][position_v][position_u].item<int>();
         int signal = 0;
         if(magnitude < 0) {
@@ -862,10 +879,11 @@ void Hierarchical4DEncoder :: EncodePartitionFlag(int symbol) {
 }
 void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
     //std::cout<<"Encode SSI: ";
-    //ssi.print();
+    //
     int precisionRho = ssi.getRhoPrecision();
     int precisionD = ssi.getAnglePrecision();
     //std::cout<<"precision: "<<precisionD<<" "<<precisionRho<<std::endl;
+    ssi.print();
     //EncodeInteger(5,1);
     EncodeInteger(ssi.getAngleVCode(),precisionD);
     EncodeInteger(ssi.getAngleHCode(),precisionD);
@@ -907,7 +925,7 @@ void Hierarchical4DEncoder :: SetDimension(int length_t, int length_s, int lengt
 
 int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
     //std::cout<<"hello"<<std::endl;
-    std::cout<<"Optimum Calc Lambda: "<<lambda<<std::endl;
+    //std::cout<<"Optimum Calc Lambda: "<<lambda<<std::endl;
     long int subbandSize = mSubbandLF_.data.numel(); 
    // std::cout<<"subbandSize = "<<subbandSize<<std::endl;
     double Jmin=0;            //Irrelevant initial value

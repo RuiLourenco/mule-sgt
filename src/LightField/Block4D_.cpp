@@ -52,7 +52,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 #define ADAPTIVE_RHO_CALC 1
 #define FLAT_TRANSFORM 1
 
-#define DEBUG 1
+#define DEBUG 0
 #define MATLAB_DEBUG 0
 
 void saveVectorAsMatlabScript(std::vector<double> vector,std::string name){
@@ -2373,6 +2373,31 @@ double SgtSideInfo::getRhoCodeBias() const{
 double SgtSideInfo::getRhoCodeScale() const{
     return 1/PRECISION_RHO;
 }
+
+
+
+nlohmann::json SgtSideInfo::toJson() const {
+    nlohmann::json j;
+    j["angleH"] = getAngleH();
+    j["angleV"] = getAngleV();
+    j["rhoS"] = getRhoS();
+    j["rhoU"] = getRhoU();
+    j["rhoT"] = getRhoT();
+    j["rhoV"] = getRhoV();
+    return j;
+}
+
+SgtSideInfo SgtSideInfo::fromJson(const nlohmann::json& j) {
+    SgtSideInfo sgtSideInfo({-100,100});
+    sgtSideInfo.setAngleH(j["angleH"].get<double>());
+    sgtSideInfo.setAngleV(j["angleV"].get<double>());
+    sgtSideInfo.setRhoS(j["rhoS"].get<double>());
+    sgtSideInfo.setRhoU(j["rhoU"].get<double>());
+    sgtSideInfo.setRhoT(j["rhoT"].get<double>());
+    sgtSideInfo.setRhoV(j["rhoV"].get<double>());
+    return sgtSideInfo;
+}
+
 double SgtSideInfo::getAngleCodeBias() const{   
     //std::cout<<"Angle Range Bias: "<<this-> angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
     //std::cout<<-angleRange[0]<<" "<<PRECISION_ANGLE<<std::endl;

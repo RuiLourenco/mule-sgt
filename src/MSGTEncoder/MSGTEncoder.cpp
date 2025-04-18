@@ -11,6 +11,7 @@
 #include <array>
 #include <algorithm>
 #include <filesystem>
+#include <cctype>
 
 using namespace std;
 using namespace filesystem;
@@ -73,6 +74,12 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-l")){
             parametersFile>>maxPartitionSize[0]>>maxPartitionSize[1]>>maxPartitionSize[2]>>maxPartitionSize[3];
         }
+        if(!command.compare("-m")){
+            parametersFile>>minPartitionSize[0]>>minPartitionSize[1]>>minPartitionSize[2]>>minPartitionSize[3];
+        }
+        if(!command.compare("-r")){
+            parametersFile>>disparityRange[0]>>disparityRange[1];
+        }
         if(!command.compare("-u")){
             parametersFile>>maxPartitionSize[3];
         }
@@ -85,7 +92,7 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-t")){
             parametersFile>>maxPartitionSize[0];
         }
-        if(!command.compare("-lf")){
+        if(!command.compare("-d")){
             parametersFile>>inputDirectory;
         }
         if(!command.compare("-o")){
@@ -110,10 +117,10 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
             extensionMethod = REPEAT_LAST;
         }
         if(!command.compare("-extension_none")){
-            extensionMethod = extensionMethod = NONE;
+            extensionMethod =  NONE;
         }
         if(!command.compare("-extension_cyclic")){
-            extensionMethod = extensionMethod = CYCLIC;
+            extensionMethod =  CYCLIC;
         }
         if(!command.compare("-t_gain")){
             parametersFile>>transformGain;
@@ -270,31 +277,64 @@ int main(int argc, char **argv) {
     }
 
 
-    LightField inputLF;
-    string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
-    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
+    
 
     Block4D_ yBlock,cbBlock,crBlock; 
 
     
     Hierarchical4DEncoder hdt;
-    TransformPartition tp;
-    tp.mlength_t_min = par.minPartitionSize[0];
-    tp.mlength_s_min = par.minPartitionSize[1];
-    tp.mlength_v_min = par.minPartitionSize[2];
-    tp.mlength_u_min = par.minPartitionSize[3];
+
 
  
     std::array<int64_t,4> extensionLength;
 
     std::cout<<"Opening Stuff and things:"<<std::endl;
-    std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
-    std::string experiment = "ImplementationDebug/";
+    //std::string folder = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/";
+    //std::string experiment = "DebugPrinting/";
+    std::string filename = filesystem::path(par.outputFileName).filename().string();
+    std::string stem = filesystem::path(par.outputFileName).stem().string();
+    std::string path = filesystem::path(par.outputFileName).parent_path().string()+"/";
+    std::string infoPath;
+    std::cout<<"Path: "<<path<<" "<<filename<<std::endl;
+    std::cout<<"Path True: "<<filesystem::absolute(path)<<std::endl;
     //std::string experiment = "Greek/64-4-angle3/";
-    // std::string experiment = "Greek/64-8/";
-    std::string path = folder + experiment;
-    create_directory(path);
+    //std::string experiment = "Greek/64-8/";
+    //std::string path = folder + experiment;
+    int counter = 1;
+    std::string originalPath = path;
+    if (path == "/"){
+        par.outputFileName = filename;
+        path = "";
+        infoPath =  stem + "_info.json";
+        std::cout<<"info: "<<filesystem::absolute(infoPath)<<std::endl;
+        std::cout<<"file: "<<filesystem::absolute(par.outputFileName)<<std::endl;
+    }else{
+        if (originalPath.back() == '/') {
+            originalPath.pop_back(); // Remove trailing slash if present
+        }
+        while (exists(path)) {
+            path = originalPath + "-" + std::to_string(counter)+"/";
+            counter++;
+        }
+    
+        std::cout<<filesystem::absolute(path)<<std::endl;
+        std::cout<<filesystem::absolute(path+filename)<<std::endl;
+        create_directories(path);
+        par.outputFileName = path + filename;
+        infoPath =  path + "info.json";
+    }
+   
+
+
+    LightField inputLF;
+    string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+    inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
+    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
+
+    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
+    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
+    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
+    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
 
     for(int n = 0; n < 4; n++) {
         extensionLength[n] = inputLF.data.size(n) % par.maxPartitionSize[n];
@@ -342,9 +382,9 @@ int main(int argc, char **argv) {
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),0})<<std::endl<<std::endl;
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),1})<<std::endl<<std::endl;;
     //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),2})<<std::endl<<std::endl;;
-    
-    
-    hdt.StartEncoder(outputFileNamePointer);
+    std::vector<CodingPartitionInfo> codingPartitionInfos;
+    TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
+    tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
@@ -375,7 +415,9 @@ int main(int argc, char **argv) {
                                 bBlock.Shift_UVPlane(2, 0, lastViewH);
                             }
                         }
+
                         if((verticalView + par.maxPartitionSize[0] >= inputLF.data.size(0))&&(verticalView <= inputLF.data.size(0))) {
+
                             int lastViewV = inputLF.data.size(0)-verticalView-1;
                             if(horizontalView == 0) {
                                 rBlock.Shift_UVPlane(2, lastViewV, 0);
@@ -399,6 +441,11 @@ int main(int argc, char **argv) {
                         // std::cout<<bBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
                     }
                     if(par.colorTransformType == BT601){
+                        std::cout<<" Attempting BT601 Color Transformation"<<std::endl;
+                        yBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
+                        cbBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
+                        crBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
+                        std::cout<<rBlock.data.max()<<std::endl;
                         RGB2YCbCr_BT601(yBlock, cbBlock, crBlock, rBlock, gBlock, bBlock, inputLF.mPGMScale);
                         std::cout<<" Completed BT601 Color Transformation"<<std::endl;
 
@@ -434,9 +481,9 @@ int main(int argc, char **argv) {
                         }
                                                                                               
 
-                        hdt.RestartProbabilisticModel();
-                        tp.RDoptimizeTransform_(lfBlock, hdt,par.disparityRange,par.transformGain, par.Lambda);
-                        tp.EncodePartition_(hdt, par.Lambda);
+                        tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
+                        tp.RDoptimizeTransform_(lfBlock, par.Lambda);
+                        tp.EncodePartition_(par.Lambda);
                         std::cout<<"Encoding Successful!"<<std::endl;
                         // std::cout<<"Encoded"<<std::endl;
                         int sizeV = std::min(par.maxPartitionSize[2],inputLF.data.size(2)-viewLine);
@@ -444,29 +491,20 @@ int main(int argc, char **argv) {
                         std::cout<<tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)}).sizes()<<std::endl;
                         
                         std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
-                        lfEnergy.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                         std::cout<<"Cost Image Fine"<<std::endl;
-                        lfRhoS.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoSImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        //  std::cout<<"RhoS Fine"<<std::endl;
+                        // lfEnergy.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        //  std::cout<<"Cost Image Fine"<<std::endl;
+                        // lfRhoS.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoSImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
+                        // //  std::cout<<"RhoS Fine"<<std::endl;
 
-                        lfRhoT.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoTImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        std::cout<<"RhoT Fine"<<std::endl;
-                        lfRhoU.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoUImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        // // std::cout<<"RhoU Fine"<<std::endl;
-                        lfRhoV.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoVImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        // //std::cout<<"RhoV Fine"<<std::endl;
-                        lfAngleV.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.angleImageV.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        //std::cout<<"AngleV Fine"<<std::endl;
-                        lfAngleH.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.angleImageH.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        //std::cout<<"AngleH Fine"<<std::endl;
-                        lfRate.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rateImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        lfDistortion.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.distortionImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        std::cout<<"Distortion Fine"<<std::endl;
+                        codingPartitionInfos.push_back(tp.mCodingPartitionInfo);
                     }            
                 }
             }
         }
     }
+
+    CodingPartitionInfo::printVectorToJsonFile(codingPartitionInfos,infoPath);           
+
     //write_tensor(hdt.ignored[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/ignored.png");
     std::ofstream energy;
     std::ofstream rhoS;

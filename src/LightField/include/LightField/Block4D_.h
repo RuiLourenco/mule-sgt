@@ -7,6 +7,7 @@
 #include <torch/torch.h>
 #include "LightField.h"
 #include <array>
+#include <nlohmann/json.hpp>
 
 class Block4D_;
 void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange = {1,1});
@@ -27,7 +28,6 @@ class SgtSideInfo{
     int rhoUInt;
     int rhoTInt;
     int rhoVInt;
-    std::array<double,2> angleRange;
 
     static int pruneDouble(double dNumber,int factor);
     static double recoverDouble(int iNumber,int factor);
@@ -41,9 +41,10 @@ class SgtSideInfo{
         static constexpr double PRECISION_RHO = 1e-5; 
         static constexpr double MIN_RHO = 0.2;
         static constexpr double MAX_RHO = 1-1e-5;
-        static constexpr double PRECISION_ANGLE = 3;  
+        static constexpr double PRECISION_ANGLE = 1;  
         void print();
-        
+        nlohmann::json toJson() const;
+        static SgtSideInfo fromJson(const nlohmann::json& j);
         SgtSideInfo(const Block4D_& block,std::array<double,2> dispRange);
         SgtSideInfo(int RhoSInt,int RhoTInt,int RhoUInt,int RhoVInt,int angleVInt,int angleHInt, std::array<double,2> dispRange);
         SgtSideInfo(std::array<double,2> dispRange);
@@ -54,6 +55,8 @@ class SgtSideInfo{
         at::Tensor constrainedLeastSquares(at::Tensor A, at::Tensor b);
 
         std::array<double,2> disparityRange;
+        std::array<double,2> angleRange;
+
 
         int getRhoPrecision() const;
         int getAnglePrecision() const;

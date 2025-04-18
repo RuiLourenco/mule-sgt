@@ -4,6 +4,9 @@
 #include <string.h>
 #include <vector>
 #include "LightField/Block4D_.h"
+#include "DebugTools/CodingUnitInfo.h"
+#include "DebugTools/CodingPartitionInfo.h"
+
 
 #ifndef TRANSFORMPARTITION_H
 #define TRANSFORMPARTITION_H
@@ -17,12 +20,16 @@
 #define MINIMUM_BITPLANE_PRECISION 5
 
 class MultiScaleTransfrom;
-class Hierarchical4DEncoder;
 
 class TransformPartition {
 public:  
     std::array<double,2> mDisparityRange;
     std::vector<SgtSideInfo> mSsiBuffer;
+    std::vector<CodingUnitInfo> mCuiBuffer;
+    CodingPartitionInfo mCodingPartitionInfo;
+    Hierarchical4DEncoder mEntropyCoder;
+
+    
     at::Tensor costImage;
     at::Tensor rhoSImage;
     at::Tensor rhoUImage;
@@ -36,7 +43,7 @@ public:
     double mGain = 1;
     double mLambda = 0;
     double totalTransformGain(std::array<int64_t,4> length);
-    int mSsiBufferIndex = 0;
+    int mCodingUnitIndex = 0;
     char *mPartitionCode;               /*!< String of flags defining the partition tree */
     int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
@@ -46,12 +53,13 @@ public:
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);
+    TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder entropyCoder,std::array<double,2> disparityRange, double transformGain);
     ~TransformPartition(void);
-    void RDoptimizeTransform_(Block4D_ &inputBlock, Hierarchical4DEncoder &entropyCoder,std::array<double,2> disparityRange, double transformGain, double lambda);
-    double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , Hierarchical4DEncoder &entropyCoder, std::vector<SgtSideInfo>& currSsi,char **partitionCode);
-    void EncodePartition_(Hierarchical4DEncoder &entropyCoder, double lambda);
-    void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, Hierarchical4DEncoder &entropyCoder, double lambda);
-    double EvaluatePartition_(Block4D_ &block_0, Hierarchical4DEncoder &entropyCoder, double currGain , double angleH, double angleV);
+    void RDoptimizeTransform_(Block4D_ &inputBlock, double lambda);
+    double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , std::vector<SgtSideInfo>& currSsi,std::vector<CodingUnitInfo>& currCui,char **partitionCode);
+    void EncodePartition_( double lambda);
+    void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
+    double EvaluatePartition_(Block4D_ &block_0, double currGain , double angleH, double angleV, ProbabilityModel *coderModelState);
 
 };
    
