@@ -22,14 +22,16 @@ TransformPartition :: ~TransformPartition(void) {
     if(mPartitionCode != NULL)
         delete [] mPartitionCode;
 }
-double TransformPartition :: totalTransformGain(std::array<int64_t,4> length){
-    
-    double transformGain = 1;
-    for(int i = 0; i < 4; i++){
-        transformGain*=length[i]/sqrt(length[i]);
-        transformGain  *= sqrt(mPartitionData_.size[i]/length[i]);
-    }
-    return transformGain*mGain;
+double TransformPartition :: totalTransformGain(void){
+    //length must be the length of the block in the spatial domain
+    // double transformGain = 1;
+    // for(int i = 0; i < 4; i++){
+    //     transformGain*=length[i]/sqrt(length[i]);
+    //     transformGain  *= sqrt(mPartitionData_.size[i]/length[i]);
+    //     std::cout<<transformGain<<" "<< length[i]/sqrt(length[i]) << " "<< sqrt(mPartitionData_.size[i]/length[i])<<std::endl;
+    // } 
+
+    return sqrt(mPartitionData_.size[0]*mPartitionData_.size[1]*mPartitionData_.size[2]*mPartitionData_.size[3]);
 
 }
 void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lambda){
@@ -116,7 +118,7 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, double currGa
     //end = std::chrono::steady_clock::now();
     //std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
     block_0.ssi.print();
-    double weight = totalTransformGain(block_0.size);
+    double weight = totalTransformGain();
     distortion = distortion/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
     rate = rate/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
     distortion = (double) distortion/(weight*weight);

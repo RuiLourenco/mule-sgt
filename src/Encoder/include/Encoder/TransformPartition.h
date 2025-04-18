@@ -42,7 +42,7 @@ public:
 
     double mGain = 1;
     double mLambda = 0;
-    double totalTransformGain(std::array<int64_t,4> length);
+    double totalTransformGain(void);
     int mCodingUnitIndex = 0;
     char *mPartitionCode;               /*!< String of flags defining the partition tree */
     int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
