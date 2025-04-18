@@ -218,6 +218,7 @@ public:
     at::Tensor flatBlockFrom4DTensor(at::Tensor coefficients);
     void emptyTransform();
     at::Tensor batchedCovMatrix(bool isHorizontal) const;
+    std::array<int64_t,4> toSGTCoords(std::array<int64_t,4> coords) const;
 
     
 
