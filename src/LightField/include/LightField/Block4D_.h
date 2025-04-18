@@ -127,10 +127,12 @@ private:
     at::Tensor covFun2MatAll(const at::Tensor& covFun) const;
     static void splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions);
 public: 
+    double epiStDisparity(double jAng, double jSpc, double jSpcAng) const;
+    std::array<double,2> stAngleSeperable() const;
     void saveBlockGradient(int64_t dimension) const;
     double computeGradientSum(int64_t dimension1, int64_t dimension2) const;
     at::Tensor structureTensor() const;
-    std::array<double,2> computeAnglesFromStructureTensor() const;
+    std::array<double,2> computeAnglesFromStructureTensor(std::array<double,2> disparityRange) const;
     at::Tensor fetchBlockGradient(int64_t dimension) const;
     LightField* lightField = nullptr;
     at::Tensor autoCorr(bool isHorizontal);
@@ -195,7 +197,7 @@ public:
     static double varianceFromCov(const at::Tensor& cov);
     at::Tensor covFun2Mat(const at::Tensor& covFun,bool isHorizontal) const;
     at::Tensor iSqrtCovMat(bool isHorizontal) const;
-   
+    double epiStDisparityAvg() const;
     static at::Tensor get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal);
     void sgtTransform(double scale);
     at::Tensor isgtTransformData(double scale, SgtSideInfo ssi) ;

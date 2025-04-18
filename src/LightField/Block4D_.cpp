@@ -711,12 +711,74 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
                                                             at::indexing::Slice({lightFieldPosition[2],lightFieldPosition[2]+size[2]}),
                                                             at::indexing::Slice({lightFieldPosition[3],lightFieldPosition[3]+size[3]}),
                                                            dimension}).squeeze();
+write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
     return blockGradient;
 }
 
 double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) const{
-    at::Tensor blockGradient = fetchBlockGradient(dimension1) * fetchBlockGradient(dimension2);
+int spatialBorder = 0;
+    int angularBorder = 2;
+    if(lightFieldPosition[3] == 0 || lightFieldPosition[3] == lightField->data.size(3)-1 || lightFieldPosition[2] == 0 || lightFieldPosition[2] == lightField->data.size(2)-1){
+        spatialBorder = 2;
+    }
+    at::Tensor blockGradient = fetchBlockGradient(dimension1).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)}) 
+* fetchBlockGradient(dimension2).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
     return blockGradient.sum().item<double>();
+}
+double Block4D_::epiStDisparityAvg() const{
+    at::Tensor blockGradientS = fetchBlockGradient(1);
+    at::Tensor blockGradientU = fetchBlockGradient(3);
+    double accDisp = 0;
+    for(int t = 0; t<size[0];++t){
+        for(int v = 0; v < size[2];++v){
+            at::Tensor Js = blockGradientS.index({t,at::indexing::Slice(2,size[1]-2),v,at::indexing::Slice(0,size[3])});
+            at::Tensor Ju = blockGradientU.index({t,at::indexing::Slice(2,size[1]-2),v,at::indexing::Slice(0,size[3])});
+            // double Jss = Js[4][16].pow(2).item<double>();
+            // double Juu = Ju[4][16].pow(2).item<double>();
+            // double Jsu = (Js*Ju)[4][16].item<double>();
+            double Jss = Js.pow(2).mean().item<double>();
+           double Juu = Ju.pow(2).mean().item<double>();
+           double Jsu = (Js*Ju).mean().item<double>();
+
+            double disparity = epiStDisparity(Jss,Juu,Jsu);
+            //std::cout<<t<<" "<<v<<" "<<disparity<<" "<<Jss<<" "<<Juu<<" "<<Jsu<<std::endl;
+            accDisp += disparity;
+        }
+    }
+    return accDisp/(size[0]*size[2]);
+}
+double Block4D_::epiStDisparity(double jAng, double jSpc, double jSpcAng) const{
+    double tmp = (jAng - jSpc);
+    at::Tensor st = torch::zeros({2,2},torch::kDouble);
+    st[0][0] = jAng;
+    st[1][1] = jSpc;
+    st[0][1] = jSpcAng;
+    st[1][0] = jSpcAng;
+    auto [L, Q] = torch::linalg::eigh(st, "U");
+    //std::cout<<Q<<std::endl;
+
+    double dx = (tmp + sqrt(tmp*tmp + 4 * jSpcAng*jSpcAng));
+    double dy = (2*jSpcAng);
+    //std::cout<<jAng<<" "<<jSpc<<" "<<jSpcAng<<std::endl;
+    //std::cout<<"dx: "<<dx<<" dy: "<<dy<<std::endl;
+    double disparity = dx/dy;
+
+    double r = (tmp*tmp + 4 * jSpcAng*jSpcAng)/((jSpc+jAng)*(jSpc+jAng));
+    //std::cout<<"r: "<<r<<std::endl;
+    return disparity;
+}
+std::array<double,2> Block4D_::stAngleSeperable() const{
+    double Jss = computeGradientSum(1,1);
+    double Jtt = computeGradientSum(0,0);
+    double Jvv = computeGradientSum(2,2);
+    double Juu = computeGradientSum(3,3);
+    double Jsu = computeGradientSum(1,3);
+    double Jtv = computeGradientSum(0,2);
+
+    std::array<double,2> angles;
+    angles[1] = epiStDisparity(Jtt,Jvv,Jtv);
+    angles[0] = epiStDisparity(Jss,Juu,Jsu);
+    return angles;
 }
 at::Tensor Block4D_::structureTensor() const{
     at::Tensor secondMomentum = torch::zeros({4,4},torch::kDouble);
@@ -725,24 +787,50 @@ at::Tensor Block4D_::structureTensor() const{
             secondMomentum[i][j] = computeGradientSum(i,j);
         }
     }
-    std::cout<<std::endl;
-    //std::cout<<"L = "<<L<<std::endl;
+        //std::cout<<"L = "<<L<<std::endl;
     //std::cout<<"Q = "<<Q<<std::endl;
     return secondMomentum;
 }
-std::array<double,2> Block4D_::computeAnglesFromStructureTensor() const{
+std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<double,2> disparityRange) const{
 
 
     //std::cout<<"Light Field Position:"<<this->lightFieldPosition<<std::endl;
     //std::cout<<"Size:"<<this->size<<std::endl;
 
     at::Tensor structureTensor = this->structureTensor();
-    std::cout<<structureTensor<<std::endl;
-    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
-    std::array<double,2> angles;
-    //std::cout<<Q<<std::endl;
-    angles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
-    angles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
+        auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+    std::array<double,2> angles, reciprocalAngles;
+    
+    
+    angles[1] = - 180/PI * (atan(Q[0][3].item<double>()/Q[2][3].item<double>()));
+    angles[0] = - 180/PI * (atan(Q[1][3].item<double>()/Q[3][3].item<double>()));
+
+    reciprocalAngles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
+    reciprocalAngles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
+double costV  = logDetCost(angles[1], false, disparityRange);
+    double costV2 = logDetCost(reciprocalAngles[1], false, disparityRange);
+
+
+    double costU = logDetCost(angles[0], true, disparityRange);
+    double costU2 = logDetCost(reciprocalAngles[0], true, disparityRange);
+    
+    if(size[2] == 64){
+        std::cout<<L<<std::endl;
+        std::cout<<Q<<std::endl;
+        std::cout<<angles[0]<< ": "<<costU<<std::endl;
+        std::cout<<angles[1]<< ": "<<costV<<std::endl;
+        std::cout<<reciprocalAngles[0]<< ": "<<costU2<<std::endl;
+        std::cout<<reciprocalAngles[1]<< ": "<<costV2<<std::endl<<std::endl;
+    }
+    if (costV2 < costV) {
+        angles[1] = reciprocalAngles[1];
+    }
+    if (costU2 < costU) {
+        angles[0] = reciprocalAngles[0];
+    }
+    // std::array<double,2> angles2 = stAngleSeperable();
+    // std::cout<<"SepAngles: "<<angles2[0]<<" "<<angles2[1]<<std::endl;
+    // std::cout<<"real disp avg: " <<- 180/PI *atan(epiStDisparityAvg())<<std::endl;
     return angles;
 }
 
@@ -913,7 +1001,7 @@ void Block4D_::sgtTransform(double scale){
     //ssi.print();
 
 
-
+    // write_tensor(this->data.index({at::indexing::Slice(),4,at::indexing::Slice(),16}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/EPI-b4transform.png");
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
 
