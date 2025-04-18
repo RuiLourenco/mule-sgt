@@ -121,6 +121,7 @@ void write_image(const cv::Mat& image,std::string path,std::array<double,2> valu
         min_val = valueRange[0];
         max_val = valueRange[1];
     }
+    std::cout<<path<<" Min Val: "<<min_val<<" Max Val: "<<max_val<<std::endl;
     display_image = min(max(image,min_val), max_val);
     display_image -= min_val;
     display_image /= max_val - min_val;
@@ -131,6 +132,7 @@ void write_image(const cv::Mat& image,std::string path,std::array<double,2> valu
     applyColorMap(display_image, img_color, cv::COLORMAP_JET);
     // Write the image
     cv::imwrite(path, img_color);
+    //cv::imwrite(path, display_image);
 }
 void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange){
 #if DEBUG == 1
@@ -2619,9 +2621,9 @@ at::Tensor Block4D_::calcModelCovFun(SgtSideInfo ssi,bool isHorizontal) const{
         rhoAng = ssi.getRhoT(); 
         sizeAng = this->size[0];
         disparity = ssi.getDisparityV();
-
     }
-    //std::cout<<"cov size: "<<sizeAng<<" "<<sizeSpt<<std::endl;
+
+    //std::cout<<"cov size: "<<sizeAng<<" "<<sizeSpt<<" "<<rhoSpt<<" "<<rhoAng<<std::endl;
     auto [s,u] = make_function_grid({sizeAng, sizeSpt});
         //std::cout<<"func gri dome: "<<sizeAng<<" "<<sizeSpt<<std::endl;
 
@@ -2684,8 +2686,69 @@ at::Tensor Block4D_::normalizeCov(at::Tensor cov){
      cov = cov / cov[s_center][u_center];
     return cov;
 }
+double Block4D_::logDetCost(double angle, bool isHorizontal, std::array<double,2> disparityRange) const{
+    SgtSideInfo temp(disparityRange);
+    at::Tensor covFunH = Block4D_::normalizeCov(this->covFun(true));
+    at::Tensor covFunV = Block4D_::normalizeCov(this->covFun(false));
+
+    int64_t k_center = covFunH.size(0)/2;
+    int64_t m_center = covFunH.size(1)/2;     
+    int64_t l_center = covFunV.size(0)/2;
+    int64_t n_center = covFunV.size(1)/2;     
+    temp.setRhoU(covFunH[k_center][m_center+1].item<double>());
+    temp.setRhoV(covFunV[l_center][n_center+1].item<double>());
+    temp.setRhoS(SgtSideInfo::MAX_RHO);
+    temp.setRhoT(SgtSideInfo::MAX_RHO);
+    if(isHorizontal){
+        temp.setAngleH(angle);
+    }else{
+        temp.setAngleV(angle);
+    }
+    at::Tensor modelCovMat = this->calcModelCovMatrix(temp,isHorizontal);
+    at::Tensor iSqrtCovMat = this->iSqrtCovMat(isHorizontal);
+    double genDiv = temp.genDivergence(modelCovMat,iSqrtCovMat);
+    return genDiv;
+}
+std::array<double,2> Block4D_::logDetAngleEstimation(double precision, std::array<double,2> dispRange) const{
+    at::Tensor covFunH = Block4D_::normalizeCov(this->covFun(true));
+    at::Tensor covFunV = Block4D_::normalizeCov(this->covFun(false));
+
+    SgtSideInfo temp(dispRange);
+    int64_t k_center = covFunH.size(0)/2;
+    int64_t m_center = covFunH.size(1)/2;     
+    int64_t l_center = covFunV.size(0)/2;
+    int64_t n_center = covFunV.size(1)/2;     
+    temp.setRhoU(covFunH[k_center][m_center+1].item<double>());
+    temp.setRhoV(covFunV[l_center][n_center+1].item<double>());
+    temp.setRhoS(SgtSideInfo::MAX_RHO);
+    temp.setRhoT(SgtSideInfo::MAX_RHO);
+    at::Tensor iSqrtCovMatH = this->iSqrtCovMat(true);
+    //std::cout<<"iSqrt: "<<std::endl<<iSqrtCovMatH[0]<<std::endl<<std::endl<<std::endl;
+    at::Tensor iSqrtCovMatV = this->iSqrtCovMat(false);
+    double minV = std::numeric_limits<double>::max();
+    double minH = std::numeric_limits<double>::max();
+    double angleV = 0;
+    double angleH = 0;
+    for(double theta = temp.angleRange[0];theta<=temp.angleRange[1];theta+=precision){
+        temp.setAngleH(theta);
+        temp.setAngleV(theta);
+        at::Tensor modelCovMatH = this->calcModelCovMatrix(temp,true);
+        at::Tensor modelCovMatV = this->calcModelCovMatrix(temp,false);
+        double genDivH = temp.genDivergence(modelCovMatH,iSqrtCovMatH);
+        double genDivV = temp.genDivergence(modelCovMatV,iSqrtCovMatV);
+        if(genDivH < minH){
+            minH = genDivH;
+            angleH = theta;
+        }
+        if(genDivV < minV){
+            minV = genDivV;
+            angleV = theta;
+        }             
+    }
+    return {angleH,angleV};
 
 
+}
 void SgtSideInfo::estimateDisparity(const Block4D_& block){
     //std::cout<<"We're estimating disparity... I think I ruined something!"<<std::endl;
     at::Tensor covFunH = Block4D_::normalizeCov(block.covFun(true));

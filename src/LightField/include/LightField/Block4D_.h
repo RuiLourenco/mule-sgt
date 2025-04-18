@@ -99,6 +99,7 @@ class SgtSideInfo{
         SgtSideInfo() = default;
         void estimateAngleFromMonotony(Block4D_ block);
         static std::array<double,2> angleRangeFromDispRange(std::array<double,2> dispRange);
+        static double genDivergence(const at::Tensor& modelCovMat, const at::Tensor& iSqrtCovMat);
 
 
     private:
@@ -109,7 +110,7 @@ class SgtSideInfo{
         void setSpatialRhos(const at::Tensor& covFunH, const at::Tensor& covFunV);
         void setSpatialRhos(const double rhoU, const double rhoV);
         void setAngularRhos(const double rhoS = FIXED_ANGULAR_RHO, const double rhoT = FIXED_ANGULAR_RHO);
-        static double genDivergence(const at::Tensor& modelCovMat, const at::Tensor& iSqrtCovMat);
+        
 
 };
 class Block4D_ 
@@ -129,6 +130,8 @@ private:
 public: 
     double epiStDisparity(double jAng, double jSpc, double jSpcAng) const;
     std::array<double,2> stAngleSeperable() const;
+    double logDetCost(double angle, bool isHorizontal, std::array<double,2> dispRange) const;
+    std::array<double,2> logDetAngleEstimation(double precision,std::array<double,2> dispRange) const;
     void saveBlockGradient(int64_t dimension) const;
     double computeGradientSum(int64_t dimension1, int64_t dimension2) const;
     at::Tensor structureTensor() const;
