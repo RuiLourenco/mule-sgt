@@ -512,7 +512,7 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
     }else{
         x1 = 2; x2 = 3;
     }
-//std::cout<<"B00: "<<B00.size[0]<<"x"<<B00.size[1]<<"x"<<B00.size[2]<<"x"<<B00.size[3]<<std::endl;
+    //std::cout<<"B00: "<<B00.size[0]<<"x"<<B00.size[1]<<"x"<<B00.size[2]<<"x"<<B00.size[3]<<std::endl;
     //std::cout<<"B00 Transform Size: "<<B00.transformSize[0]<<"x"<<B00.transformSize[1]<<"x"<<B00.transformSize[2]<<"x"<<B00.transformSize[3]<<std::endl;
     assert(B00.data.size(x1)+B10.data.size(x1) == B01.data.size(x1)+B11.data.size(x1) && "heights don't match" );
     assert(B00.data.size(x2)+B01.data.size(x2) == B10.data.size(x2)+B11.data.size(x2) && "widths don't match");
@@ -521,14 +521,14 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
     this->size[x1] = B00.size[x1]+B10.size[x1];
     this->size[x2] = B00.size[x2]+B01.size[x2];
     //std::cout<<" Inside: "<<this->size[0]<<"x"<<this->size[1]<<"x"<<this->size[2]<<"x"<<this->size[3]<<std::endl;
-
+    
 #if FLAT_TRANSFORM == 1
     this->transformSize = {1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]};
 #else 
     this->transformSize = {this->size[0],this->size[1],this->size[2],this->size[3]};
 #endif
 //std::cout<<" Inside Size: "<<this->size[0]<<"x"<<this->size[1]<<"x"<<this->size[2]<<"x"<<this->size[3]<<std::endl;
-    //std::cout<<" Inside Transform Size: "<<this->transformSize[0]<<"x"<<this->transformSize[1]<<"x"<<this->transformSize[2]<<"x"<<this->transformSize[3]<<std::endl;
+//std::cout<<" Inside Transform Size: "<<this->transformSize[0]<<"x"<<this->transformSize[1]<<"x"<<this->transformSize[2]<<"x"<<this->transformSize[3]<<std::endl;
 
     this->sgtDomain = B00.sgtDomain;
     this->lightFieldPosition = B00.lightFieldPosition;
@@ -560,25 +560,25 @@ Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array
                                     std::min(subblockLength[3], this->size[3]-sourceOffset[3])};
     
     deepCopy.size = length;
-
+    
     deepCopy.transformSize = toSGTCoords(length);
 
     //std::cout<<"sourceOffsety B4: "<<sourceOffset[0]<<" "<<sourceOffset[1]<<" "<<sourceOffset[2]<<" "<<sourceOffset[3]<<std::endl;
 
     if(this->sgtDomain){
         length = deepCopy.transformSize;
-sourceOffset = toSGTCoords(sourceOffset);
+        sourceOffset = toSGTCoords(sourceOffset);
     }
-//std::cout<<"lengthy: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
+    //std::cout<<"lengthy: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
     //std::cout<<"sourceOffsety After: "<<sourceOffset[0]<<" "<<sourceOffset[1]<<" "<<sourceOffset[2]<<" "<<sourceOffset[3]<<std::endl;
-   
+
     deepCopy.data  = deepCopy.data.index({at::indexing::Slice(sourceOffset[0],sourceOffset[0]+length[0]),
                                         at::indexing::Slice(sourceOffset[1],sourceOffset[1]+length[1]),
                                         at::indexing::Slice(sourceOffset[2],sourceOffset[2]+length[2]),
                                         at::indexing::Slice(sourceOffset[3],sourceOffset[3]+length[3])
                                         });
 
-//std::cout<<"Actual Size After Copy: "<<deepCopy.data.sizes()<<std::endl;
+    //std::cout<<"Actual Size After Copy: "<<deepCopy.data.sizes()<<std::endl;
     //std::cout<<"Size After Copy: "<<deepCopy.size<<std::endl;
     //std::cout<<"Transform Size After Copy: "<<deepCopy.transformSize<<std::endl;
 
@@ -732,18 +732,18 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
                                                             at::indexing::Slice({lightFieldPosition[2],lightFieldPosition[2]+size[2]}),
                                                             at::indexing::Slice({lightFieldPosition[3],lightFieldPosition[3]+size[3]}),
                                                            dimension}).squeeze();
-write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
+                                                           write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
     return blockGradient;
 }
 
 double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) const{
-int spatialBorder = 0;
+    int spatialBorder = 0;
     int angularBorder = 2;
     if(lightFieldPosition[3] == 0 || lightFieldPosition[3] == lightField->data.size(3)-1 || lightFieldPosition[2] == 0 || lightFieldPosition[2] == lightField->data.size(2)-1){
         spatialBorder = 2;
     }
     at::Tensor blockGradient = fetchBlockGradient(dimension1).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)}) 
-* fetchBlockGradient(dimension2).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
+                             * fetchBlockGradient(dimension2).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
     return blockGradient.sum().item<double>();
 }
 double Block4D_::epiStDisparityAvg() const{
@@ -808,7 +808,7 @@ at::Tensor Block4D_::structureTensor() const{
             secondMomentum[i][j] = computeGradientSum(i,j);
         }
     }
-        //std::cout<<"L = "<<L<<std::endl;
+    //std::cout<<"L = "<<L<<std::endl;
     //std::cout<<"Q = "<<Q<<std::endl;
     return secondMomentum;
 }
@@ -819,7 +819,7 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     //std::cout<<"Size:"<<this->size<<std::endl;
 
     at::Tensor structureTensor = this->structureTensor();
-        auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
     std::array<double,2> angles, reciprocalAngles;
     
     
@@ -828,7 +828,7 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
 
     reciprocalAngles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
     reciprocalAngles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
-double costV  = logDetCost(angles[1], false, disparityRange);
+    double costV  = logDetCost(angles[1], false, disparityRange);
     double costV2 = logDetCost(reciprocalAngles[1], false, disparityRange);
 
 
