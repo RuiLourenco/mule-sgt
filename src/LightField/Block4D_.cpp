@@ -2609,6 +2609,7 @@ void SgtSideInfo::setAngularRhos(const double rhoS, const double rhoT){
 at::Tensor Block4D_::calcModelCovFun(SgtSideInfo ssi,bool isHorizontal) const{
     double rhoSpt, rhoAng,disparity;
     int64_t sizeSpt,sizeAng;
+    //ssi.print();
     if(isHorizontal){
         rhoSpt = ssi.getRhoU();
         sizeSpt = this->size[3];
