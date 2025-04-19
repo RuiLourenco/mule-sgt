@@ -263,6 +263,9 @@ int main(int argc, char **argv) {
                     }
 
                     if(par.colorTransformType == BT601){
+                        rBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
+                        gBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
+                        bBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
                         YCbCr2RGB_BT601( rBlock, gBlock, bBlock,yBlock, cbBlock, crBlock, outputLF.mPGMScale);
                     }
                     if(par.colorTransformType == YCOCG){

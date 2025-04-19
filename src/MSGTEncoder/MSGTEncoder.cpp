@@ -59,6 +59,7 @@ public:
     void DisplayConfiguration(void);
 };
 void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) {
+    std::cout<<"HELLO!"<<std::endl;
     std::ifstream parametersFile(parametersFileName);
     // FILE *parametersFilepointer;
     
@@ -483,9 +484,9 @@ int main(int argc, char **argv) {
                         int sizeH = std::min(par.maxPartitionSize[3],inputLF.data.size(3)-viewColumn);
                         
                         std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
-
+                        
                         codingPartitionInfos.push_back(tp.mCodingPartitionInfo);
-                    }            
+                    }
                 }
             }
         }
@@ -609,6 +610,12 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
 }
 
 void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+    std::cout << "Y data type: " << Y.data.dtype() << std::endl;
+    std::cout << "Cb data type: " << Cb.data.dtype() << std::endl;
+    std::cout << "Cr data type: " << Cr.data.dtype() << std::endl;
+    std::cout << "R data type: " << R.data.dtype() << std::endl;
+    std::cout << "G data type: " << G.data.dtype() << std::endl;
+    std::cout << "B data type: " << B.data.dtype() << std::endl;
     int* Y_data = Y.data.data_ptr<int>();
     int* Cb_data = Cb.data.data_ptr<int>();
     int* Cr_data = Cr.data.data_ptr<int>();
@@ -617,11 +624,11 @@ void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R,
     int* B_data = B.data.data_ptr<int>();
     for(int n = 0; n < R.size[0]*R.size[1]*R.size[2]*R.size[3]; n++) {
         double pixel =  0.299 * R_data[n] + 0.587 * G_data[n] + 0.114 * B_data[n];
-        Y_data[n] = round(pixel);
-        pixel = -0.16875 * R_data[n] -0.33126 * G_data[n] + 0.5 * B_data[n];
-        Cb_data[n] = round(pixel) + (Scale + 1)/2;
-        pixel = 0.5 * R_data[n] -0.41869 * G_data[n] -0.08131  * B_data[n];
-        Cr_data[n] = round(pixel) + (Scale + 1)/2;
+        Y_data[n] = (int) round(pixel);
+        pixel = -0.16875 *(double) R_data[n] -0.33126 *(double) G_data[n] + 0.5 * (double)B_data[n];
+        Cb_data[n] = (int) round(pixel) + (Scale + 1)/2;
+        pixel = 0.5 *(double) R_data[n] -0.41869 * (double) G_data[n] -0.08131  * (double)B_data[n];
+        Cr_data[n] = (int) round(pixel) + (Scale + 1)/2;
     }
 }
 
