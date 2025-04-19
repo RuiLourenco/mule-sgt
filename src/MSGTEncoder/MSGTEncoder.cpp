@@ -17,6 +17,11 @@ using namespace std;
 using namespace filesystem;
 
 
+bool is_all_whitespace(const std::string& str) {
+    return std::all_of(str.begin(), str.end(), [](unsigned char c) {
+        return std::isspace(c);
+    });
+}
 
 class EncoderParameters;
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
@@ -370,18 +375,6 @@ int main(int argc, char **argv) {
     //writes the bit precision of each component of the pixels of the views
     BigEndianUnsignedIntegerWrite(inputLF.mPGMScale, 2, outputFileNamePointer);
     //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
-    at::Tensor lfEnergy = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfRhoS = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfRhoT = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfRhoU = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfRhoV = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfAngleV = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfAngleH = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfRate = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    at::Tensor lfDistortion = at::zeros({inputLF.data.size(2),inputLF.data.size(3),3},at::kDouble);
-    //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),0})<<std::endl<<std::endl;
-    //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),1})<<std::endl<<std::endl;;
-    //std::cout<<inputLF.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4),2})<<std::endl<<std::endl;;
     std::vector<CodingPartitionInfo> codingPartitionInfos;
     TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
@@ -488,13 +481,8 @@ int main(int argc, char **argv) {
                         // std::cout<<"Encoded"<<std::endl;
                         int sizeV = std::min(par.maxPartitionSize[2],inputLF.data.size(2)-viewLine);
                         int sizeH = std::min(par.maxPartitionSize[3],inputLF.data.size(3)-viewColumn);
-                        std::cout<<tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)}).sizes()<<std::endl;
                         
                         std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
-                        // lfEnergy.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.costImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        //  std::cout<<"Cost Image Fine"<<std::endl;
-                        // lfRhoS.index({at::indexing::Slice(viewLine,viewLine+sizeV),at::indexing::Slice(viewColumn,viewColumn+sizeH),spectralComponent}) = tp.rhoSImage.index({at::indexing::Slice(0,sizeV),at::indexing::Slice(0,sizeH)});
-                        // //  std::cout<<"RhoS Fine"<<std::endl;
 
                         codingPartitionInfos.push_back(tp.mCodingPartitionInfo);
                     }            
@@ -506,88 +494,88 @@ int main(int argc, char **argv) {
     CodingPartitionInfo::printVectorToJsonFile(codingPartitionInfos,infoPath);           
 
     //write_tensor(hdt.ignored[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/ignored.png");
-    std::ofstream energy;
-    std::ofstream rhoS;
-    std::ofstream rhoT;
-    std::ofstream rhoU;
-    std::ofstream rhoV;
-    std::ofstream angleH;
-    std::ofstream angleV;
-    std::ofstream rate;
-    std::ofstream distortion;
+    // std::ofstream energy;
+    // std::ofstream rhoS;
+    // std::ofstream rhoT;
+    // std::ofstream rhoU;
+    // std::ofstream rhoV;
+    // std::ofstream angleH;
+    // std::ofstream angleV;
+    // std::ofstream rate;
+    // std::ofstream distortion;
 
-    energy.open(path + "energy.m");
-    rhoS.open(path + "rhoS.m");
-    rhoT.open(path + "rhoT.m");
-    rhoU.open(path + "rhoU.m");
-    rhoV.open(path + "rhoV.m");
-    angleH.open(path + "angleH.m");
-    angleV.open(path + "angleV.m");
-    rate.open(path + "rate.m");
-    distortion.open(path + "distortion.m");
-    std::cout<<"Printing Images"<<endl;
-    energy<<"energy_cpp = zeros("<<lfEnergy.size(0)<<","<<lfEnergy.size(1)<<","<<lfEnergy.size(2)<<");"<<std::endl;
-    rhoS<<"rhoS_cpp = zeros("<< lfRhoS.size(0)<<","<< lfRhoS.size(1)<<","<< lfRhoS.size(2)<<");"<<std::endl;
-    rhoT<<"rhoT_cpp = zeros("<<lfRhoT.size(0)<<","<<lfRhoT.size(1)<<","<<lfRhoT.size(2)<<");"<<std::endl;
-    rhoU<<"rhoU_cpp = zeros("<<lfRhoU.size(0)<<","<<lfRhoU.size(1)<<","<<lfRhoU.size(2)<<");"<<std::endl;
-    rhoV<<"rhoV_cpp = zeros("<<lfRhoV.size(0)<<","<<lfRhoV.size(1)<<","<<lfRhoV.size(2)<<");"<<std::endl;
-    angleH<<"angleH_cpp = zeros("<<lfAngleH.size(0)<<","<<lfAngleH.size(1)<<","<<lfAngleH.size(2)<<");"<<std::endl;
-    angleV<<"angleV_cpp = zeros("<<lfAngleV.size(0)<<","<<lfAngleV.size(1)<<","<<lfAngleV.size(2)<<");"<<std::endl;
-    rate<<"rate_cpp = zeros("<<lfRate.size(0)<<","<<lfRate.size(1)<<","<<lfRate.size(2)<<");"<<std::endl;
-    distortion<<"distortion_cpp = zeros("<<lfDistortion.size(0)<<","<<lfDistortion.size(1)<<","<<lfDistortion.size(2)<<");"<<std::endl;
-    for(int n = 0; n < lfEnergy.size(0); n++){
-        for(int m = 0; m < lfEnergy.size(1); m++){
-            energy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEnergy[n][m][0].item()<<";";
-            energy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEnergy[n][m][1].item()<<";";
-            energy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEnergy[n][m][2].item()<<";";
+    // energy.open(path + "energy.m");
+    // rhoS.open(path + "rhoS.m");
+    // rhoT.open(path + "rhoT.m");
+    // rhoU.open(path + "rhoU.m");
+    // rhoV.open(path + "rhoV.m");
+    // angleH.open(path + "angleH.m");
+    // angleV.open(path + "angleV.m");
+    // rate.open(path + "rate.m");
+    // distortion.open(path + "distortion.m");
+    // std::cout<<"Printing Images"<<endl;
+    // energy<<"energy_cpp = zeros("<<lfEnergy.size(0)<<","<<lfEnergy.size(1)<<","<<lfEnergy.size(2)<<");"<<std::endl;
+    // rhoS<<"rhoS_cpp = zeros("<< lfRhoS.size(0)<<","<< lfRhoS.size(1)<<","<< lfRhoS.size(2)<<");"<<std::endl;
+    // rhoT<<"rhoT_cpp = zeros("<<lfRhoT.size(0)<<","<<lfRhoT.size(1)<<","<<lfRhoT.size(2)<<");"<<std::endl;
+    // rhoU<<"rhoU_cpp = zeros("<<lfRhoU.size(0)<<","<<lfRhoU.size(1)<<","<<lfRhoU.size(2)<<");"<<std::endl;
+    // rhoV<<"rhoV_cpp = zeros("<<lfRhoV.size(0)<<","<<lfRhoV.size(1)<<","<<lfRhoV.size(2)<<");"<<std::endl;
+    // angleH<<"angleH_cpp = zeros("<<lfAngleH.size(0)<<","<<lfAngleH.size(1)<<","<<lfAngleH.size(2)<<");"<<std::endl;
+    // angleV<<"angleV_cpp = zeros("<<lfAngleV.size(0)<<","<<lfAngleV.size(1)<<","<<lfAngleV.size(2)<<");"<<std::endl;
+    // rate<<"rate_cpp = zeros("<<lfRate.size(0)<<","<<lfRate.size(1)<<","<<lfRate.size(2)<<");"<<std::endl;
+    // distortion<<"distortion_cpp = zeros("<<lfDistortion.size(0)<<","<<lfDistortion.size(1)<<","<<lfDistortion.size(2)<<");"<<std::endl;
+    // for(int n = 0; n < lfEnergy.size(0); n++){
+    //     for(int m = 0; m < lfEnergy.size(1); m++){
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEnergy[n][m][0].item()<<";";
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEnergy[n][m][1].item()<<";";
+    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEnergy[n][m][2].item()<<";";
             
-            rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoS[n][m][0].item()<<";";
-            rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoS[n][m][1].item()<<";";
-            rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoS[n][m][2].item()<<";";
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoS[n][m][0].item()<<";";
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoS[n][m][1].item()<<";";
+    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoS[n][m][2].item()<<";";
             
-            rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoT[n][m][0].item()<<";";
-            rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoT[n][m][1].item()<<";";
-            rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoT[n][m][2].item()<<";";
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoT[n][m][0].item()<<";";
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoT[n][m][1].item()<<";";
+    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoT[n][m][2].item()<<";";
             
-            rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoU[n][m][0].item()<<";";
-            rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoU[n][m][1].item()<<";";
-            rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoU[n][m][2].item()<<";";
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoU[n][m][0].item()<<";";
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoU[n][m][1].item()<<";";
+    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoU[n][m][2].item()<<";";
            
-            rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoV[n][m][0].item()<<";";
-            rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoV[n][m][1].item()<<";";
-            rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoV[n][m][2].item()<<";";
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoV[n][m][0].item()<<";";
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoV[n][m][1].item()<<";";
+    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoV[n][m][2].item()<<";";
            
-            angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleH[n][m][0].item()<<";";
-            angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleH[n][m][1].item()<<";";
-            angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleH[n][m][2].item()<<";";
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleH[n][m][0].item()<<";";
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleH[n][m][1].item()<<";";
+    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleH[n][m][2].item()<<";";
            
-            angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleV[n][m][0].item()<<";";
-            angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleV[n][m][1].item()<<";";
-            angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleV[n][m][2].item()<<";";
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleV[n][m][0].item()<<";";
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleV[n][m][1].item()<<";";
+    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleV[n][m][2].item()<<";";
            
-            rate<<"rate_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRate[n][m][0].item()<<";";
-            rate<<"rate_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRate[n][m][1].item()<<";";
-            rate<<"rate_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRate[n][m][2].item()<<";";
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRate[n][m][0].item()<<";";
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRate[n][m][1].item()<<";";
+    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRate[n][m][2].item()<<";";
            
-            distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",1) = "<<lfDistortion[n][m][0].item()<<";";
-            distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",2) = "<<lfDistortion[n][m][1].item()<<";";
-            distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",3) = "<<lfDistortion[n][m][2].item()<<";";
-        }
-        energy<<std::endl;
-        rhoS<<std::endl;
-        rhoT<<std::endl;
-        rhoU<<std::endl;
-        rhoV<<std::endl;
-        angleH<<std::endl;
-        angleV<<std::endl;
-        rate<<std::endl;
-        distortion<<std::endl;
-    }
+    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",1) = "<<lfDistortion[n][m][0].item()<<";";
+    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",2) = "<<lfDistortion[n][m][1].item()<<";";
+    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",3) = "<<lfDistortion[n][m][2].item()<<";";
+    //     }
+    //     energy<<std::endl;
+    //     rhoS<<std::endl;
+    //     rhoT<<std::endl;
+    //     rhoU<<std::endl;
+    //     rhoV<<std::endl;
+    //     angleH<<std::endl;
+    //     angleV<<std::endl;
+    //     rate<<std::endl;
+    //     distortion<<std::endl;
+    // }
     
-    cout<<"The file pointer is not null right?"<< outputFileNamePointer <<endl;
-     hdt.DoneEncoding();
+    tp.mEntropyCoder.DoneEncoding();
+    
     fclose(outputFileNamePointer);
-    cout<<"I'm exiting, the rest is just bullshit"<<endl;
+    return 0;
 }
 
 void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {

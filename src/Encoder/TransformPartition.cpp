@@ -8,6 +8,7 @@
 
 TransformPartition :: TransformPartition(void) {
     mPartitionCode = NULL;
+    
     //mUseSameBitPlane = 1;
 }
 TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder entropyCoder,std::array<double,2> disparityRange, double transformGain)
@@ -58,11 +59,10 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
 
     Block4D_ transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
     transformedBlock.emptyTransform();
+    //std::cout<<"Transformed Block Pre Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
+    //std::cout<<"Transformed Block Pre Transform Size: "<<transformedBlock.transformSize[0]<<" "<<transformedBlock.transformSize[1]<<" "<<transformedBlock.transformSize[2]<<" "<<transformedBlock.transformSize[3]<<std::endl;
 
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, mSsiBuffer,mCuiBuffer, &mPartitionCode);
-    //std::cout<<"optimized!"<<std::endl;
-    this->costImage = mLagrangianCost*at::ones(inputBlock.size,at::kDouble);
-    //std::cout<<"mLagrangianCost = "<<mLagrangianCost<<std::endl;
         
     mPartitionData_ = transformedBlock;
     //std::cout<<"Transformed Block Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
@@ -115,9 +115,7 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, double currGa
     int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
     J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;
-    //end = std::chrono::steady_clock::now();
-    //std::cout << "Encoding Optimization = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
-    block_0.ssi.print();
+
     double weight = totalTransformGain();
     distortion = distortion/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
     rate = rate/(block_0.size[0]*block_0.size[1]*block_0.size[2]*block_0.size[3]);
@@ -400,18 +398,6 @@ void TransformPartition :: EncodePartition_(double lambda){
     }
 
     mLambda = scaledLambda;
-    //std::cout<<"Partition Data Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
-    //std::cout<<"Partition Data Transform Size: "<<mPartitionData_.transformSize[0]<<" "<<mPartitionData_.transformSize[1]<<" "<<mPartitionData_.transformSize[2]<<" "<<mPartitionData_.transformSize[3]<<std::endl;
-    this->costImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->rateImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->distortionImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->rhoSImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->rhoTImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->rhoUImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->rhoVImage = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->angleImageH = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    this->angleImageV = torch::zeros({mPartitionData_.size[2],mPartitionData_.size[3]}, torch::kDouble);
-    //std::cout<<"Cost Image Size: "<<costImage.size(0)<<" "<<costImage.size(1)<<" "<<costImage.size(2)<<" "<<costImage.size(3)<<std::endl;
 
     std::array<int64_t,4> position = {0,0,0,0};    
     mPartitionCodeIndex = 0;
@@ -451,7 +437,6 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
 
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
         mEntropyCoder.EncodeSubblock_(lambda);
-        this->rateImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mEntropyCoder.mRate*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         
         double weight = totalTransformGain();
         double distortion = (double) mEntropyCoder.mDistortion/(weight*weight);
@@ -465,14 +450,6 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
 
         mCodingUnitIndex++;
 
-        this->distortionImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = distortion*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-
-        this->rhoSImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getRhoS()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoTImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getRhoT()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoUImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getRhoU()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->rhoVImage.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getRhoV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->angleImageH.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getDisparityH()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
-        this->angleImageV.index({at::indexing::Slice({position[2],position[2]+trueLength[2]}),at::indexing::Slice({position[3],position[3]+trueLength[3]})}) = mSsiBuffer[mCodingUnitIndex-1].getDisparityV()*at::ones({trueLength[2],trueLength[3]},at::kDouble);
         //std::cout<<"Weight = "<<weight<<std::endl;
 
         //std::cout<<"Position: = "<<position[0]<<","<<position[1]<<","<<position[2]/9<<","<<position[3]/9<<" Length = "<<length[0]+8<<","<<length[1]+8<<","<<length[2]/9<<","<<length[3]/9<<" "<<(mEntropyCoder.currCost/(double)size)<< std::endl;

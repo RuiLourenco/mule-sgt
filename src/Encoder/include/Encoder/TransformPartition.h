@@ -30,15 +30,7 @@ public:
     Hierarchical4DEncoder mEntropyCoder;
 
     
-    at::Tensor costImage;
-    at::Tensor rhoSImage;
-    at::Tensor rhoUImage;
-    at::Tensor rhoTImage;
-    at::Tensor rhoVImage;
-    at::Tensor angleImageH;
-    at::Tensor angleImageV;
-    at::Tensor rateImage;
-    at::Tensor distortionImage;
+
 
     double mGain = 1;
     double mLambda = 0;
