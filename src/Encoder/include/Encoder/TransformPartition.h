@@ -52,6 +52,12 @@ public:
     void EncodePartition_( double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
     double EvaluatePartition_(Block4D_ &block_0, double currGain , double angleH, double angleV, ProbabilityModel *coderModelState);
+    double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
+    double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
+    double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
+    double RDtestAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
+    double RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
+    double RDrefineAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
 
 };
    
