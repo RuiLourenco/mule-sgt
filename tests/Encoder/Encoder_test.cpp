@@ -12,6 +12,8 @@
 #include <Decoder/Hierarchical4DDecoder.h>
 #include <filesystem>
 #include <sys/stat.h>
+#include <DebugTools/CodingPartitionInfo.h>
+#include <DebugTools/CodingUnitInfo.h>
 
 
 
@@ -378,48 +380,341 @@ void BigEndianSignedIntegerWrite_(long int value, int precision, FILE *outputFil
 //     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
 //     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
 // }
-TEST(EncoderTests,FountainBug){
 
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/Fountain_Vincent2/";
-    //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
-    std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/FountainBug/";
-    create_directory(outputDirectory);
-    string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
-    double lambda = 0;
-    LightField inputLF(inputDirectory,pattern);
-    //std::array<int64_t,4> position = {0,0,64,448};
+// TEST(EncoderTests,FountainBug){
+
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/Fountain_Vincent2/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/FountainBug/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
     
-    //Sideboard Dummy BACKWALL
-    //std::array<int64_t,4> position = {0,0,114,90};
-    //Sideboard Dummy SIDEWALL
-    //std::array<int64_t,4> position = {0,0,114,480};
-    //Sideboard Dummy Cabinet
-    //std::array<int64_t,4> position = {0,0,320,64};
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
 
-    //Fountain Bug
-    std::array<int64_t,4> position = {0,0,0,512};
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,0,512};
 
-    //std::array<int64_t,4> position = {0,0,64,64};
+//     //std::array<int64_t,4> position = {0,0,64,64};
 
     
-    //std::array<int64_t,4> position = {0,0,160,288};
+//     //std::array<int64_t,4> position = {0,0,160,288};
     
-    //std::array<int64_t,4> position = {0,0,256,288};
-    //std::array<int64_t,4> position = {0,0,0,0};
-    //std::array<int64_t,4> position = {0,0,64,128};
-    //std::array<int64_t,4> position = {0,0,384,256};   
-    //std::array<int64_t,4> position = {0,0,256,320};
-    int length = 32;
-    Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,0);
-    Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,1);
-    Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,2);
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 32;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,2);
 
-    LightField outputLF({15,15,length,length,3});
-    outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
-    outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
-    outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
-    outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+//     LightField outputLF({15,15,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+
+// TEST(EncoderTests,GreekBug){
+
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/GreekBug/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,0,128};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 64;
+//     int viewLength = 9;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,2);
+
+//     LightField outputLF({viewLength,viewLength,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+
+// TEST(EncoderTests,QuarterGreek){
+
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/i8mylife/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,3*64+32,2*64};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 32;
+//     int viewLength = 9;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,2);
+
+//     LightField outputLF({viewLength,viewLength,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+
+// TEST(EncoderTests,QuarterGreek){
+
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/QuarterGreek/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,0,0};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 256;
+//     int viewLength = 9;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({viewLength,viewLength,length,length},position,2);
+
+//     LightField outputLF({viewLength,viewLength,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+
+TEST(DebugInfoTests,LoadAndPrint){
+    
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/STRefinement/Sideboard/05-2/";
+    string inputDirectory1 ="/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/STRefinement/Sideboard/05-2/";
+    string inputInfo = inputDirectory + "info.json";
+    string inputInfo1 = inputDirectory1 + "info.json";
+    std::array<int64_t,2> size = {512,512};
+    cout<<inputInfo<<endl;
+    //string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekNew/info.json";
+    std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+    std::vector<CodingPartitionInfo> codingPartitionInfos1 = CodingPartitionInfo::fromJsonFile(inputInfo1);
+    at::Tensor stH = CodingPartitionInfo::getStructureTensorHorizontal(codingPartitionInfos,size);
+    at::Tensor stV = CodingPartitionInfo::getStructureTensorVertical(codingPartitionInfos,size);
+    at::Tensor stA = CodingPartitionInfo::getStructureTensorAverage(codingPartitionInfos,size);
+    at::Tensor st = CodingPartitionInfo::getBestStructureTensorAngle(codingPartitionInfos,size);
+    at::Tensor ldH = CodingPartitionInfo::getLogdetHorizontal(codingPartitionInfos,{512,512});
+    at::Tensor ldV = CodingPartitionInfo::getLogdetVertical(codingPartitionInfos,{512,512});
+    at::Tensor ldA = CodingPartitionInfo::getLogdetAverage(codingPartitionInfos,{512,512});
+    at::Tensor ld = CodingPartitionInfo::getBestLogdetAngle(codingPartitionInfos,{512,512});
+    at::Tensor gs = CodingPartitionInfo::getBestGridSearchAngle(codingPartitionInfos1,size);
+    at::Tensor gsCost = CodingPartitionInfo::getBestGridSearchCost(codingPartitionInfos1,size);
+    at::Tensor chosenAngle = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
+    // at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,{512,512});
+    // at::Tensor distortion = CodingPartitionInfo::getPSNR(codingPartitionInfos,{512,512});
+    at::Tensor heuristic = CodingPartitionInfo::getAngleHeuristicUsed(codingPartitionInfos,{512,512});
+    at::Tensor stCost = CodingPartitionInfo::getBestStructureTensorCost(codingPartitionInfos,size);
+    at::Tensor angleErrorST = CodingPartitionInfo::getStructureTensorError(codingPartitionInfos,{512,512});
+    at::Tensor costDiffST = CodingPartitionInfo::getStructureTensorCostDiff(codingPartitionInfos,{512,512});
+    at::Tensor angleErrorLd = CodingPartitionInfo::getLogdetError(codingPartitionInfos,{512,512});
+    at::Tensor costDiffLd = CodingPartitionInfo::getLogdetCostDiff(codingPartitionInfos,{512,512});
+    
+    //at::Tensor stConfidence = CodingPartitionInfo::getStructureTensorConfidence(codingPartitionInfos,{512,512});
+    //at::Tensor angleError = (gs - st).abs();
+    angleErrorST = angleErrorST.clamp(0, angleErrorST.quantile(0.9).item<double>());
+    angleErrorLd = angleErrorLd.clamp(0, angleErrorLd.quantile(0.9).item<double>());
+    //at::Tensor costDiff = (stCost - gsCost)/gsCost;
+    // std::cout<<"stCost: "<<stCost.min().item()<<" "<<stCost.max().item()<<std::endl;
+    // std::cout<<"cost diff: "<<costDiff.min().item()<<" "<<costDiff.max().item()<<std::endl;
+    //
+    std::cout<<"gs: "<<gs.min().item()<<" "<<gs.max().item()<<std::endl;
+    std::cout<<"angleErrorST: "<<angleErrorST.min().item()<<" "<<angleErrorST.max().item()<<std::endl;
+    std::cout<<"angleErrorLd: "<<angleErrorLd.min().item()<<" "<<angleErrorLd.max().item()<<std::endl;
+    double gsMin = -74;
+    double gsMax = 74;
+    // double gsMin = gs.min().item<double>();
+    // double gsMax = gs.max().item<double>();
+    //std::cout<<"stConfidence: "<<stConfidence.min().item()<<" "<<stConfidence.max().item()<<std::endl;
+    // std::cout<<"angle chosen: "<< stV[64*2][64*3].item()<<" "<< stH[64*2][64*3].item()<<" "<<gs[64*2][64*3].item()<<std::endl;
+    // std::cout<<"costDiff: "<< costDiff[64*2][64*3].item()<<std::endl;
+    write_tensor(stH,inputDirectory + "sth.png",{gsMin,gsMax});
+    write_tensor(stV,inputDirectory + "stv.png",{gsMin,gsMax});
+    write_tensor(stA,inputDirectory + "sta.png",{gsMin,gsMax});
+    write_tensor(st,inputDirectory + "st.png",{gsMin,gsMax});
+    //cout<<"written ST" <<std::endl;
+    //write_tensor(error,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekST-3/error.png",{0,15.0});
+    //write_tensor(stConfidence,inputDirectory + "Confidence1.png",{0,15});
+    //write_tensor(costDiff,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekST-3/costDiff.png",{0,1});
+
+    write_tensor(ldH,inputDirectory + "ldh.png",{gsMin,gsMax});
+    write_tensor(ldV,inputDirectory + "ldv.png",{gsMin,gsMax});
+    write_tensor(ldA,inputDirectory + "lda.png",{gsMin,gsMax});
+    write_tensor(ld,inputDirectory + "ld.png",{gsMin,gsMax});
+    // write_tensor(rate,inputDirectory + "rate.png",{});
+    // write_tensor(distortion,inputDirectory + "distortion.png");
+    write_tensor(heuristic,inputDirectory + "heuristic.png");
+    write_tensor(angleErrorST,inputDirectory + "AngleErrorST.png",{0,5});
+    write_tensor(costDiffST,inputDirectory + "CostDiffST.png",{0,0.5});
+    write_tensor(angleErrorLd,inputDirectory + "AngleErrorLd.png",{0,5});
+    write_tensor(costDiffLd,inputDirectory + "CostDiffLd.png",{0,0.5});
+    write_tensor(gs,inputDirectory + "gs.png",{gsMin,gsMax});
+    write_tensor(chosenAngle,inputDirectory + "chosenAngle.png",{gsMin,gsMax});
+    
 }
+// TEST(EncoderTests,GreekSTPoor){
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/GreekSTPoor/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,64,128};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 64;
+//     int view = 9;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({view,view,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({view,view,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({view,view,length,length},position,2);
+
+//     LightField outputLF({view,view,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+
+// }
+// TEST(EncoderTests,FountainBug){
+
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/Fountain_Vincent2/";
+//     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+//     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/FountainBug/";
+//     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+//     double lambda = 0;
+//     LightField inputLF(inputDirectory,pattern);
+//     //std::array<int64_t,4> position = {0,0,64,448};
+    
+//     //Sideboard Dummy BACKWALL
+//     //std::array<int64_t,4> position = {0,0,114,90};
+//     //Sideboard Dummy SIDEWALL
+//     //std::array<int64_t,4> position = {0,0,114,480};
+//     //Sideboard Dummy Cabinet
+//     //std::array<int64_t,4> position = {0,0,320,64};
+
+//     //Fountain Bug
+//     std::array<int64_t,4> position = {0,0,0,512};
+
+//     //std::array<int64_t,4> position = {0,0,64,64};
+
+    
+//     //std::array<int64_t,4> position = {0,0,160,288};
+    
+//     //std::array<int64_t,4> position = {0,0,256,288};
+//     //std::array<int64_t,4> position = {0,0,0,0};
+//     //std::array<int64_t,4> position = {0,0,64,128};
+//     //std::array<int64_t,4> position = {0,0,384,256};   
+//     //std::array<int64_t,4> position = {0,0,256,320};
+//     int length = 32;
+//     Block4D_ blockR = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,0);
+//     Block4D_ blockG = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,1);
+//     Block4D_ blockB = inputLF.ReadBlock4DfromLightField_({15,15,length,length},position,2);
+
+//     LightField outputLF({15,15,length,length,3});
+//     outputLF.WriteBlock4DtoLightField_(blockR,{0,0,0,0,0});
+//     outputLF.WriteBlock4DtoLightField_(blockG,{0,0,0,0,1});
+//     outputLF.WriteBlock4DtoLightField_(blockB,{0,0,0,0,2});
+//     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
+// }
+
 
 // TEST(EncoderTests,GreekHairDummy){
 
