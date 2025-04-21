@@ -6,4 +6,12 @@
 /zMatlabFiles/
 /DebugData/
 /Computations/
+/DebugData/
+/NoRefinement_3000/
+/NoRefinement_gsOnly/
+/NoRefinement_gsOnlyFaster/
+/Refinement_0.01_3000/
+/TestingSpeed/
+/TestingSpeed Copy/
 *.png
+
