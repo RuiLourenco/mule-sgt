@@ -135,7 +135,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     double maxAngle = angleRange[1];
     double angleStep = SgtSideInfo::PRECISION_ANGLE;
     //if((maxAngle-minAngle)/angleStep != std::floor((maxAngle-minAngle)/angleStep)) maxAngle += angleStep;
-    std::cout<<"Angle Range: "<<minAngle<<" "<<maxAngle<<std::endl;
+    //std::cout<<"Angle Range: "<<minAngle<<" "<<maxAngle<<std::endl;
     int count = 0;
     for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
         double J0_curr = EvaluatePartition_(temp_block_0,entropyCoder,currGain,angle);
@@ -152,8 +152,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     std::cout<<std::endl;
 
     SgtSideInfo ssi0 = block_0.ssi; 
-    std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<std::endl;
-    ssi0.print();
+    //std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<std::endl;
+    //ssi0.print();
     //saves the resulting entropyCoder arithmetic model to model_0
     ProbabilityModel *coderModelState_0;
     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
