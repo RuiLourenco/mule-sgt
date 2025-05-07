@@ -133,7 +133,6 @@ double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnit
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
     //Evaluate Structure Tensor
     std::array<double,2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
-    //std::cout<<"Angles: "<<angles[0]<<" "<<angles[1]<<std::endl;
     std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
     for (int i = 0; i < 3; i++){
         ProbabilityModel *modelStateCurr;
@@ -326,6 +325,94 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     return J0;
 }
+double TransformPartition :: RDrefineLogdet(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
+    ProbabilityModel *currentCoderModelState;
+    mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+    double currGain = totalTransformGain();
+    
+    Block4D_ blockOrig = block_0.clone();
+    Block4D_ blockTemp = block_0;
+
+    ProbabilityModel *tempModelState;
+    //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
+    //std::cout<<"Curr Gain: "<<currGain<<std::endl;
+
+    double J0 = std::numeric_limits<double>::max();
+    //Evaluate Logdet
+    //Evaluate Logdet
+    double J = RDtestLogdet(blockTemp,cui0,currGain,&tempModelState);
+    J0 = J;
+    block_0 = blockTemp;
+    mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+    mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+    
+    blockTemp = blockOrig;
+    //Grid Search Refinement
+    double angle = block_0.ssi.getAngleH();
+    std::array<double,2> refinementAngleRange = {angle-1,angle+1};
+
+    J = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);
+    if(J < J0){
+        J0 = J;
+        block_0 = blockTemp;
+        mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+
+        mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    }
+
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+
+
+    return J0;
+}
+
+double TransformPartition :: RDrefineGridSearch(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
+    ProbabilityModel *currentCoderModelState;
+    mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+    double currGain = totalTransformGain();
+    
+    Block4D_ blockOrig = block_0.clone();
+    Block4D_ blockTemp = block_0;
+
+    ProbabilityModel *tempModelState;
+    //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
+    //std::cout<<"Curr Gain: "<<currGain<<std::endl;
+
+    double J0 = std::numeric_limits<double>::max();
+    //Evaluate Grid Search
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+
+    double J = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    
+    J0 = J;
+    block_0 = blockTemp;
+    mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+    mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    
+
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+    blockTemp = blockOrig;
+    //Grid Search Refinement
+    double angle = block_0.ssi.getAngleH();
+    std::array<double,2> refinementAngleRange = {angle-1,angle+1};
+
+    J = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);
+    if(J < J0){
+        J0 = J;
+        block_0 = blockTemp;
+        mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+
+        mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    }
+
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+
+
+    return J0;
+}
+
 
 double TransformPartition :: RDrefineAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
     ProbabilityModel *currentCoderModelState;
@@ -370,7 +457,21 @@ double TransformPartition :: RDrefineAllAngleHeuristics(Block4D_& block_0, Codin
     //Evaluate Grid Search
     std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
-    J = RDtestGridSearch(10,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    J = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    if(J < J0){
+        J0 = J;
+        block_0 = blockTemp;
+        mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+        mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    }
+
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+    blockTemp = blockOrig;
+    //Grid Search Refinement
+    double angle = block_0.ssi.getAngleH();
+    std::array<double,2> refinementAngleRange = {angle-1,angle+1};
+
+    J = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);
     if(J < J0){
         J0 = J;
         block_0 = blockTemp;
@@ -380,21 +481,6 @@ double TransformPartition :: RDrefineAllAngleHeuristics(Block4D_& block_0, Codin
     }
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-    blockTemp = blockOrig;
-    // //Grid Search Refinement
-    // double angle = block_0.ssi.getAngleH();
-    // std::array<double,2> refinementAngleRange = {angle-1,angle+1};
-
-    // J = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);
-    // if(J < J0){
-    //     J0 = J;
-    //     block_0 = blockTemp;
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
-
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
-    // }
-
-    // mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
 
 
     return J0;

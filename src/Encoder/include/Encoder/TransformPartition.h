@@ -58,6 +58,9 @@ public:
     double RDtestAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
     double RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
     double RDrefineAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
+    double RDrefineLogdet(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
+    double RDrefineGridSearch(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
+
 
 };
    
