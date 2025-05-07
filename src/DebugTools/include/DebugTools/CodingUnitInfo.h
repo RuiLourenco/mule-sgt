@@ -44,6 +44,8 @@ public:
     double getBestStructureTensorCost() const;  
     double getBestLogdetCost() const ;
     double getBestLogdetAngle() const;
+    void generatePythonScriptForGridSearchAngle(const std::string& filename) const;
+
 
 
     double getRate() const;

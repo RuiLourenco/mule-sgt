@@ -60,6 +60,12 @@ public:
     std::array<int64_t,4> getLightFieldPosition() const;
     std::array<int64_t,4> getSize() const;
     const std::vector<CodingUnitInfo>& getCodingUnitInfos() const;
+    
+    static CodingPartitionInfo findPartitionInfoByPosition(
+        const std::vector<CodingPartitionInfo>& partitionInfos,
+        const std::array<int64_t, 4>& lightFieldPosition);
+
+    void generatePythonScriptsForPartition(const std::string& outputDirectory) const;
 
 private:
     std::array<int64_t,4> lightFieldPosition;

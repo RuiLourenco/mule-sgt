@@ -41,6 +41,45 @@ void CodingUnitInfo::setSgtSideInfo(const SgtSideInfo& sgtSideInfo) {
     this->sgtSideInfo = sgtSideInfo;
 }
 
+void CodingUnitInfo::generatePythonScriptForGridSearchAngle(const std::string& filename) const {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Unable to open file: " + filename);
+    }
+
+    file << "import matplotlib.pyplot as plt\n";
+    file << "angles = [";
+    for (const auto& [angle, cost] : gridSearchAngle) {
+        file << angle << ", ";
+    }
+    file << "]\n";
+
+    file << "costs = [";
+    for (const auto& [angle, cost] : gridSearchAngle) {
+        file << cost << ", ";
+    }
+    file << "]\n";
+
+    file << "sorted_data = sorted(zip(angles, costs))\n";
+    file << "sorted_angles, sorted_costs = zip(*sorted_data)\n";
+
+    file << "plt.figure(figsize=(10, 6))\n";
+    file << "plt.plot(sorted_angles, sorted_costs, marker='o')\n";
+    file << "plt.title('Grid Search Angle vs Cost (Light Field Position: [" 
+         << lightFieldPosition[2] << ", " 
+         << lightFieldPosition[3] << "])')\n";
+    file << "plt.xlabel('Angle')\n";
+    file << "plt.ylabel('Cost')\n";
+    file << "plt.grid(True)\n";
+    file << "plt.savefig('grid_search_angle_plot_" 
+         << lightFieldPosition[2] << "x" 
+         << lightFieldPosition[3] << ".png')\n";
+    file << "plt.show()\n";
+
+    file.close();
+}
+
+
 void CodingUnitInfo::addGridSearchAngle(double angle, double cost) {
     this->gridSearchAngle[angle] = cost;
 }

@@ -2,6 +2,8 @@
 #include "DebugTools/CodingUnitInfo.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <stdexcept> // For std::runtime_error
+
 
 using json = nlohmann::json;
 
@@ -18,6 +20,7 @@ CodingPartitionInfo::CodingPartitionInfo(std::array<int64_t, 4> lightFieldPositi
 void CodingPartitionInfo::appendCodingUnitInfo(const CodingUnitInfo& codingUnitInfo) {
     codingUnitInfos.push_back(codingUnitInfo);
 }
+
 
 // Getter methods
 std::array<int64_t, 4> CodingPartitionInfo::getLightFieldPosition() const {
@@ -212,4 +215,36 @@ std::vector<CodingPartitionInfo> CodingPartitionInfo::fromJsonFile(const std::st
 
 
     return partitionInfos;
+}
+
+void CodingPartitionInfo::generatePythonScriptsForPartition(const std::string& outputDirectory) const{
+    // Ensure the output directory ends with a slash
+    std::string directory = outputDirectory;
+    if (!directory.empty() && directory.back() != '/') {
+        directory += '/';
+    }
+
+    // Iterate through each CodingUnitInfo in the partition
+    const auto& codingUnitInfos = this->getCodingUnitInfos();
+    for (size_t i = 0; i < codingUnitInfos.size(); ++i) {
+        // Generate a unique filename for each CodingUnitInfo
+        std::string filename = directory + "coding_unit_" + std::to_string(i) + "_grid_search.py";
+
+        // Call the generatePythonScriptForGridSearchAngle method
+        codingUnitInfos[i].generatePythonScriptForGridSearchAngle(filename);
+    }
+}
+
+CodingPartitionInfo CodingPartitionInfo::findPartitionInfoByPosition(
+    const std::vector<CodingPartitionInfo>& partitionInfos,
+    const std::array<int64_t, 4>& lightFieldPosition) 
+{
+    for (const auto& partitionInfo : partitionInfos) {
+        if (partitionInfo.getLightFieldPosition() == lightFieldPosition) {
+            return partitionInfo;
+        }
+    }
+
+    // If no match is found, throw an exception
+    throw std::runtime_error("No CodingPartitionInfo found for the given lightFieldPosition.");
 }
