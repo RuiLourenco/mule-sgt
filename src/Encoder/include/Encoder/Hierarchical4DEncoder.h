@@ -71,6 +71,7 @@ public:
     void GetOptimizerProbabilisticModelState(ProbabilityModel **state);
     void SetOptimizerProbabilisticModelState(ProbabilityModel *state);
     void DeleteProbabilisticModelState(ProbabilityModel *state);
+    
 };
 #endif /* HIERARCHICAL4DENCODER_H */
 
