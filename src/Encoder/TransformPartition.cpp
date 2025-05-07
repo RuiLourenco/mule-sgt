@@ -156,6 +156,39 @@ double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnit
 
     return J0;
 }
+double TransformPartition :: RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+    Block4D_ blockOrig = block_0.clone();
+    Block4D_ temp_block_0 = block_0;
+    ProbabilityModel *currentCoderModelState;
+    double J0 = std::numeric_limits<double>::max();
+    mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+    //Evaluate Structure Tensor
+    std::array<double,2> angles;
+    angles[0] = blockOrig.getOrientationFromCovariance(0.01,mDisparityRange,true);
+    angles[1] = blockOrig.getOrientationFromCovariance(0.01,mDisparityRange,false);
+    std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
+    for (int i = 0; i < 3; i++){
+        ProbabilityModel *modelStateCurr;
+        mEntropyCoder.GetOptimizerProbabilisticModelState(&modelStateCurr);
+        double J0_curr = EvaluatePartition_(temp_block_0,currGain,anglesToTest[i],anglesToTest[i],modelStateCurr);
+        // if(i == 0) cui0.setStructureTensorHorizontal({anglesToTest[i],J0_curr});
+        // if(i == 1) cui0.setStructureTensorVertical({anglesToTest[i],J0_curr});
+        // if(i == 2) cui0.setStructureTensorAverage({anglesToTest[i],J0_curr});
+        if (J0_curr < J0){
+            J0 = J0_curr;
+            block_0 = temp_block_0;
+            mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+
+            // if(i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_HORIZONTAL);
+            // if(i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_VERTICAL);
+            // if(i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_AVERAGE);
+        }
+        mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+        temp_block_0 = blockOrig;
+    }
+
+    return J0;
+}
 
 double TransformPartition :: RDtestLogdet(Block4D_& block_0,  CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
     Block4D_ blockOrig = block_0.clone();
