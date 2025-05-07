@@ -330,6 +330,18 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     blockTemp = blockOrig;
+     //Evaluate Covariance
+    J = RDtestCovariance(blockTemp,cui0,currGain,&tempModelState);
+     if(J < J0){
+         J0 = J;
+         block_0 = blockTemp;
+         mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+ 
+         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+     }
+ 
+     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+     blockTemp = blockOrig;
     //Evaluate Logdet
     J = RDtestLogdet(blockTemp,cui0,currGain,&tempModelState);
     if(J < J0){
