@@ -513,8 +513,8 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     Block4D_ blockOrig = block_0;
     Block4D_ temp_block_0 = block_0;
     ProbabilityModel *coderModelState_0;
-    double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
-    //double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     double currGain = totalTransformGain();
     //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
     //std::cout<<"Curr Gain: "<<currGain<<std::endl;
