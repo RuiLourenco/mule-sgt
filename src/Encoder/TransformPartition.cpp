@@ -327,6 +327,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
+    std::cout<<"ST: "<<blockTemp.ssi.getAngleH()<<std::endl;
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     blockTemp = blockOrig;
@@ -339,6 +340,8 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
  
          mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
      }
+     std::cout<<"COV: "<<blockTemp.ssi.getAngleH()<<std::endl;
+     
  
      mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
      blockTemp = blockOrig;
@@ -351,6 +354,8 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
+    std::cout<<"LogDet: "<<blockTemp.ssi.getAngleH()<<std::endl;
+
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     blockTemp = blockOrig;
@@ -366,6 +371,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
+    std::cout<<"GridSearch: "<<blockTemp.ssi.getAngleH()<<std::endl;
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     return J0;
