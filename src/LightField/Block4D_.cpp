@@ -3408,11 +3408,86 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
   return vectorized_padding;
 }
 
-// void Block4D_::Shift_UVPlane(int shift, int position_t, int position_s) {
+at::Tensor Block4D_::filter2D(const at::Tensor& input, const at::Tensor& kernel) {
+    // Ensure the input and kernel are 2D tensors
+    TORCH_CHECK(input.dim() == 2, "Input tensor must be 2D");
+    TORCH_CHECK(kernel.dim() == 2, "Kernel tensor must be 2D");
 
-//     this->data[position_t][position_s] = this->data[position_t][position_s]<<shift;
+    // Get the kernel size
+    int64_t kernel_h = kernel.size(0);
+    int64_t kernel_w = kernel.size(1);
 
-// }
+    // Pad the input tensor
+    int64_t pad_h_top = std::ceil(kernel_h / 2.0);
+    int64_t pad_h_bottom = std::ceil(kernel_h / 2.0);
+    int64_t pad_w_left = std::ceil(kernel_w / 2.0);
+    int64_t pad_w_right = std::ceil(kernel_w / 2.0);
+    at::Tensor padded_input = at::constant_pad_nd(input, {pad_w_left, pad_w_right, pad_h_top, pad_h_bottom}, 0);
+
+    // Perform 2D convolution
+    at::Tensor output = torch::nn::functional::conv2d(
+        padded_input.unsqueeze(0).unsqueeze(0),  // Add batch and channel dimensions
+        kernel.unsqueeze(0).unsqueeze(0),       // Add batch and channel dimensions
+        torch::nn::functional::Conv2dFuncOptions().stride(1).padding(0) // Set stride and padding
+    ).squeeze();                                // Remove batch and channel dimensions
+
+    // Crop the output to match OpenCV's behavior
+    int64_t crop_h = input.size(0) + kernel_h - 1;
+    int64_t crop_w = input.size(1) + kernel_w - 1;
+    output = output.index({at::indexing::Slice(1, crop_h), at::indexing::Slice(1, crop_w)});
+
+    return output;
+}
+double Block4D_::getOrientationFromCovariance(double precision, std::array<double,2> dispRange, bool isHorizontal) const{
+    double chosenAngle = 0;
+    double max = 0;
+
+    at::Tensor cov = this->covFun(isHorizontal);
+    int64_t size3,size4;
+    if(isHorizontal){
+        size3 = this->size[1];
+        size4 = this->size[3];
+    }else{
+        size3 = this->size[0];
+        size4 = this->size[2];
+    }
+
+    //calc weights
+    at::Tensor w1 = torch::ones({size3,1},at::kDouble);
+    at::Tensor w2 = torch::ones({1,2*size4-1},at::kDouble);
+
+    at::Tensor weights = filter2D(w1,w1);
+    weights = weights.matmul(w2);
+
+    //calc auto-cov
+    at::Tensor autocov = cov.index({size3-1,at::indexing::Slice()}).squeeze();
+    SgtSideInfo temp(dispRange);
+    for(double theta = temp.angleRange[0];theta<=temp.angleRange[1];theta+=precision){
+        at::Tensor model = torch::zeros({size3,2*size4-1},at::kDouble);
+        for (int h = 0;h<size3;h++){
+            //calc shift
+            int shift = round((size3 - (h+1)) * tan(theta));
+            for( int w = 0; w < 2*size4 - 1; w++){
+                int w_new = w+shift;
+            
+                //if in boundaries
+                if(w_new >= 0 && w_new < (2*size4-1)){
+                    model[h][w_new] = autocov[w];
+                }
+            }
+        }
+                
+        model = model * weights;
+        double result = model.dot(cov).item<double>();
+        if (result > max){
+            max = result;
+            chosenAngle = theta;
+        }
+    }
+    return chosenAngle;
+
+}
+
 
 
 

@@ -100,6 +100,8 @@ class SgtSideInfo{
         void estimateAngleFromMonotony(Block4D_ block);
         static std::array<double,2> angleRangeFromDispRange(std::array<double,2> dispRange);
         static double genDivergence(const at::Tensor& modelCovMat, const at::Tensor& iSqrtCovMat);
+        
+
 
 
     private:
@@ -128,6 +130,8 @@ private:
     at::Tensor covFun2MatAll(const at::Tensor& covFun) const;
     static void splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions);
 public: 
+    static at::Tensor filter2D(const at::Tensor& input, const at::Tensor& kernel);
+    double getOrientationFromCovariance(double precision, std::array<double,2> dispRange, bool isHorizontal) const;
     double epiStDisparity(double jAng, double jSpc, double jSpcAng) const;
     std::array<double,2> stAngleSeperable() const;
     double logDetCost(double angle, bool isHorizontal, std::array<double,2> dispRange) const;
