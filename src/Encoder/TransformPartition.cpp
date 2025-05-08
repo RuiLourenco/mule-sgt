@@ -164,8 +164,8 @@ double TransformPartition :: RDtestCovariance(Block4D_& block_0, CodingUnitInfo&
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
     //Evaluate Structure Tensor
     std::array<double,2> angles;
-    angles[0] = blockOrig.getOrientationFromCovariance(0.01,mDisparityRange,true);
-    angles[1] = blockOrig.getOrientationFromCovariance(0.01,mDisparityRange,false);
+    angles[0] = blockOrig.getOrientationFromCovariance(1,mDisparityRange,true);
+    angles[1] = blockOrig.getOrientationFromCovariance(1,mDisparityRange,false);
     std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
     for (int i = 0; i < 3; i++){
         ProbabilityModel *modelStateCurr;

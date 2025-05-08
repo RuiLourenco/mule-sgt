@@ -3423,18 +3423,24 @@ at::Tensor Block4D_::filter2D(const at::Tensor& input, const at::Tensor& kernel)
     int64_t pad_w_left = std::ceil(kernel_w / 2.0);
     int64_t pad_w_right = std::ceil(kernel_w / 2.0);
     at::Tensor padded_input = at::constant_pad_nd(input, {pad_w_left, pad_w_right, pad_h_top, pad_h_bottom}, 0);
+    //std::cout<<"Input Size: "<<input.sizes()<<std::endl;
+    //std::cout<<"Kernel Size: "<<kernel.sizes()<<std::endl;
+    //std::cout<<"Padded Input Size: "<<padded_input.sizes()<<std::endl;
 
     // Perform 2D convolution
     at::Tensor output = torch::nn::functional::conv2d(
         padded_input.unsqueeze(0).unsqueeze(0),  // Add batch and channel dimensions
         kernel.unsqueeze(0).unsqueeze(0),       // Add batch and channel dimensions
-        torch::nn::functional::Conv2dFuncOptions().stride(1).padding(0) // Set stride and padding
+        torch::nn::functional::Conv2dFuncOptions().stride(1).padding({kernel.size(0) / 2, kernel.size(1) / 2}) // Set stride and padding
     ).squeeze();                                // Remove batch and channel dimensions
+   // std::cout<<"Output Size: "<<output.sizes()<<std::endl;
 
     // Crop the output to match OpenCV's behavior
-    int64_t crop_h = input.size(0) + kernel_h - 1;
-    int64_t crop_w = input.size(1) + kernel_w - 1;
+    int64_t crop_h = input.size(0) + kernel_h;
+    int64_t crop_w = input.size(1) + kernel_w;
+    //std::cout<<"Crop H: "<<crop_h<<" Crop W: "<<crop_w<<std::endl;
     output = output.index({at::indexing::Slice(1, crop_h), at::indexing::Slice(1, crop_w)});
+    
 
     return output;
 }
@@ -3457,14 +3463,16 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
     at::Tensor w2 = torch::ones({1,2*size4-1},at::kDouble);
 
     at::Tensor weights = filter2D(w1,w1);
+    //std::cout<<"Weight Size after filtering!"<<weights.sizes()<<" "<<w2.sizes()<<std::endl;
     weights = weights.matmul(w2);
+    //std::cout<<"Weight Size after matmul!"<<weights.sizes()<<std::endl;
 
     //calc auto-cov
     at::Tensor autocov = cov.index({size3-1,at::indexing::Slice()}).squeeze();
     SgtSideInfo temp(dispRange);
     for(double theta = temp.angleRange[0];theta<=temp.angleRange[1];theta+=precision){
-        at::Tensor model = torch::zeros({size3,2*size4-1},at::kDouble);
-        for (int h = 0;h<size3;h++){
+        at::Tensor model = torch::zeros({2*size3-1,2*size4-1},at::kDouble);
+        for (int h = 0;h<2*size3-1;h++){
             //calc shift
             int shift = round((size3 - (h+1)) * tan(theta));
             for( int w = 0; w < 2*size4 - 1; w++){
@@ -3476,15 +3484,16 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
                 }
             }
         }
-                
+        //std::cout<<"Model Size: "<<model.sizes()<<std::endl;
         model = model * weights;
-        double result = model.dot(cov).item<double>();
+        double result = model.mul(cov).sum().item<double>();
+        //std::cout<<theta<<": "<<result<<std::endl;
         if (result > max){
             max = result;
             chosenAngle = theta;
         }
     }
-    return chosenAngle;
+    return -chosenAngle;
 
 }
 
