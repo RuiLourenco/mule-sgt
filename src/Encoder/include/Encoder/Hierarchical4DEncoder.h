@@ -25,7 +25,6 @@ class Hierarchical4DEncoder {
 public:
     double mRate  = 0;
     double mDistortion = 0;
-    Block4D mSubbandLF;   
     Block4D_ mSubbandLF_;   
     at::Tensor ignored;
     double currCost;
@@ -44,7 +43,6 @@ public:
     char *mSegmentationTreeCodeBuffer;
     long int mSegmentationTreeCodeBufferSize;
     int OptimumBitplaneFaster_(double lambda);
-
     Hierarchical4DEncoder(void);
     ~Hierarchical4DEncoder(void);
     void StartEncoder(FILE *outputFilePointer);
@@ -57,16 +55,10 @@ public:
     void EncodeSSI_(SgtSideInfo ssi);
     void EncodeInteger(int integerValue, int precision);
     void EncodeAll(double lambda, int inferiorBitPlane);
-    void EncodeSubblock(double lambda);
     void EncodeSubblock_(double lambda);
-    double RdOptimizeHexadecaTree(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, double lambda, int bitplane, char **codeString, double &signalEnergy);
     double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, char **codeString, double &signalEnergy,double& rate, double& distortion);
-    void RdEncodeHexadecatree(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane, int &flagIndex);
     void RdEncodeHexadecatree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane, int &flagIndex);
     void DoneEncoding(void);
-    void SetDimension(int length_t, int length_s, int length_v, int length_u);
-    int OptimumBitplane_(double lambda);
-    int OptimumBitplane(double lambda);
     void LoadOptimizerState(void);
     void GetOptimizerProbabilisticModelState(ProbabilityModel **state);
     void SetOptimizerProbabilisticModelState(ProbabilityModel *state);
