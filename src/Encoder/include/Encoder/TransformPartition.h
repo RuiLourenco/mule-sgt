@@ -28,6 +28,7 @@ public:
     std::vector<CodingUnitInfo> mCuiBuffer;
     CodingPartitionInfo mCodingPartitionInfo;
     Hierarchical4DEncoder mEntropyCoder;
+    int mDepth = 0;           /*!< Current depth in the partition tree */
 
     
 

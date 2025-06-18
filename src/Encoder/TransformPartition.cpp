@@ -61,7 +61,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     transformedBlock.emptyTransform();
     //std::cout<<"Transformed Block Pre Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
     //std::cout<<"Transformed Block Pre Transform Size: "<<transformedBlock.transformSize[0]<<" "<<transformedBlock.transformSize[1]<<" "<<transformedBlock.transformSize[2]<<" "<<transformedBlock.transformSize[3]<<std::endl;
-    
+    mDepth = 0;
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, mSsiBuffer,mCuiBuffer, &mPartitionCode);
    
     mPartitionData_ = transformedBlock;
@@ -651,7 +651,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     char *partitionCodeS=NULL;
     std::array<int64_t,4> lightFieldPosition = inputBlock.lightFieldPosition;
     for(int i = 0; i < 4; i++){
-        lightFieldPosition[i] += position[i];
+        lightFieldPosition[i] += position[i]; 
     }
     
     std::vector<SgtSideInfo> ssiBufferS;
@@ -672,140 +672,51 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     double currGain = totalTransformGain();
-    //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
-    //std::cout<<"Curr Gain: "<<currGain<<std::endl;
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
-    // double J0 = std::numeric_limits<double>::max();
-    // ProbabilityModel *coderModelState_0;
+    // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    //double J0 = RDtestZero(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
 
+    //double J0 = RDrefineCovariance(block_0,1,cui0, &coderModelState_0);
+    //double J0 = RDtestLogdet(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    if (block_0.data.requires_grad()) {
+        std::cout << "WARNING: Autograd is ON for this tensor!" << std::endl;
+        // You could even throw an exception here to halt immediately
+        // throw std::runtime_error("Autograd is unexpectedly enabled!");
+    }else{
+        std::cout<<"Moving On!"<<std::endl;
+    }
+    double J0 = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,angleRange,block_0,cui0,currGain,&coderModelState_0);
 
-    // //Evaluate Structure Tensor
-    // Block4D_ blockTemp = block_0;
-
-    // ProbabilityModel *tempModelState;
-    
-    // double J = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
-    // if(J < J0){
-    //     J0 = J;
-
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
-
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    // }
-
-    // mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-    // blockTemp = block_0;
-    // //Evaluate Logdet
-    // J = RDtestLogdet(blockTemp,cui0,currGain,&tempModelState);
-    // if(J < J0){
-    //     J0 = J;
-
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
-
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    // }
-
-    // mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-    // blockTemp = block_0;
-
-    // //Evaluate Grid Search
-    // J = RDtestGridSearch(1,blockTemp,cui0,currGain,&tempModelState);
-    // if(J < J0){
-    //     J0 = J;
-
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
-
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    // }
+    std::cout<<"Depth ="<<mDepth<<std::endl;
+    std::cout << "Tensor addr: " << block_0.data.unsafeGetTensorImpl() << "\n";
+    std::cout << "Storage ptr: " << block_0.data.storage().data_ptr() << "\n";
 
 
-    // std::array<double,2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
-    // //std::cout<<"Angles: "<<angles[0]<<" "<<angles[1]<<std::endl;
-    // std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
-    // for (int i = 0; i < 3; i++){
-    //     ProbabilityModel *modelStateCurr;
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&modelStateCurr);
-    //     double J0_curr = EvaluatePartition_(temp_block_0,currGain,anglesToTest[i],anglesToTest[i],modelStateCurr);
-    //     if(i == 0) cui0.setStructureTensorHorizontal({anglesToTest[i],J0_curr});
-    //     if(i == 1) cui0.setStructureTensorVertical({anglesToTest[i],J0_curr});
-    //     if(i == 2) cui0.setStructureTensorAverage({anglesToTest[i],J0_curr});
-    //     if (J0_curr < J0){
-    //         J0 = J0_curr;
-    //         block_0 = temp_block_0;
-    //         mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    //         if(i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_HORIZONTAL);
-    //         if(i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_VERTICAL);
-    //         if(i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_AVERAGE);
-    //     }
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-    //     temp_block_0 = blockOrig;
-    // }
-    
-    
-    // //Evaluate Logdet
-
-    // std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
-    // double minAngle = angleRange[0];
-    // double maxAngle = angleRange[1];
-    // double angleStep = 1;
-    // std::array<double,2> logdetAngles = blockOrig.logDetAngleEstimation(angleStep,mDisparityRange);
-    // std::array<double,3> anglesToTest = {logdetAngles[0],logdetAngles[1],(logdetAngles[0]+logdetAngles[1])/2};
-
-    // for (int i = 0; i < 3; i++){
-    //     ProbabilityModel *modelStateCurr;
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&modelStateCurr);
-    //     double J0_curr = EvaluatePartition_(temp_block_0,currGain,anglesToTest[i],anglesToTest[i],modelStateCurr);
-
-    //     if(i == 0) cui0.setLogdetHorizontal({anglesToTest[i],J0_curr});
-    //     if(i == 1) cui0.setLogdetVertical({anglesToTest[i],J0_curr});
-    //     if(i == 2) cui0.setLogdetAverage({anglesToTest[i],J0_curr});
-    //     if (J0_curr < J0){
-    //         J0 = J0_curr;
-    //         block_0 = temp_block_0;
-    //         mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    //         if(i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_HORIZONTAL);
-    //         if(i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_VERTICAL);
-    //         if(i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_AVERAGE);
-    //     }
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-
-    //     temp_block_0 = blockOrig;
-
-    // }
-
-    //double angleStep = SgtSideInfo::PRECISION_ANGLE;
-    //if((maxAngle-minAngle)/angleStep != std::floor((maxAngle-minAngle)/angleStep)) maxAngle += angleStep;
-    //std::cout<<"Angle Range: "<<minAngle<<" "<<maxAngle<<std::endl;
-    // int count = 0;
-    // for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ // Make this better later
-    //     ProbabilityModel *modelStateCurr;
-    //     mEntropyCoder.GetOptimizerProbabilisticModelState(&modelStateCurr);
-    //     double J0_curr = EvaluatePartition_(temp_block_0,currGain,angle,angle,modelStateCurr);
-    //     cui0.addGridSearchAngle(angle,J0_curr);
-    //     if (J0_curr < J0){
-    //         J0 = J0_curr;
-    //         block_0 = temp_block_0;
-    //         mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    //         cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
-    //         //std::cout<<"tempBlock: ";
-    //         //tempBlock.ssi.print();
-    //         //block_0.ssi.print();
-    //     }
-    //     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-    //     temp_block_0 = blockOrig;
-    //     //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
-    
-    // }
-    // //std::cout<<std::endl;
- 
+    //double J0 = RDStructureTensorOrLogdet(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineStructureTensor(block_0,1,cui0,&coderModelState_0);
+    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineGridSearch(block_0,cui0,&coderModelState_0);
 
 
 
     SgtSideInfo ssi0 = block_0.ssi; 
+
+
     
     cui0.setSgtSideInfo(ssi0);
+
+    // if(lightFieldPosition[2] ==  512 && lightFieldPosition[3] == 432){
+    //     if(length[2] == 16){
+    //         std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<" "<<ssi0.getAngleV()<<std::endl;
+    //         std::cout<<"Light Field Position: "<<lightFieldPosition[2]<<"x"<<lightFieldPosition[3]<<std::endl;
+    //         ssi0.print();
+    //     }
+    // }
     
-    if(length[2] == 64) std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<" "<<ssi0.getAngleV()<<std::endl;
+    //if(length[2] == 64) std::cout<<"Angle CHOSEN: "<<ssi0.getAngleH()<<" "<<ssi0.getAngleV()<<std::endl;
     //ssi0.print();
     //saves the resulting entropyCoder arithmetic model to model_0
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
@@ -817,6 +728,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     //If you can split more in the spatial dimension
     if((length[3] >= 2*mlength_u_min)&&(length[2] >= 2*mlength_v_min)) {
+        mDepth++;
         JS = 0.0;
         std::vector<SgtSideInfo> ssiBufferS00, ssiBufferS01, ssiBufferS10, ssiBufferS11;
         std::vector<CodingUnitInfo> cuiBufferS00, cuiBufferS01, cuiBufferS10, cuiBufferS11;
@@ -1043,7 +955,7 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //std::cout<<"LightFieldPositionOfEncodedBlock: "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[0]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[1]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[2]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[3]<<std::endl;
         
         mSsiBuffer[mCodingUnitIndex].print();
-        mCuiBuffer[mCodingUnitIndex].getSgtSideInfo().print();
+        //mCuiBuffer[mCodingUnitIndex].getSgtSideInfo().print();
         
 
         mEntropyCoder.EncodeSSI_(mSsiBuffer[mCodingUnitIndex]);
@@ -1051,16 +963,29 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //std::cout<<"Position:"<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
         std::array<int64_t,4> trueLength = length;
         //std::array<int64_t,4> positionTransform = {0,0,position[2]*length[0],position[3]*length[1]};
-
+        
 
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
         mEntropyCoder.EncodeSubblock_(lambda);
+        //std::cout<<"Light Field Position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
+
+        // if(mEntropyCoder.mSubbandLF_.lightFieldPosition[2] <=  512 && mEntropyCoder.mSubbandLF_.lightFieldPosition[3] <= 432){
+        //     //if(length[2] == 16){
+        //         std::cout<<"ENCODED"<<std::endl;
+        //         std::cout<<"Light Field Position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
+        //         mSsiBuffer[mCodingUnitIndex].print();
+        //     //}
+        // }
         
         double weight = totalTransformGain();
         double distortion = (double) mEntropyCoder.mDistortion/(weight*weight);
+        mCodingPartitionInfo.incrementTotalDistortion(distortion);
+        double mse = distortion/(length[0]*length[1]*length[2]*length[3]);
+        mCodingPartitionInfo.incrementTotalSize(mEntropyCoder.mRate * (length[0]*length[1]*length[2]*length[3]));
+        //std::cout<<mCodingPartitionInfo.getTotalDistortion()<<" "<<mCodingPartitionInfo.getTotalSize()<<std::endl;
         //std::cout<<"mRate = "<<mEntropyCoder.mRate<<" mDistortion: "<<(double) mEntropyCoder.mDistortion/(weight*weight)<<std::endl;
-        distortion = 10 * log10((1024*1024)/distortion);
-        mCuiBuffer[mCodingUnitIndex].setPSNR(distortion);
+        double psnr = 10 * log10((1024*1024)/mse);
+        mCuiBuffer[mCodingUnitIndex].setPSNR(psnr);
         mCuiBuffer[mCodingUnitIndex].setRate(mEntropyCoder.mRate);
         mCodingPartitionInfo.appendCodingUnitInfo(mCuiBuffer[mCodingUnitIndex]);
         //std::cout<<"stA: "<<mCuiBuffer[mCodingUnitIndex].getStructureTensorAverageAngle()<<std::endl;

@@ -267,7 +267,10 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 }
 
 int main(int argc, char **argv) {
-  
+    
+    torch::InferenceMode guard;
+    torch::set_num_threads(1);
+    at::set_num_threads(1);
     //DEFAULT Encoder
     EncoderParameters par;
 
@@ -337,10 +340,10 @@ int main(int argc, char **argv) {
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
 
-    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
-    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
-    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
-    write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
+    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
+    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
+    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
+    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
 
     for(int n = 0; n < 4; n++) {
         extensionLength[n] = inputLF.data.size(n) % par.maxPartitionSize[n];
@@ -369,8 +372,10 @@ int main(int argc, char **argv) {
     
     //Writes an Integer Encoded Disparity Range of the LF
     for(int n = 0; n < 2; n++) {
-        BigEndianSignedIntegerWrite((int)(par.disparityRange[n]*100), 2, outputFileNamePointer);
+        BigEndianSignedIntegerWrite((int)(par.disparityRange[n]*1000), 3, outputFileNamePointer);
     }
+    std::cout<<"Disparity Range: "<<par.disparityRange[0]<<" "<<par.disparityRange[1]<<std::endl;
+
 
 
     //writes the bit precision of each component of the pixels of the views
@@ -379,9 +384,14 @@ int main(int argc, char **argv) {
     std::vector<CodingPartitionInfo> codingPartitionInfos;
     TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
+
+    std::array<double,3> error = {0,0,0};
+    double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
+            //for(int viewLine = 512; viewLine < 512+128; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
+                //for(int viewColumn = 384; viewColumn < 384+128; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
@@ -478,6 +488,10 @@ int main(int argc, char **argv) {
                         tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
                         tp.RDoptimizeTransform_(lfBlock, par.Lambda);
                         tp.EncodePartition_(par.Lambda);
+                        error[spectralComponent] += tp.mCodingPartitionInfo.getTotalDistortion();
+                        size += tp.mCodingPartitionInfo.getTotalSize();
+                        //std::cout<<"Size Channel "<<spectralComponent<<": "<<tp.mCodingPartitionInfo.getTotalSize()<<std::endl;
+                        
                         std::cout<<"Encoding Successful!"<<std::endl;
                         // std::cout<<"Encoded"<<std::endl;
                         int sizeV = std::min(par.maxPartitionSize[2],inputLF.data.size(2)-viewLine);
@@ -491,6 +505,17 @@ int main(int argc, char **argv) {
             }
         }
     }
+    std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
+    double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+    double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+    double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+
+    double PSNR_Y = 10*log10((1024*1024)/mseY);
+    double PSNR_Cb = 10*log10((1024*1024)/mseCb);
+    double PSNR_Cr = 10*log10((1024*1024)/mseCr);
+    std::cout<<"Predicted PSNR-Y: "<<PSNR_Y<<std::endl;
+    std::cout<<"Predicted PSNR-YUV:"<<(6*PSNR_Y+PSNR_Cb+PSNR_Cr)/8<<std::endl;
+    std::cout<<"Total Rate: "<<size<<std::endl;
 
     CodingPartitionInfo::printVectorToJsonFile(codingPartitionInfos,infoPath);           
 
