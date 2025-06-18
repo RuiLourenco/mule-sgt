@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
     for(int n = 0; n < 4; n++) {
         extensionLength[n] = lfSize[n] % maxPartitionSize[n];
     }
-    PartitionDecoder pd;
+    PartitionDecoder pd(par.transformGain);
 
     at::Tensor lfEntropy = at::zeros(lfSize,at::kDouble);
 

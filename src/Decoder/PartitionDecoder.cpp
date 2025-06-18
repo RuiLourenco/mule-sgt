@@ -6,7 +6,7 @@
 /*                      PartitionDecoder class methods                         */
 /*******************************************************************************/
 
-PartitionDecoder :: PartitionDecoder(void) {
+PartitionDecoder :: PartitionDecoder(double mGain):mGain(mGain) {
     mUseSameBitPlane = 1;
 }
 
@@ -102,7 +102,7 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
 
         transformGain  *= sqrt(mPartitionData.data.size(i)/length[i]);
     }
-    return transformGain;
+    return transformGain*mGain;
 }
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
     int flagCode = entropyDecoder.DecodePartitionFlag();
