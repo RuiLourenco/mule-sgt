@@ -64,7 +64,7 @@ TEST(IO_Tests, Write_PPM_Collection){
     int scale;
     at::Tensor collection = io::read_collection(inputDirectory,pattern,scale);
     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/greek-copy/";
-    io::write_collection(outputDirectory, collection);
+    io::write_collection(outputDirectory, collection,{0,0});
     //std::cout<<"collection_written"<<std::endl;
     at::Tensor copy_collection = io::read_collection(outputDirectory,pattern,scale);
     //std::cout<<"copy_collection_read"<<std::endl;

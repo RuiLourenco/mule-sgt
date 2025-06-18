@@ -589,73 +589,295 @@ void BigEndianSignedIntegerWrite_(long int value, int precision, FILE *outputFil
 //     }
 // }
 
+
+
+double computeBlockVariance(const Block4D_& block) {
+    at::Tensor data = block.data.to(at::kDouble); // Convert to double for precision
+    double mean = data.mean().item<double>();
+    double variance = (data - mean).pow(2).mean().item<double>();
+    return variance;
+}
+
+Block4D_ createLuminanceBlock(LightField& inputLF, const std::array<int64_t, 4>& blockSize, const std::array<int64_t, 4>& blockPosition, int scale) {
+    // Read each color channel from the LightField
+    Block4D_ rBlock = inputLF.ReadBlock4DfromLightField_(blockSize, blockPosition, 0); // Red channel
+    Block4D_ gBlock = inputLF.ReadBlock4DfromLightField_(blockSize, blockPosition, 1); // Green channel
+    Block4D_ bBlock = inputLF.ReadBlock4DfromLightField_(blockSize, blockPosition, 2); // Blue channel
+
+    // Create an empty Block4D_ for luminance
+    Block4D_ yBlock(rBlock.size, rBlock.lightFieldPosition, rBlock.lightField);
+
+    // Convert RGB to luminance using BT.601 formula
+    int* yData = yBlock.data.data_ptr<int>();
+    int* rData = rBlock.data.data_ptr<int>();
+    int* gData = gBlock.data.data_ptr<int>();
+    int* bData = bBlock.data.data_ptr<int>();
+
+    for (int n = 0; n < rBlock.size[0] * rBlock.size[1] * rBlock.size[2] * rBlock.size[3]; ++n) {
+        yData[n] = static_cast<int>(round(0.299 * rData[n] + 0.587 * gData[n] + 0.114 * bData[n]));
+    }
+
+    return yBlock;
+}
+
+// Function to process CodingPartitionInfos and compute variances
+std::map<std::pair<int, int>, double> computeVariancesForCPIs(
+    const std::vector<CodingPartitionInfo>& partitionInfos,
+    LightField& lightField) 
+{
+    std::map<std::pair<int, int>, double> varianceMap; // Map to store variances with (CPI index, CU index) as key
+
+    for (size_t cpiIndex = 0; cpiIndex < partitionInfos.size(); ++cpiIndex) {
+        const auto& partitionInfo = partitionInfos[cpiIndex];
+        const auto& codingUnitInfos = partitionInfo.getCodingUnitInfos();
+
+        for (size_t cuIndex = 0; cuIndex < codingUnitInfos.size(); ++cuIndex) {
+            const auto& cuInfo = codingUnitInfos[cuIndex];
+
+            // Extract the Block4D_ object for the current Coding Unit Info
+            Block4D_ block = createLuminanceBlock(lightField, cuInfo.getSize(), cuInfo.getLightFieldPosition(), lightField.mPGMScale);
+
+            // Compute the variance of the block
+            double variance = computeBlockVariance(block);
+
+            // Store the variance in the map
+            varianceMap[{cpiIndex, cuIndex}] = variance;
+        }
+    }
+
+    return varianceMap;
+}
+
+// TEST(DebugInfoTests,WorstSTBlock){
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/TestAllMetrics/Sideboard/";
+//     string inputInfo = inputDirectory + "sideboard_0.75_info.json";
+//     double cluster1VarianceSum = 0.0;
+//     double cluster2VarianceSum = 0.0;
+//     double totalVarianceSum = 0.0;
+//     int cluster1Count = 0;
+//     int cluster2Count = 0;
+//     int totalCount = 0;
+
+//     string inputLFDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+// //     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";
+// //     std::string outputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/GreekSTPoor/";
+// //     create_directory(outputDirectory);
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+// //     double lambda = 0;
+//     LightField inputLF(inputLFDirectory,pattern);
+//     std::vector<CodingPartitionInfo> partitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+
+//     for (const auto& partitionInfo : partitionInfos) {
+//         const auto& codingUnitInfos = partitionInfo.getCodingUnitInfos();
+
+//         for (const auto& cuInfo : codingUnitInfos) {
+//             // Compute the angle difference
+//             double bestStructureTensorAngle = cuInfo.getBestStructureTensorAngle();
+//             double bestGridSearchAngle = cuInfo.getBestGridSearchAngle();
+//             double angleDifference = std::abs(bestStructureTensorAngle - bestGridSearchAngle);
+
+//             // Extract the luminance block for the current CU
+//             Block4D_ block = createLuminanceBlock(
+//                 inputLF,
+//                 cuInfo.getSize(),
+//                 cuInfo.getLightFieldPosition(),
+//                 inputLF.mPGMScale
+//             );
+
+//             // Compute the variance of the block
+//             double variance = computeBlockVariance(block);
+
+
+//             // Assign the variance to the appropriate cluster
+//             totalVarianceSum+=variance;
+//             totalCount++;
+//             if (angleDifference <= 90) {
+//                 cluster1VarianceSum += variance;
+//                 cluster1Count++;
+//             } else {
+//                 cluster2VarianceSum += variance;
+//                 cluster2Count++;
+//             }
+//         }
+//     }
+
+//     // Compute the average variance for each cluster
+//     double cluster1AverageVariance = (cluster1Count > 0) ? (cluster1VarianceSum / cluster1Count) : 0.0;
+//     double cluster2AverageVariance = (cluster2Count > 0) ? (cluster2VarianceSum / cluster2Count) : 0.0;
+//     double totalAverageVariance = (totalCount > 0) ? (totalVarianceSum / totalCount) : 0.0;
+
+//     std::cout<<"Low Angle Error Variance: "<<cluster1AverageVariance<<" High Angle Error Variance: "<<cluster2AverageVariance<<std::endl;
+//     std::cout<<"Total Average Variance: "<<totalAverageVariance<<std::endl;
+
+// }
+// TEST(DebugInfoTests,ClusterLowVariance){
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/CovarianceTests/Sideboard/";
+//     string inputInfo = inputDirectory + "greek_0.75_info.json";
+//     double cluster1AngleDifferenceSum = 0.0;
+//     double cluster2AngleDifferenceSum = 0.0;
+//     double totalAngleDifferenceSum = 0.0;
+//     int cluster1Count = 0;
+//     int cluster2Count = 0;
+//     int totalCount = 0;
+//     double maxAngleDiff = 0;
+
+//     string inputLFDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
+
+//     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+// //     double lambda = 0;
+//     LightField inputLF(inputLFDirectory,pattern);
+//     std::vector<CodingPartitionInfo> partitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+//     int count = 0;
+
+//     for (const auto& partitionInfo : partitionInfos) {
+//         const auto& codingUnitInfos = partitionInfo.getCodingUnitInfos();
+
+//         for (const auto& cuInfo : codingUnitInfos) {
+//             // Compute the angle difference
+//             //std::cout<<"We Begin"<<std::endl;
+
+//             double bestStructureTensorAngle = cuInfo.getBestStructureTensorAngle();
+//             double bestGridSearchAngle = cuInfo.getBestGridSearchAngle();
+//             double angleDifference = std::abs(bestStructureTensorAngle - bestGridSearchAngle);
+//             double relativeCostDifference = (cuInfo.getBestStructureTensorCost() - cuInfo.getBestGridSearchCost())/cuInfo.getBestGridSearchCost();
+//             if (cuInfo.getSize()[2] <= 4) continue;
+//             // Extract the luminance block for the current CU
+//             Block4D_ block = createLuminanceBlock(
+//                 inputLF,
+//                 cuInfo.getSize(),
+//                 cuInfo.getLightFieldPosition(),
+//                 inputLF.mPGMScale
+//             );
+//             //std::cout<<"Ola"<<std::endl;
+//             // Compute the variance of the block
+//             double variance = computeBlockVariance(block);
+
+
+//             // Assign the variance to the appropriate cluster
+//             totalAngleDifferenceSum+=relativeCostDifference;
+//             totalCount++;
+//             if (relativeCostDifference > maxAngleDiff){
+//                 maxAngleDiff = relativeCostDifference;
+//             }
+//             if (relativeCostDifference>1.5 ){
+//                 std::cout<<"Angle Difference: "<<angleDifference<<" relativeCostDifference: "<<relativeCostDifference<<" Variance: "<<variance<< " Size: "<<cuInfo.getSize()[2]<<" Position: "<<cuInfo.getLightFieldPosition()[2]<<"x"<<cuInfo.getLightFieldPosition()[3]<<std::endl;
+//                 count++;
+//             }
+//             if (variance <= 4000) {
+//                 cluster1AngleDifferenceSum += relativeCostDifference;
+//                 cluster1Count++;
+//             } else {
+//                 cluster2AngleDifferenceSum += relativeCostDifference;
+//                 cluster2Count++;
+//             }
+//         }
+//     }
+//     std::cout<<"Count: "<<count<<std::endl;
+
+//     // Compute the average variance for each cluster
+//     double cluster1AverageAngleDifference = (cluster1Count > 0) ? (cluster1AngleDifferenceSum / cluster1Count) : 0.0;
+//     double cluster2AverageAngleDifference = (cluster2Count > 0) ? (cluster2AngleDifferenceSum / cluster2Count) : 0.0;
+//     double totalAverageAngleDifference = (totalCount > 0) ? (totalAngleDifferenceSum / totalCount) : 0.0;
+
+//     std::cout<<"Low Variance Angle Difference: "<<cluster1AverageAngleDifference<<" High Variance Angle Difference: "<<cluster2AverageAngleDifference<<std::endl;
+//     std::cout<<"Low Variance Count: "<<cluster1Count<<" High Variance Count: "<<cluster2Count<<" Max Angle Diff: "<<maxAngleDiff<<std::endl;
+//     std::cout<<"Total Average Angle Difference: "<<totalAverageAngleDifference<<std::endl;
+
+// }
+// TEST(DebugInfoTests,WorstSTBlock){
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/RefineGridSearch_0.1/Greek/";
+//     string inputInfo = inputDirectory + "greek_0.75_info.json";
+//     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+//     CodingPartitionInfo::generatePlotsForAngleDifferencesBelowThreshold(codingPartitionInfos,inputDirectory,50);
+
+// }
+
+
 TEST(DebugInfoTests,CostGraphPrinting){
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestingSpeed/Greek/";
-    string inputInfo = inputDirectory + "greek_0.75_info.json";
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
+    string inputInfo = inputDirectory + "fountain_0.02_info.json";
     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
-    std::array<int64_t,4> position = {0,0,7*64,0*64};
+    std::array<int64_t,4> position = {0,0,1*128,3*128};
     CodingPartitionInfo cpi = CodingPartitionInfo::findPartitionInfoByPosition(codingPartitionInfos,position);
-    cpi.generatePythonScriptsForPartition(inputDirectory);
+    cpi.generatePythonScriptsForPartition(inputDirectory + "CostGraph/");
 }
 TEST(DebugInfoTests,LoadAndPrint){
     
-    string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestingSpeed/Greek/";
-    string inputDirectory ="/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/structureTensor/Greek/";
-    string inputInfo = inputDirectory + "greek_0.1_info.json";
-    string inputInfo1 = inputDirectory1 + "greek_0.1_info.json";
-    std::array<int64_t,2> size = {512,512};
+    string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
+    string inputDirectory =  "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
+    string inputInfo = inputDirectory + "fountain_0.02_info.json";
+    string inputInfo1 = inputDirectory1 + "fountain_0.02_info.json";
+    std::array<int64_t,2> size = {512,640};
     cout<<inputInfo<<endl;
     //string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekNew/info.json";
     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
     std::vector<CodingPartitionInfo> codingPartitionInfos1 = CodingPartitionInfo::fromJsonFile(inputInfo1);
-    at::Tensor stH = CodingPartitionInfo::getStructureTensorHorizontal(codingPartitionInfos,size);
-    at::Tensor stV = CodingPartitionInfo::getStructureTensorVertical(codingPartitionInfos,size);
-    at::Tensor stA = CodingPartitionInfo::getStructureTensorAverage(codingPartitionInfos,size);
-    at::Tensor st = CodingPartitionInfo::getBestStructureTensorAngle(codingPartitionInfos,size);
-    // at::Tensor ldH = CodingPartitionInfo::getLogdetHorizontal(codingPartitionInfos,{512,512});
+    //at::Tensor ang = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
+    //at::Tensor psnr = CodingPartitionInfo::getPSNR(codingPartitionInfos,size);
+    //at::Tensor mse = CodingPartitionInfo::getMSE(codingPartitionInfos,size);
+    //double psnrValue = 10 * torch::log10((1024*1024)/mse.mean()).item<double>();
+    //std::cout<<"PSNR: "<<psnrValue<<std::endl;
+    //at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,size);
+    // at::Tensor stH = CodingPartitionInfo::getStructureTensorHorizontal(codingPartitionInfos,size);
+    // at::Tensor stV = CodingPartitionInfo::getStructureTensorVertical(codingPartitionInfos,size);
+    // at::Tensor stA = CodingPartitionInfo::getStructureTensorAverage(codingPartitionInfos,size);
+    //at::Tensor st = CodingPartitionInfo::getBestStructureTensorAngle(codingPartitionInfos,size);
+    // at::Tensor cH = CodingPartitionInfo::getCovarianceHorizontal(codingPartitionInfos,size);
+    // at::Tensor cV = CodingPartitionInfo::getCovarianceVertical(codingPartitionInfos,size);
+    // at::Tensor cA = CodingPartitionInfo::getCovarianceAverage(codingPartitionInfos,size);
+    // at::Tensor c = CodingPartitionInfo::getBestCovarianceAngle(codingPartitionInfos,size);
+    // // at::Tensor ldH = CodingPartitionInfo::getLogdetHorizontal(codingPartitionInfos,{512,512});
     // at::Tensor ldV = CodingPartitionInfo::getLogdetVertical(codingPartitionInfos,{512,512});
     // at::Tensor ldA = CodingPartitionInfo::getLogdetAverage(codingPartitionInfos,{512,512});
     // at::Tensor ld = CodingPartitionInfo::getBestLogdetAngle(codingPartitionInfos,{512,512});
     at::Tensor gs = CodingPartitionInfo::getBestGridSearchAngle(codingPartitionInfos1,size);
-    at::Tensor gsCost = CodingPartitionInfo::getBestGridSearchCost(codingPartitionInfos1,size);
-    at::Tensor chosenAngle = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
-    // at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,{512,512});
+    std::cout<<"gs 00 ="<< gs[0][0].item<double>()<<std::endl;
+    // at::Tensor gsCost = CodingPartitionInfo::getBestGridSearchCost(codingPartitionInfos1,size);
+    // at::Tensor chosenAngle = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
+    // // at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,{512,512});
     // at::Tensor distortion = CodingPartitionInfo::getPSNR(codingPartitionInfos,{512,512});
     //at::Tensor heuristic = CodingPartitionInfo::getAngleHeuristicUsed(codingPartitionInfos,{512,512});
-    at::Tensor stCost = CodingPartitionInfo::getBestStructureTensorCost(codingPartitionInfos,size);
+    //at::Tensor stCost = CodingPartitionInfo::getBestStructureTensorCost(codingPartitionInfos,size);
     // at::Tensor angleErrorST = CodingPartitionInfo::getStructureTensorError(codingPartitionInfos,{512,512});
     //at::Tensor costDiffST = CodingPartitionInfo::getStructureTensorCostDiff(codingPartitionInfos,{512,512});
     // at::Tensor angleErrorLd = CodingPartitionInfo::getLogdetError(codingPartitionInfos,{512,512});
     // at::Tensor costDiffLd = CodingPartitionInfo::getLogdetCostDiff(codingPartitionInfos,{512,512});
     
     //at::Tensor stConfidence = CodingPartitionInfo::getStructureTensorConfidence(codingPartitionInfos,{512,512});
-    //at::Tensor angleError = (gs - st).abs();
-    // angleErrorST = angleErrorST.clamp(0, angleErrorST.quantile(0.9).item<double>());
-    // angleErrorLd = angleErrorLd.clamp(0, angleErrorLd.quantile(0.9).item<double>());
-    at::Tensor costDiff = (stCost - gsCost)/gsCost;
-    // std::cout<<"stCost: "<<stCost.min().item()<<" "<<stCost.max().item()<<std::endl;
-    std::cout<<"cost diff: "<<costDiff.min().item()<<" "<<costDiff.max().item()<<std::endl;
+    // at::Tensor angleErrorST = (gs - st).abs();
+    // // angleErrorST = angleErrorST.clamp(0, angleErrorST.quantile(0.9).item<double>());
+    // // angleErrorLd = angleErrorLd.clamp(0, angleErrorLd.quantile(0.9).item<double>());
+    // at::Tensor costDiff = (stCost - gsCost)/gsCost;
+    // // std::cout<<"stCost: "<<stCost.min().item()<<" "<<stCost.max().item()<<std::endl;
+    // std::cout<<"cost diff: "<<costDiff.min().item()<<" "<<costDiff.max().item()<<std::endl;
     //
     // std::cout<<"gs: "<<gs.min().item()<<" "<<gs.max().item()<<std::endl;
     // std::cout<<"angleErrorST: "<<angleErrorST.min().item()<<" "<<angleErrorST.max().item()<<std::endl;
     // std::cout<<"angleErrorLd: "<<angleErrorLd.min().item()<<" "<<angleErrorLd.max().item()<<std::endl;
-    double gsMin = -74;
-    double gsMax = 74;
+    double gsMin = -10;
+    double gsMax = 10;
     // double gsMin = gs.min().item<double>();
     // double gsMax = gs.max().item<double>();
     //std::cout<<"stConfidence: "<<stConfidence.min().item()<<" "<<stConfidence.max().item()<<std::endl;
     // std::cout<<"angle chosen: "<< stV[64*2][64*3].item()<<" "<< stH[64*2][64*3].item()<<" "<<gs[64*2][64*3].item()<<std::endl;
     // std::cout<<"costDiff: "<< costDiff[64*2][64*3].item()<<std::endl;
-    write_tensor(stH,inputDirectory + "sth.png",{gsMin,gsMax});
-    write_tensor(stV,inputDirectory + "stv.png",{gsMin,gsMax});
-    write_tensor(stA,inputDirectory + "sta.png",{gsMin,gsMax});
-    write_tensor(st,inputDirectory + "st.png",{gsMin,gsMax});
-    write_tensor(gsCost,inputDirectory + "gsCost.png");
-    write_tensor(stCost,inputDirectory + "stCost.png");
+    // write_tensor(stH,inputDirectory + "sth.png",{gsMin,gsMax});
+    // write_tensor(stV,inputDirectory + "stv.png",{gsMin,gsMax});
+    // write_tensor(stA,inputDirectory + "sta.png",{gsMin,gsMax});
+    //write_tensor(st,inputDirectory + "st.png",{gsMin,gsMax});
+    //write_tensor(ang,inputDirectory + "ang.png",{gsMin,gsMax});
+    //write_tensor(psnr,inputDirectory + "psnr.png");
+    //write_tensor(rate,inputDirectory + "rate.png");
+    // write_tensor(cH,inputDirectory + "cth.png",{gsMin,gsMax});
+    // write_tensor(cV,inputDirectory + "ctv.png",{gsMin,gsMax});
+    // write_tensor(cA,inputDirectory + "cta.png",{gsMin,gsMax});
+    // write_tensor(c,inputDirectory + "c.png",{gsMin,gsMax});
+    // write_tensor(gsCost,inputDirectory + "gsCost.png");
+    // //write_tensor(stCost,inputDirectory + "stCost.png");
     //cout<<"written ST" <<std::endl;
     //write_tensor(error,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekST-3/error.png",{0,15.0});
     //write_tensor(stConfidence,inputDirectory + "Confidence1.png",{0,15});
-    write_tensor(costDiff,inputDirectory + "CostDiffST.png",{0,1});
+    //write_tensor(costDiff,inputDirectory + "CostDiffST.png",{0,1});
 
     // write_tensor(ldH,inputDirectory + "ldh.png",{gsMin,gsMax});
     // write_tensor(ldV,inputDirectory + "ldv.png",{gsMin,gsMax});
@@ -664,13 +886,13 @@ TEST(DebugInfoTests,LoadAndPrint){
     // write_tensor(rate,inputDirectory + "rate.png",{});
     // write_tensor(distortion,inputDirectory + "distortion.png");
     // write_tensor(heuristic,inputDirectory + "heuristic.png");
-    // write_tensor(angleErrorST,inputDirectory + "AngleErrorST.png",{0,5});
+    //write_tensor(angleErrorST,inputDirectory + "AngleErrorST.png",{0,25});
     // write_tensor(costDiffST,inputDirectory + "CostDiffST.png",{0,0.5});
     // write_tensor(angleErrorLd,inputDirectory + "AngleErrorLd.png",{0,5});
     // write_tensor(costDiffLd,inputDirectory + "CostDiffLd.png",{0,0.5});
     write_tensor(gs,inputDirectory + "gs.png",{gsMin,gsMax});
-    write_tensor(chosenAngle,inputDirectory + "chosenAngle.png",{gsMin,gsMax});
-    
+    //write_tensor(chosenAngle,inputDirectory + "chosenAngle.png",{gsMin,gsMax});
+    //std::cout<<c.min().item()<< " "<<c.max().item()<<std::endl;
 }
 // TEST(EncoderTests,GreekSTPoor){
 //     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
