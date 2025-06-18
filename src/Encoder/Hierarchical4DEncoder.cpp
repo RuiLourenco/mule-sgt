@@ -883,14 +883,18 @@ void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
     int precisionRho = ssi.getRhoPrecision();
     int precisionD = ssi.getAnglePrecision();
     //std::cout<<"precision: "<<precisionD<<" "<<precisionRho<<std::endl;
-    ssi.print();
+    //ssi.print();
     //EncodeInteger(5,1);
+    
     EncodeInteger(ssi.getAngleVCode(),precisionD);
     EncodeInteger(ssi.getAngleHCode(),precisionD);
+    //std::cout<<ADAPTIVE_RHO_CALC<<std::endl;
+    #if ADAPTIVE_RHO_CALC == 1
     EncodeInteger(ssi.getRhoSCode(),precisionRho);
     EncodeInteger(ssi.getRhoTCode(),precisionRho);
     EncodeInteger(ssi.getRhoUCode(),precisionRho);
     EncodeInteger(ssi.getRhoVCode(),precisionRho);
+    #endif
 }
 
 
