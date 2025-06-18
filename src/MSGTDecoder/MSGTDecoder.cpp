@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
     //reads disparity range
     //Writes an Integer Encoded Disparity Range of the LF
     for(int n = 0; n < 2; n++) {
-        par.disparityRange[n] =(double) BigEndianSignedIntegerRead( 2, inputFileNamePointer)/100.0;
+        par.disparityRange[n] =(double) BigEndianSignedIntegerRead( 3, inputFileNamePointer)/1000.0;
     }
     std::cout<<"DisparityRange: "<<par.disparityRange[0]<<" "<<par.disparityRange[1]<<std::endl;
 
@@ -213,12 +213,13 @@ int main(int argc, char **argv) {
     PartitionDecoder pd(par.transformGain);
 
     at::Tensor lfEntropy = at::zeros(lfSize,at::kDouble);
-
     
     std::cout<<"LOOP WILL START"<<std::endl;
     for(int verticalView = 0; verticalView < lfSize[0]; verticalView+= maxPartitionSize[0]){
         for(int horizontalView = 0; horizontalView < lfSize[1]; horizontalView+=maxPartitionSize[1]){
+            //for(int viewLine = 512; viewLine < 512+128; viewLine+=maxPartitionSize[2]){
             for(int viewLine = 0; viewLine < lfSize[2]; viewLine+=maxPartitionSize[2]){
+                //for(int viewColumn = 384; viewColumn < 384+128; viewColumn+=maxPartitionSize[3]){
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
@@ -353,7 +354,7 @@ int main(int argc, char **argv) {
 
 
     hdt.DoneDecoding();
-    outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w');
+    outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w',par.firstView);
     fclose(inputFileNamePointer);
 }
 
