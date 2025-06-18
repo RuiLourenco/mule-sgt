@@ -1544,13 +1544,10 @@ void encodePartition(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_
     double Energy = 0;
     double rate = 0;
     double distortion = 0;
-    if(entropyCoder.mSegmentationTreeCodeBuffer != NULL){
-        delete [] entropyCoder.mSegmentationTreeCodeBuffer;
-    }
-    entropyCoder.mSegmentationTreeCodeBuffer = new char [2];
-    strcpy(entropyCoder.mSegmentationTreeCodeBuffer,"");
 
-    J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, scaledLambda, entropyCoder.mSuperiorBitPlane, &entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
+    entropyCoder.mSegmentationTreeCodeBuffer = "";
+
+    J0 = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, scaledLambda, entropyCoder.mSuperiorBitPlane, entropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     std::cout<<"J0: "<<J0<<endl;
     std::cout<<"Rate: "<<rate<<endl;
     std::cout<<"Distortion: "<<distortion<<endl;

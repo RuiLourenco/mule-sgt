@@ -103,15 +103,13 @@ double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, double currGa
         mEvaluateOptimumBitPlane = 0;
         //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
     }
-    if(mEntropyCoder.mSegmentationTreeCodeBuffer != NULL){
-        delete [] mEntropyCoder.mSegmentationTreeCodeBuffer;
-    }
-    mEntropyCoder.mSegmentationTreeCodeBuffer = new char [2];
-    strcpy(mEntropyCoder.mSegmentationTreeCodeBuffer,"");
+   
+    
     //begin  = std::chrono::steady_clock::now();
     std::array<int64_t,4> lengthTransform = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
     //std::cout<<mEntropyCoder.mSuperiorBitPlane<<std::endl;
-    double J0 = mEntropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,mEntropyCoder.mSuperiorBitPlane, &mEntropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
+    mEntropyCoder.mSegmentationTreeCodeBuffer = "";
+    double J0 = mEntropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, mLambda,mEntropyCoder.mSuperiorBitPlane, mEntropyCoder.mSegmentationTreeCodeBuffer, Energy,rate,distortion);
     int RHO_PRECISION = ssi0.getRhoPrecision();
     int DISP_PRECISION = ssi0.getAnglePrecision();
     J0 += RHO_PRECISION*4*mLambda + DISP_PRECISION*mLambda;

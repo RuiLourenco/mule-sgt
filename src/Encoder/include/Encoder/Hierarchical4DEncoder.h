@@ -40,7 +40,7 @@ public:
     int mSegmentationFlagProbabilityModelIndex;
     int mSymbolProbabilityModelIndex;
     int mPreSegmentation;
-    char *mSegmentationTreeCodeBuffer;
+    std::string mSegmentationTreeCodeBuffer;
     long int mSegmentationTreeCodeBufferSize;
     int OptimumBitplaneFaster_(double lambda);
     Hierarchical4DEncoder(void);
@@ -56,7 +56,7 @@ public:
     void EncodeInteger(int integerValue, int precision);
     void EncodeAll(double lambda, int inferiorBitPlane);
     void EncodeSubblock_(double lambda);
-    double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, char **codeString, double &signalEnergy,double& rate, double& distortion);
+    double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, std::string& codeString, double &signalEnergy,double& rate, double& distortion);
     void RdEncodeHexadecatree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane, int &flagIndex);
     void DoneEncoding(void);
     void LoadOptimizerState(void);

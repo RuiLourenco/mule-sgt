@@ -11,7 +11,7 @@ Hierarchical4DEncoder :: Hierarchical4DEncoder(void) {
     mSuperiorBitPlane = 30;
     mInferiorBitPlane = 0;
     mPreSegmentation = 1;
-    mSegmentationTreeCodeBuffer = NULL;
+    mSegmentationTreeCodeBuffer = "";
     mSegmentationTreeCodeBufferSize = 0;
     mSegmentationFlagProbabilityModelIndex = SEGMENTATION_PROB_MODEL_INDEX;
     mSymbolProbabilityModelIndex = SYMBOL_PROBABILITY_MODEL_INDEX;
@@ -20,9 +20,6 @@ Hierarchical4DEncoder :: Hierarchical4DEncoder(void) {
     
 }
 Hierarchical4DEncoder :: ~Hierarchical4DEncoder(void) {
-    if(mSegmentationTreeCodeBuffer != NULL)
-        delete [] mSegmentationTreeCodeBuffer;
-    
     if(mPmodel != NULL)
         delete [] mPmodel;
     if(mOptimizationPmodel != NULL)
@@ -71,9 +68,9 @@ void Hierarchical4DEncoder :: EncodeSubblock_(double lambda) {
     double distortion = 0;
     std::array<int64_t,4> size = {mSubbandLF_.data.size(0),mSubbandLF_.data.size(1),mSubbandLF_.data.size(2),mSubbandLF_.data.size(3)};
     this->ignored = at::zeros(size,at::kInt);
-    strcpy(mSegmentationTreeCodeBuffer,"");
+    mSegmentationTreeCodeBuffer = "";
     this->mSubbandLF_.data = this->mSubbandLF_.data.contiguous();
-    this->currCost = RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, &mSegmentationTreeCodeBuffer, Energy, rate,distortion);
+    this->currCost = RdOptimizeHexadecaTree_({0, 0, 0, 0}, size, lambda, mSuperiorBitPlane, mSegmentationTreeCodeBuffer, Energy, rate,distortion);
     // std::cout<<"First Coeffs = "<<mSubbandLF_.data[0][0][0][0].item<int>()<<" "<<mSubbandLF_.data[0][0][31][31].item<int>()<<" "<<mSubbandLF_.data[0][0][31][0].item<int>()<<std::endl;
     // std::cout<<"absolute rate = "<<rate<<" "<<"absolute distortion = "<<distortion<<" Ratio = "<<distortion/(lambda * rate)<<std::endl;
     // std::cout<<"size = "<<size[0]<<" "<<size[1]<<" "<<size[2]<<" "<<size[3]<<std::endl;
@@ -91,7 +88,7 @@ void Hierarchical4DEncoder :: EncodeSubblock_(double lambda) {
     flagSearchIndex = 0;
     RdEncodeHexadecatree_({0, 0, 0, 0}, size, mSuperiorBitPlane, flagSearchIndex);
 }
-double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, char **codeString, double &signalEnergy, double &rate, double& distortion) {
+double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda, int bitplane, std::string& codeString, double &signalEnergy, double &rate, double& distortion) {
    
    //std::cout<<"Length = "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl; 
     //std::cout<<"In"<<std::endl;
@@ -200,7 +197,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         //std::cout<<"Magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" Distortion = "<<distortion<<" rate = "<<accumulatedRate<<" weighed rate"<<lambda*accumulatedRate<<std::endl;
         //std::cout<<"Compression Energy = "<< J<< " Ignoring Energy  = "<<signalEnergy<<std::endl;
         
-        *codeString[0] = 0;
+        codeString = "";
         
         //std::cout<<"We have split everything down to a 1x1 block! Energy equals: "<<J<<" CodeString equals 0!"<<std::endl;
         //rate += accumulatedRate;
@@ -214,8 +211,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         currentProbabilityModel[model_index].CopyModel(&mOptimizationPmodel[model_index]);
 
 
-    char *codeString_0 = new char [2];
-    strcpy(codeString_0, "");
+    std::string codeString_0 ="";    
     
     int Significance = 0;
     
@@ -268,7 +264,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         //std::cout<<"No Significant Bits in this bitplane. Continuing with lower bitplane."<<std::endl;
         double rateTemp = 0;
         double distortionTemp = 0;
-        J0 += RdOptimizeHexadecaTree_({position_t, position_s, position_v, position_u}, {length_t, length_s, length_v, length_u}, lambda, bitplane-1, &codeString_0, SignalEnergySum,rateTemp,distortionTemp);
+        J0 += RdOptimizeHexadecaTree_({position_t, position_s, position_v, position_u}, {length_t, length_s, length_v, length_u}, lambda, bitplane-1, codeString_0, SignalEnergySum,rateTemp,distortionTemp);
         rate0+=rateTemp;    
         distortion0+=distortionTemp;
 
@@ -313,24 +309,18 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         int new_length_v = (index_v == 0) ? half_length_v : (length_v-half_length_v);
                         int new_length_u = (index_u == 0) ? half_length_u : (length_u-half_length_u);
                         
-                        char *codeString_1 = new char [2];
-                            
-                        strcpy(codeString_1, "");
+                        std::string codeString_1 =  "";
                         //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<std::endl;
                         double rateTemp = 0;
                         double distortionTemp = 0;
-                        J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, &codeString_1, Energy,rateTemp,distortionTemp);
+                        J0 += RdOptimizeHexadecaTree_({new_position_t, new_position_s, new_position_v, new_position_u},{ new_length_t, new_length_s, new_length_v, new_length_u}, lambda, bitplane, codeString_1, Energy,rateTemp,distortionTemp);
                         rate0+=rateTemp;
                         distortion0+=distortionTemp;
                         
                         //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<" "<<rate0*lambda + distortion0<<std::endl;
 
                         //if(relevant) std::cout<<"counter = "<<counter<<" p:"<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<" Cumm = "<<J0<<std::endl;
-                        char *tempString = new char[strlen(codeString_0)+strlen(codeString_1)+2];
-                        strcpy(tempString, codeString_0);
-                        strcat(tempString, codeString_1);
-                        delete [] codeString_0;
-                        delete [] codeString_1;
+                        std::string tempString = codeString_0 + codeString_1; 
                         codeString_0 = tempString;
                             
                         SignalEnergySum += Energy;
@@ -355,29 +345,22 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
         rate = rate0;
         distortion = distortion0;
 
-        char *tempString = new char[strlen(*codeString)+strlen(codeString_0)+3];
-        strcpy(tempString, *codeString);
-        delete [] *codeString;
-        *codeString = tempString;
-        
+
         if(Significance == 1) {
-            strcat(*codeString, "1");         
+            codeString+='1';
         }
         else {
-            strcat(*codeString, "0");
+            codeString+='0';
         }
-        strcat(*codeString, codeString_0);
+        codeString+=codeString_0;
     }
     else {
         //std::cout<<"j0 > j1"<<std::endl;
 
         rate += rate1;   
-        distortion = distortion1;     
-        char *tempString = new char[strlen(*codeString)+3];
-        strcpy(tempString, *codeString);
-        delete [] *codeString;
-        *codeString = tempString;
-        strcat(*codeString, "2");
+        distortion = distortion1;   
+        codeString += "2";  
+ 
         J0 = J1;
         
         for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++)
@@ -388,7 +371,6 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
     }
     //std::cout<<"rate = "<<rate<<std::endl;
     //std::cout<<"J0 = "<<J0/lambda<<std::endl;
-    delete [] codeString_0;
     
     signalEnergy = SignalEnergySum;
     //std::cout<<"J0 = "<<J0<<" Calc J0 = "<< lambda*rate + distortion<<" rate = "<<rate<<" distortion = "<<distortion<<" lambda = "<<lambda<<std::endl;
