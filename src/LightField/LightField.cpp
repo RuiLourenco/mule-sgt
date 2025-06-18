@@ -397,15 +397,15 @@ void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern,
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
         std::cout<<"First View: "<<firstView[0]<<" "<<firstView[1]<<" View Size: "<<viewSize[0]<<" "<<viewSize[1]<<std::endl;
         this->data = this->data.index({at::indexing::Slice({firstView[0],firstView[0]+viewSize[0]}),at::indexing::Slice({firstView[1],firstView[1]+viewSize[1]}),at::indexing::Slice(),at::indexing::Slice()});
-        computeGradients();
+        //computeGradients();
 }
-void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField ) {
+void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField,std::array<int64_t,2> firstView = {0,0} ) {
     if(readOrWriteLightField == 'r'){
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
-        computeGradients();
+        //computeGradients();
     }else{
         if(readOrWriteLightField == 'w'){
-            io::write_collection(rootPath,this->data);
+            io::write_collection(rootPath,this->data,firstView);
         }
     }
 }
