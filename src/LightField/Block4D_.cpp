@@ -3469,32 +3469,48 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
 
     //calc auto-cov
     at::Tensor autocov = cov.index({size3-1,at::indexing::Slice()}).squeeze();
-    SgtSideInfo temp(dispRange);
-    for(double theta = temp.angleRange[0];theta<=temp.angleRange[1];theta+=precision){
-        at::Tensor model = torch::zeros({2*size3-1,2*size4-1},at::kDouble);
+    int p_min = dispRange[0]*(double)(size3 - 1) - 1;
+	int p_max = dispRange[1]*(double)(size3 - 1) + 1;
+
+    double* autocov_ptr = autocov.data_ptr<double>();
+	std::vector<double> alphas;
+	for (int p = p_min; p < p_max; p++)
+		alphas.push_back(atan(p / (double)(size3 - 1)));
+    
+    for (int alpha_idx = 0; alpha_idx < alphas.size(); alpha_idx++){
+        at::Tensor model = torch::zeros({2*size3-1,2*size4-1},torch::TensorOptions().dtype(torch::kDouble).device(torch::kCPU));
+        int64_t row_stride = model.stride(0);
+        int64_t col_stride = model.stride(1);
+        double* model_ptr = model.data_ptr<double>();
+        double alpha = alphas[alpha_idx];
         for (int h = 0;h<2*size3-1;h++){
             //calc shift
-            int shift = round((size3 - (h+1)) * tan(theta));
+            int shift = round((size3 - (h + 1)) * tan(alpha));
             for( int w = 0; w < 2*size4 - 1; w++){
                 int w_new = w+shift;
             
                 //if in boundaries
-                if(w_new >= 0 && w_new < (2*size4-1)){
-                    model[h][w_new] = autocov[w];
+                if(w_new >= 0 && w_new < (2*size4-1)){                   
+
+                    int64_t index = h * row_stride + w_new*col_stride;
+                    //model[h][w_new] = autocov[w];
+                    model_ptr[index] = autocov_ptr[w];
                 }
             }
         }
         //std::cout<<"Model Size: "<<model.sizes()<<std::endl;
         model = model * weights;
+        if(alpha == 1) write_tensor(model,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/model.png");
         double result = model.mul(cov).sum().item<double>();
+        //std::cout<<model.sizes()<<" "<<cov.sizes()<<std::endl;
         //std::cout<<theta<<": "<<result<<std::endl;
         if (result > max){
             max = result;
-            chosenAngle = theta;
+            chosenAngle = atan(alpha) * 180.0 / M_PI;
         }
     }
-    return -chosenAngle;
 
+    return -chosenAngle;
 }
 
 
