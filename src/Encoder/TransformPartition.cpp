@@ -488,6 +488,42 @@ double TransformPartition :: RDrefineLogdet(Block4D_& block_0, double refinement
     return J0;
 }
 
+double TransformPartition :: RDStructureTensorOrLogdet(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
+    ProbabilityModel *currentCoderModelState;
+    mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+    double currGain = totalTransformGain();
+    
+    Block4D_ blockOrig = block_0.clone();
+    Block4D_ blockTemp = block_0;
+
+    ProbabilityModel *tempModelState;
+    //std::cout<<"length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
+    //std::cout<<"Curr Gain: "<<currGain<<std::endl;
+    double J0 = std::numeric_limits<double>::max();
+    //Evaluate Logdet
+    //Evaluate Logdet
+    double J;
+    if(block_0.size[2] > 8 && block_0.lightFieldPosition[2] > 0 && block_0.lightFieldPosition[2] < block_0.lightField->data.size(2)-block_0.size[2] && block_0. lightFieldPosition[3] > 0 && block_0.lightFieldPosition[3] < block_0.lightField->data.size(3)-block_0.size[3]){
+        J = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
+        //std::cout<<"ST: "<<block_0.size[2] << block_0.lightFieldPosition[2]<<"x"<<block_0.lightFieldPosition[3]<<std::endl;
+    }else{
+        J = RDtestLogdet(blockTemp,cui0,currGain,&tempModelState);
+        //std::cout<<"LogDet: "<<block_0.size[2] << " "<<block_0.lightFieldPosition[2]<<"x"<<block_0.lightFieldPosition[3]<<std::endl;
+
+    }
+
+    J0 = J;
+    block_0 = blockTemp;
+    mEntropyCoder.SetOptimizerProbabilisticModelState(tempModelState);
+    mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    
+    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+    
+    blockTemp = blockOrig;
+   
+    return J0;
+}
+
 double TransformPartition :: RDrefineGridSearch(Block4D_& block_0,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
     ProbabilityModel *currentCoderModelState;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
