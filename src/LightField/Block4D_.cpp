@@ -835,14 +835,14 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     double costU = logDetCost(angles[0], true, disparityRange);
     double costU2 = logDetCost(reciprocalAngles[0], true, disparityRange);
     
-    if(size[2] == 64){
-        std::cout<<L<<std::endl;
-        std::cout<<Q<<std::endl;
-        std::cout<<angles[0]<< ": "<<costU<<std::endl;
-        std::cout<<angles[1]<< ": "<<costV<<std::endl;
-        std::cout<<reciprocalAngles[0]<< ": "<<costU2<<std::endl;
-        std::cout<<reciprocalAngles[1]<< ": "<<costV2<<std::endl<<std::endl;
-    }
+    // if(size[2] == 64){
+    //     std::cout<<L<<std::endl;
+    //     std::cout<<Q<<std::endl;
+    //     std::cout<<angles[0]<< ": "<<costU<<std::endl;
+    //     std::cout<<angles[1]<< ": "<<costV<<std::endl;
+    //     std::cout<<reciprocalAngles[0]<< ": "<<costU2<<std::endl;
+    //     std::cout<<reciprocalAngles[1]<< ": "<<costV2<<std::endl<<std::endl;
+    // }
     if (costV2 < costV) {
         angles[1] = reciprocalAngles[1];
     }
