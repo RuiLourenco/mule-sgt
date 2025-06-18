@@ -151,7 +151,6 @@ double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnit
     Block4D_ blockOrig = block_0.clone();
     Block4D_ temp_block_0 = block_0;
     ProbabilityModel *currentCoderModelState;
-    double J0 = std::numeric_limits<double>::max();
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
 
 
@@ -669,8 +668,6 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     Block4D_ blockOrig = block_0;
     Block4D_ temp_block_0 = block_0;
     ProbabilityModel *coderModelState_0;
-    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
-    double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     double currGain = totalTransformGain();
     std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
