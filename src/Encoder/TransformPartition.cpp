@@ -32,7 +32,7 @@ double TransformPartition :: totalTransformGain(void){
     //     std::cout<<transformGain<<" "<< length[i]/sqrt(length[i]) << " "<< sqrt(mPartitionData_.size[i]/length[i])<<std::endl;
     // } 
 
-    return sqrt(mPartitionData_.size[0]*mPartitionData_.size[1]*mPartitionData_.size[2]*mPartitionData_.size[3]);
+    return mGain*sqrt(mPartitionData_.size[0]*mPartitionData_.size[1]*mPartitionData_.size[2]*mPartitionData_.size[3]);
 
 }
 void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lambda){
