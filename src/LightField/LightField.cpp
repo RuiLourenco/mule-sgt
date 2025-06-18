@@ -418,7 +418,7 @@ Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::a
     for(int n = 0; n<4; n++){
         actualSize[n] = std::min(data.size(n) - position[n],size[n]);
     }
-        std::cout<<actualSize[0]<<" "<<actualSize[1]<<" "<<actualSize[2]<<" "<<actualSize[3]<<" "<<std::endl;
+        //std::cout<<actualSize[0]<<" "<<actualSize[1]<<" "<<actualSize[2]<<" "<<actualSize[3]<<" "<<std::endl;
 
 
     block.data.index({at::indexing::Slice(0,actualSize[0]),
