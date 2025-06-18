@@ -39,6 +39,9 @@ public:
     static at::Tensor getStructureTensorHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getStructureTensorVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getStructureTensorAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getCovarianceHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getCovarianceVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getCovarianceAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getLogdetHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getLogdetVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getLogdetAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
@@ -48,6 +51,8 @@ public:
     static at::Tensor getChosenAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestStructureTensorAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestStructureTensorCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getBestCovarianceAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getBestCovarianceCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestGridSearchAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestLogdetAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestLogdetCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
