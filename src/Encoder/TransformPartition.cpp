@@ -396,7 +396,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
-    std::cout<<"ST: "<<blockTemp.ssi.getAngleH()<<std::endl;
+    //std::cout<<"ST: "<<blockTemp.ssi.getAngleH()<<std::endl;
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     blockTemp = blockOrig;
@@ -409,7 +409,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
  
          mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
      }
-     std::cout<<"COV: "<<blockTemp.ssi.getAngleH()<<std::endl;
+     //std::cout<<"COV: "<<blockTemp.ssi.getAngleH()<<std::endl;
      
  
      mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
@@ -423,7 +423,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
-    std::cout<<"LogDet: "<<blockTemp.ssi.getAngleH()<<std::endl;
+    //std::cout<<"LogDet: "<<blockTemp.ssi.getAngleH()<<std::endl;
 
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
@@ -440,7 +440,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
 
         mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
     }
-    std::cout<<"GridSearch: "<<blockTemp.ssi.getAngleH()<<std::endl;
+    //std::cout<<"GridSearch: "<<blockTemp.ssi.getAngleH()<<std::endl;
 
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     return J0;
@@ -488,7 +488,7 @@ double TransformPartition :: RDrefineLogdet(Block4D_& block_0, double refinement
     return J0;
 }
 
-double TransformPartition :: RDrefineGridSearch(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
+double TransformPartition :: RDrefineGridSearch(Block4D_& block_0,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
     ProbabilityModel *currentCoderModelState;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
     double currGain = totalTransformGain();
