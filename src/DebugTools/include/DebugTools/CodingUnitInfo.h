@@ -62,6 +62,7 @@ public:
 
     double getRate() const;
     double getPSNR() const;
+    double getMSE() const;
     int getAngleHeuristicUsed() const;
     std::map<double, double> getGridSearchAngle() const; // Changed to std::map
     SgtSideInfo getSgtSideInfo() const;

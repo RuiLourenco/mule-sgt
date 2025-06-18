@@ -74,11 +74,15 @@ void CodingUnitInfo::generatePythonScriptForGridSearchAngle(const std::string& f
 
     file << "plt.figure(figsize=(10, 6))\n";
     file << "plt.plot(sorted_angles, sorted_costs, marker='o')\n";
+    file << "plt.axvline(x=" << getBestStructureTensorAngle() << ", color='r', linestyle='--', label='Best Structure Tensor Angle')\n";
     file << "plt.title('Grid Search Angle vs Cost (Light Field Position: [" 
          << lightFieldPosition[2] << ", " 
-         << lightFieldPosition[3] << "])')\n";
+         << lightFieldPosition[3] << "], Size: [" 
+         << size[2] << "x" 
+         << size[3] << "])')\n";
     file << "plt.xlabel('Angle')\n";
     file << "plt.ylabel('Cost')\n";
+    file << "plt.legend()\n";
     file << "plt.grid(True)\n";
     file << "plt.savefig('grid_search_angle_plot_" 
          << lightFieldPosition[2] << "x" 
@@ -258,6 +262,9 @@ double CodingUnitInfo::getRate() const {
 double CodingUnitInfo::getPSNR() const {
     return PSNR;
 }
+double CodingUnitInfo::getMSE() const {
+    return std::pow(1024.0, 2) / std::pow(10.0, PSNR / 10.0);
+}
 int CodingUnitInfo::getAngleHeuristicUsed() const {
     int heuristic;
     if (angleHeuristicUsed == 0)
@@ -303,6 +310,8 @@ CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
         j["size"][2].get<int64_t>(),
         j["size"][3].get<int64_t>()
     };
+    //std::cout<<size[2]<<" "<<size[3]<<std::endl;
+
     //std::cout<<"    1"<<std::endl;
     std::array<int64_t, 4> lightFieldPosition = {
         j["lightFieldPosition"][0].get<int64_t>(),
@@ -310,27 +319,30 @@ CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
         j["lightFieldPosition"][2].get<int64_t>(),
         j["lightFieldPosition"][3].get<int64_t>()
     };
+    //std::cout<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
     //std::cout<<"    2"<<std::endl;
 
     std::map<double, double> gridSearchAngle = j["gridSearchAngle"].get<std::map<double, double>>();
     //std::cout<<"    3"<<std::endl;
-
+    //std::cout<<"Reading Structure Tensor "<<std::endl;
     std::array<double,2> structureTensorHorizontal = {
-        j["structureTensorHorizontal"][0].get<double>(),
-        j["structureTensorHorizontal"][1].get<double>(),
+        j["structureTensorHorizontal"][0].is_null() ? -90.0 : j["structureTensorHorizontal"][0].get<double>(),
+        j["structureTensorHorizontal"][1].is_null() ? -90.0 : j["structureTensorHorizontal"][1].get<double>(),
     };
     //std::cout<<"    4"<<std::endl;
 
     std::array<double,2> structureTensorVertical = {
-        j["structureTensorVertical"][0].get<double>(),
-        j["structureTensorVertical"][1].get<double>(),
+        j["structureTensorVertical"][0].is_null() ? -90.0 : j["structureTensorVertical"][0].get<double>(),
+        j["structureTensorVertical"][1].is_null() ? -90.0 : j["structureTensorVertical"][1].get<double>(),
     };
     //std::cout<<"    5"<<std::endl;
 
     std::array<double,2> structureTensorAverage = {
-        j["structureTensorAverage"][0].get<double>(),
-        j["structureTensorAverage"][1].get<double>(),
+        j["structureTensorAverage"][0].is_null() ? -90.0 : j["structureTensorAverage"][0].get<double>(),
+        j["structureTensorAverage"][1].is_null() ? -90.0 : j["structureTensorAverage"][1].get<double>(),
     };
+    //std::cout<<"Read Structure Tensor "<<std::endl;
+
     //std::cout<<"    6"<<std::endl;
 
     std::array<double,2> logdetHorizontal = {
