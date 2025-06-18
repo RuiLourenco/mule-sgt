@@ -47,6 +47,9 @@ public:
     static at::Tensor getLogdetAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getRate(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getPSNR(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getMSE(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    double getTotalRate() const;
+
     static at::Tensor getAngleHeuristicUsed(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getChosenAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestStructureTensorAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
@@ -69,6 +72,13 @@ public:
     std::array<int64_t,4> getLightFieldPosition() const;
     std::array<int64_t,4> getSize() const;
     const std::vector<CodingUnitInfo>& getCodingUnitInfos() const;
+    static void findLargestAngleDifferenceAndGeneratePlot(
+        const std::vector<CodingPartitionInfo>& partitionInfos,
+        const std::string& outputDirectory);
+    static void generatePlotsForAngleDifferencesBelowThreshold(
+        const std::vector<CodingPartitionInfo>& partitionInfos,
+        const std::string& outputDirectory,
+        double threshold = 10.0);
     
     static CodingPartitionInfo findPartitionInfoByPosition(
         const std::vector<CodingPartitionInfo>& partitionInfos,
@@ -79,6 +89,8 @@ public:
 private:
     std::array<int64_t,4> lightFieldPosition;
     std::array<int64_t,4> size;
+    double totalDistortion = 0.0; // Total error for the partition
+    double totalBitsize = 0.0; // Total size for the partition in bits
     std::vector<CodingUnitInfo> codingUnitInfos;
 };
 
