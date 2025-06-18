@@ -20,9 +20,7 @@ struct ValidPositions{
 };
 
 class SgtSideInfo{
-    static constexpr double FIXED_ANGULAR_RHO = 0.99999;
-    static constexpr double FIXED_SPATIAL_RHO = 0.99;
-    static constexpr double VARIANCE_THRESHOLD = 3000;
+
 
     
     int angleVInt;
@@ -41,6 +39,9 @@ class SgtSideInfo{
 
 
     public:
+        static constexpr double FIXED_ANGULAR_RHO = 0.99999;
+        static constexpr double FIXED_SPATIAL_RHO = 0.99;
+        static constexpr double VARIANCE_THRESHOLD = 3000;
         static constexpr double PRECISION_RHO = 1e-5; 
         static constexpr double MIN_RHO = 0.2;
         static constexpr double MAX_RHO = 1-1e-5;
