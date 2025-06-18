@@ -9,6 +9,9 @@
 #include <array>
 #include <nlohmann/json.hpp>
 
+#define ADAPTIVE_RHO_CALC 0
+#define FLAT_TRANSFORM 1
+
 class Block4D_;
 void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange = {1,1});
 struct ValidPositions{
