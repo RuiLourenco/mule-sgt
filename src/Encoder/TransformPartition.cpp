@@ -670,7 +670,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
     // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
-    //double J0 = RDtestZero(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
 
     //double J0 = RDrefineCovariance(block_0,1,cui0, &coderModelState_0);
@@ -682,7 +682,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     }else{
         std::cout<<"Moving On!"<<std::endl;
     }
-    double J0 = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,angleRange,block_0,cui0,currGain,&coderModelState_0);
+    //double J0 = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,angleRange,block_0,cui0,currGain,&coderModelState_0);
 
     std::cout<<"Depth ="<<mDepth<<std::endl;
     std::cout << "Tensor addr: " << block_0.data.unsafeGetTensorImpl() << "\n";

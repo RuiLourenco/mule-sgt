@@ -320,8 +320,7 @@ double Hierarchical4DEncoder :: RdOptimizeHexadecaTree_(std::array<int64_t,4> po
                         //std::cout<<"Beginning: "<< rate0<<" "<<distortion0<<" "<<J0<<" "<<rate0*lambda + distortion0<<std::endl;
 
                         //if(relevant) std::cout<<"counter = "<<counter<<" p:"<<new_position_t<<" "<<new_position_s<<" "<<new_position_v<<" "<<new_position_u<<" Cumm = "<<J0<<std::endl;
-                        std::string tempString = codeString_0 + codeString_1; 
-                        codeString_0 = tempString;
+                        codeString_0 += codeString_1;
                             
                         SignalEnergySum += Energy;
 
@@ -388,10 +387,11 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
         return;
     }
     //If the block is a single bit long Encode the bit and return
+    int* data = mSubbandLF_.data.data_ptr<int>();
     if(length[0]*length[1]*length[2]*length[3] == 1) {
         //rd encode coefficient     
         //std::cout<<"Encoded Coefficient"<<std::endl;   
-        EncodeCoefficient(mSubbandLF_.data[position[0]][position[1]][position[2]][position[3]].item<int>(), bitplane);
+        EncodeCoefficient(data[mSubbandLF_.LinearPosition(position[0],position[1],position[2],position[3])], bitplane);
         return;
     }
     //std::cout<<mSegmentationTreeCodeBuffer[flagIndex]<<std::endl;
@@ -416,7 +416,7 @@ void Hierarchical4DEncoder :: RdEncodeHexadecatree_(std::array<int64_t,4> positi
         flagTwo++;
         mIgnored += length[0] * length[1] * length[2] * length[3];
         mIgnoreEfficiency = (double)mIgnored/(double)flagTwo;
-        ignored.index({at::indexing::Slice(position[0],position[0]+length[0]),at::indexing::Slice(position[1],position[1]+length[1]),at::indexing::Slice(position[2],position[2]+length[2]),at::indexing::Slice(position[3],position[3]+length[3])}) = flagIndex*at::ones(length,at::kInt);
+        //ignored.index({at::indexing::Slice(position[0],position[0]+length[0]),at::indexing::Slice(position[1],position[1]+length[1]),at::indexing::Slice(position[2],position[2]+length[2]),at::indexing::Slice(position[3],position[3]+length[3])}) = flagIndex*at::ones(length,at::kInt);
         EncodeSegmentationFlag(2, bitplane);
     
         flagIndex++;

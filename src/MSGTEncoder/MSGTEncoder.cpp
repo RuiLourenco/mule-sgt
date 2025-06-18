@@ -269,8 +269,8 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 int main(int argc, char **argv) {
     
     torch::InferenceMode guard;
-    torch::set_num_threads(1);
-    at::set_num_threads(1);
+    // torch::set_num_threads(1);
+    // at::set_num_threads(1);
     //DEFAULT Encoder
     EncoderParameters par;
 
