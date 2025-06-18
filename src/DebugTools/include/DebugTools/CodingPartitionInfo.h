@@ -18,6 +18,10 @@ public:
     CodingPartitionInfo(std::array<int64_t,4> lightFieldPosition, std::array<int64_t,4> size, const std::vector<CodingUnitInfo>& codingUnitInfos);
     // Constructor with empty codingUnitInfos
     CodingPartitionInfo(std::array<int64_t,4> lightFieldPosition, std::array<int64_t,4> size);
+    void incrementTotalSize(double rate);
+    void incrementTotalDistortion(double psnr);
+    double getTotalSize() const;
+    double getTotalDistortion() const;
 
     // Method to convert the object to JSON
     nlohmann::json toJson() const;
