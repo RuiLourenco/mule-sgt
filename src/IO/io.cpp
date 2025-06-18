@@ -160,12 +160,12 @@ namespace io {
 
   }
 
-  void write_collection(string data_root, at::Tensor data) {
+  void write_collection(string data_root, at::Tensor data, std::array<int64_t,2> bias = {0,0}) {
 
     for (int l = 0; l < data.size(0); l++) {
       for (int k = 0; k < data.size(1); k++) {
         std::stringstream filename;
-        filename <<data_root<< "/"<<std::setw(3) << std::setfill('0') << k<<"_"<<std::setw(3) << std::setfill('0') << l<<".ppm";
+        filename <<data_root<< "/"<<std::setw(3) << std::setfill('0') << k+bias[1]<<"_"<<std::setw(3) << std::setfill('0') << l +bias[0]<<".ppm";
         fs::ofstream os;
         os.open(filename.str(), std::ios::out | std::ios::binary);
         //cout<<"written to ("<<l<<","<<k<<") = "<<data[l][k][0][0][0].item()<<endl;

@@ -373,7 +373,7 @@ void LightField::computeGradients(){
     std::cout<<"Gradients Computed!"<<std::endl;
 }
 LightField::LightField(std::string root_path,std::string pattern) {
-    OpenLightFieldPPM_(root_path,pattern,'r');
+    OpenLightFieldPPM_(root_path,pattern,'r',{0,0});
    
 }
 /**
