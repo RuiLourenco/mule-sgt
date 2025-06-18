@@ -2427,6 +2427,7 @@ int SgtSideInfo::codeAngle(double theta) const{
     //std::cout<<"Angle Range codeAngle: "<<this-> angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
     //std::cout<<"theta: "<<theta<<" CodeScale: "<<getAngleCodeScale()<< " CodeBias: "<<getAngleCodeBias()<<" Double Result: "<<theta * getAngleCodeScale() + getAngleCodeBias()<<std::endl;
     if(theta > angleRange[1] ) theta = angleRange[1];
+    if(theta < angleRange[0] ) theta = angleRange[0];
     return round(theta * getAngleCodeScale() + getAngleCodeBias());
 }
 
