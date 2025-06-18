@@ -18,6 +18,15 @@ void CodingUnitInfo::setStructureTensorAverage(const std::array<double,2>& struc
     this->structureTensorAverage = structureTensorAverage;
 }
 
+void CodingUnitInfo::setCovarianceHorizontal(const std::array<double,2>& covarianceHorizontal) {
+    this->covarianceHorizontal = covarianceHorizontal;
+}
+void CodingUnitInfo::setCovarianceVertical(const std::array<double,2>& covarianceVertical) {
+    this->covarianceVertical = covarianceVertical;
+}
+void CodingUnitInfo::setCovarianceAverage(const std::array<double,2>& covarianceAverage) {
+    this->covarianceAverage = covarianceAverage;
+}
 void CodingUnitInfo::setLogdetHorizontal(const std::array<double,2>& logdetHorizontal) {
     this->logdetHorizontal = logdetHorizontal;
 }
@@ -98,6 +107,15 @@ std::array<double,2> CodingUnitInfo::getStructureTensorVertical() const {
 std::array<double,2> CodingUnitInfo::getStructureTensorAverage() const {
     return structureTensorAverage;
 }
+std::array<double,2> CodingUnitInfo::getCovarianceHorizontal() const {
+    return covarianceHorizontal;
+}
+std::array<double,2> CodingUnitInfo::getCovarianceVertical() const {
+    return covarianceVertical;
+}
+std::array<double,2> CodingUnitInfo::getCovarianceAverage() const {
+    return covarianceAverage;
+}
 double CodingUnitInfo::getStructureTensorHorizontalAngle() const{
     return structureTensorHorizontal[0];
 }
@@ -115,6 +133,15 @@ double CodingUnitInfo::getLogdetVerticalAngle() const{
 }
 double CodingUnitInfo::getLogdetAverageAngle() const{
     return logdetAverage[0];
+}
+double CodingUnitInfo::getCovarianceHorizontalAngle() const{
+    return covarianceHorizontal[0];
+}
+double CodingUnitInfo::getCovarianceVerticalAngle() const{
+    return covarianceVertical[0];
+}
+double CodingUnitInfo::getCovarianceAverageAngle() const{
+    return covarianceAverage[0];
 }
 
 double CodingUnitInfo::getBestStructureTensorAngle() const{
@@ -158,6 +185,23 @@ double CodingUnitInfo::getBestLogdetAngle() const{
     }
     return bestAngle;
 }
+double CodingUnitInfo::getBestCovarianceAngle() const{
+    double bestAngle = 0;
+    double bestCost = 0;
+    if(covarianceHorizontal[1] < covarianceVertical[1]){
+        bestAngle = covarianceHorizontal[0];
+        bestCost = covarianceHorizontal[1];
+
+    }else{
+        bestAngle = covarianceVertical[0];
+        bestCost = covarianceVertical[1];
+    }
+    if(covarianceAverage[1] < bestCost){
+        bestAngle = covarianceAverage[0];
+        bestCost = covarianceAverage[1];
+    }
+    return bestAngle;
+}
 double CodingUnitInfo::getBestLogdetCost() const {
     double bestCost = std::numeric_limits<double>::max();
     bestCost = std::min(bestCost, logdetHorizontal[1]);
@@ -165,6 +209,14 @@ double CodingUnitInfo::getBestLogdetCost() const {
     bestCost = std::min(bestCost, logdetAverage[1]);
     return bestCost/(size[0]*size[1]*size[2]*size[3]);
 }
+double CodingUnitInfo::getBestCovarianceCost() const {
+    double bestCost = std::numeric_limits<double>::max();
+    bestCost = std::min(bestCost, covarianceHorizontal[1]);
+    bestCost = std::min(bestCost, covarianceVertical[1]);
+    bestCost = std::min(bestCost, covarianceAverage[1]);
+    return bestCost/(size[0]*size[1]*size[2]*size[3]);
+}
+
 double CodingUnitInfo::getBestGridSearchAngle() const{
     double bestAngle = 0;
     double bestCost = std::numeric_limits<double>::max();
@@ -228,6 +280,9 @@ nlohmann::json CodingUnitInfo::toJson() const {
     j["logdetHorizontal"] = {logdetHorizontal[0],logdetHorizontal[1]};
     j["logdetVertical"] = {logdetVertical[0],logdetVertical[1]};
     j["logdetAverage"] = {logdetAverage[0],logdetAverage[1]};
+    j["covarianceHorizontal"] = {covarianceHorizontal[0],covarianceHorizontal[1]};
+    j["covarianceVertical"] = {covarianceVertical[0],covarianceVertical[1]};
+    j["covarianceAverage"] = {covarianceAverage[0],covarianceAverage[1]};
     j["rate"] = rate;
     j["PSNR"] = PSNR;
     j["angleHeuristicUsed"] = angleHeuristicUsed;
@@ -294,7 +349,30 @@ CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
         j["logdetAverage"][0].get<double>(),
         j["logdetAverage"][1].get<double>(),
     };
+    //std::cout<<"Reading Cov "<<std::endl;
+
+    std::array<double,2> covarianceHorizontal = {
+        j["covarianceHorizontal"][0].get<double>(),
+        j["covarianceHorizontal"][1].get<double>(),
+    };
+    //std::cout<<"    7"<<std::endl;
+    //std::cout<<"Read Horizontal "<<covarianceHorizontal[0]<<" "<<covarianceHorizontal[1]<<std::endl;
+
+    std::array<double,2> covarianceVertical = {
+        j["covarianceVertical"][0].get<double>(),
+        j["covarianceVertical"][1].get<double>(),
+    };
+    //std::cout<<"    8"<<std::endl;
+    //std::cout<<"Read Vertical "<<std::endl;
+
+    std::array<double,2> covarianceAverage = {
+        j["covarianceAverage"][0].get<double>(),
+        j["covarianceAverage"][1].get<double>(),
+    };
+    //std::cout<<"Read Average "<<std::endl;
+
     //std::cout<<"    9"<<std::endl;
+    //std::cout<<"Read Cov "<<std::endl;
 
     double rate = j["rate"].get<double>();
     //std::cout<<"    10"<<std::endl;
@@ -313,6 +391,9 @@ CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
     info.setStructureTensorHorizontal(structureTensorHorizontal);
     info.setStructureTensorVertical(structureTensorVertical);
     info.setStructureTensorAverage(structureTensorAverage);
+    info.setCovarianceHorizontal(covarianceHorizontal);
+    info.setCovarianceVertical(covarianceVertical);
+    info.setCovarianceAverage(covarianceAverage);
     info.setLogdetHorizontal(logdetHorizontal);
     info.setLogdetVertical(logdetVertical);
     info.setLogdetAverage(logdetAverage);

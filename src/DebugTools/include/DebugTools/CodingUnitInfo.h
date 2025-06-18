@@ -17,7 +17,11 @@ enum AngleHeuristic {
     STRUCTURE_TENSOR_AVERAGE = 3,
     LOGDET_HORIZONTAL = 4,
     LOGDET_VERTICAL = 5,
-    LOGDET_AVERAGE = 6
+    LOGDET_AVERAGE = 6,
+    COVARIANCE_HORIZONTAL = 7,
+    COVARIANCE_VERTICAL = 8,
+    COVARIANCE_AVERAGE = 9,
+    ZERO = 10
 };
 
 class CodingUnitInfo {
@@ -28,9 +32,15 @@ public:
     std::array<double, 2> getStructureTensorHorizontal() const;
     std::array<double, 2> getStructureTensorVertical() const;
     std::array<double, 2> getStructureTensorAverage() const;
+    std::array<double, 2> getCovarianceHorizontal() const;
+    std::array<double, 2> getCovarianceVertical() const;
+    std::array<double, 2> getCovarianceAverage() const;
     double getStructureTensorHorizontalAngle() const;
     double getStructureTensorVerticalAngle() const;
     double getStructureTensorAverageAngle() const;
+    double getCovarianceHorizontalAngle() const;
+    double getCovarianceVerticalAngle() const;
+    double getCovarianceAverageAngle() const;
     std::array<double, 2> getLogdetHorizontal() const;
     std::array<double, 2> getLogdetVertical() const;
     std::array<double, 2> getLogdetAverage() const;
@@ -42,6 +52,8 @@ public:
     double getChosenAngle() const;
     double getBestStructureTensorAngle() const;
     double getBestStructureTensorCost() const;  
+    double getBestCovarianceAngle() const;
+    double getBestCovarianceCost() const;  
     double getBestLogdetCost() const ;
     double getBestLogdetAngle() const;
     void generatePythonScriptForGridSearchAngle(const std::string& filename) const;
@@ -57,6 +69,9 @@ public:
     void setStructureTensorHorizontal(const std::array<double, 2>& structureTensorHorizontal);
     void setStructureTensorVertical(const std::array<double, 2>& structureTensorVertical);
     void setStructureTensorAverage(const std::array<double, 2>& structureTensorAverage);
+    void setCovarianceHorizontal(const std::array<double, 2>& covarianceHorizontal);
+    void setCovarianceVertical(const std::array<double, 2>& covarianceVertical);
+    void setCovarianceAverage(const std::array<double, 2>& covarianceAverage);
     void setLogdetHorizontal(const std::array<double, 2>& logdetHorizontal);
     void setLogdetVertical(const std::array<double, 2>& logdetVertical);
     void setLogdetAverage(const std::array<double, 2>& logdetAverage);
@@ -78,6 +93,9 @@ private:
     std::array<double, 2> logdetHorizontal;
     std::array<double, 2> logdetVertical;
     std::array<double, 2> logdetAverage;
+    std::array<double, 2> covarianceHorizontal;
+    std::array<double, 2> covarianceVertical;
+    std::array<double, 2> covarianceAverage;
     double rate; // Rate in BPP
     double PSNR; // PSNR in dB
     int angleHeuristicUsed;
