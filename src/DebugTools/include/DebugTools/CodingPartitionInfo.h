@@ -22,6 +22,8 @@ public:
     void incrementTotalDistortion(double psnr);
     double getTotalSize() const;
     double getTotalDistortion() const;
+    static int countUnitsWithin10Degrees(int delta, const std::vector<CodingPartitionInfo>& partitionInfos, const std::string& outputDirectory);
+
 
     // Method to convert the object to JSON
     nlohmann::json toJson() const;

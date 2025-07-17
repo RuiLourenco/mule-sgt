@@ -81,6 +81,8 @@ public:
     void setAngleHeuristicUsed(int angleHeuristicUsed);
     void setSgtSideInfo(const SgtSideInfo& sgtSideInfo);
     void addGridSearchAngle(double angle, double cost);
+    std::tuple<double, double, bool,double, double> analyzeGridSearchAngle(int delta) const;
+
     nlohmann::json toJson() const;
     static CodingUnitInfo fromJson(const nlohmann::json& j);
 

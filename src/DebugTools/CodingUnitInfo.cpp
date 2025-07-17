@@ -1,6 +1,56 @@
 #include "DebugTools/CodingUnitInfo.h"
 #include <nlohmann/json.hpp>
 
+
+// Returns a tuple: (angle_multiple_of_ten_with_min_cost, overall_min_angle, is_within_10_degrees, min_cost_within_10, rel_cost_diff)
+std::tuple<double, double, bool, double, double> CodingUnitInfo::analyzeGridSearchAngle(int delta) const {
+    if (gridSearchAngle.empty()) {
+        throw std::runtime_error("gridSearchAngle map is empty.");
+    }
+
+    // Find the angle (multiple of 10) with minimum cost
+    double min_cost_multiple_of_ten = std::numeric_limits<double>::max();
+    double angle_multiple_of_ten = 0;
+    for (const auto& [angle, cost] : gridSearchAngle) {
+        if (static_cast<int>(angle) % delta == 0) {
+            if (cost < min_cost_multiple_of_ten) {
+                min_cost_multiple_of_ten = cost;
+                angle_multiple_of_ten = angle;
+            }
+        }
+    }
+
+    // Find the overall minimum angle
+    double min_cost_overall = std::numeric_limits<double>::max();
+    double min_angle_overall = 0;
+    for (const auto& [angle, cost] : gridSearchAngle) {
+        if (cost < min_cost_overall) {
+            min_cost_overall = cost;
+            min_angle_overall = angle;
+        }
+    }
+
+    // Find the minimum cost within 10 degrees of the multiple-of-ten minimum
+    double min_cost_within_10 = std::numeric_limits<double>::max();
+    for (const auto& [angle, cost] : gridSearchAngle) {
+        if (std::abs(angle - angle_multiple_of_ten) <=  delta) {
+            if (cost < min_cost_within_10) {
+                min_cost_within_10 = cost;
+            }
+        }
+    }
+
+    // Compute relative cost difference (zero if they match)
+    double rel_cost_diff = 0.0;
+    if (min_cost_within_10 > 0.0) {
+        rel_cost_diff = (min_cost_within_10 - min_cost_overall) / min_cost_within_10;
+    }
+
+    // Check if the overall minimum angle is within 10 degrees of the multiple-of-ten minimum
+    bool is_within_10_degrees = std::abs(min_angle_overall - angle_multiple_of_ten) <= delta;
+
+    return std::make_tuple(angle_multiple_of_ten, min_angle_overall, is_within_10_degrees, min_cost_within_10, rel_cost_diff);
+}
 CodingUnitInfo::CodingUnitInfo(const std::array<int64_t, 4>& size, const std::array<int64_t, 4>& lightFieldPosition)
     : size(size), lightFieldPosition(lightFieldPosition) {}
 
@@ -75,6 +125,9 @@ void CodingUnitInfo::generatePythonScriptForGridSearchAngle(const std::string& f
     file << "plt.figure(figsize=(10, 6))\n";
     file << "plt.plot(sorted_angles, sorted_costs, marker='o')\n";
     file << "plt.axvline(x=" << getBestStructureTensorAngle() << ", color='r', linestyle='--', label='Best Structure Tensor Angle')\n";
+    file << "plt.axvline(x=" << getBestLogdetAngle() << ", color='g', linestyle='--', label='Best Logdet Angle')\n";
+    file << "plt.axvline(x=" << getBestCovarianceAngle() << ", color='b', linestyle='--', label='Best Covariance Angle')\n";
+    file << "plt.axvline(x=" << getBestGridSearchAngle() << ", color='m', linestyle='--', label='Best GridSearch Angle')\n";
     file << "plt.title('Grid Search Angle vs Cost (Light Field Position: [" 
          << lightFieldPosition[2] << ", " 
          << lightFieldPosition[3] << "], Size: [" 
@@ -304,99 +357,103 @@ std::map<double, double> CodingUnitInfo::getGridSearchAngle() const {
 }
 
 CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
+    auto get_int64 = [](const nlohmann::json& arr, size_t idx) {
+        if (!arr.is_array() || arr.size() <= idx || arr[idx].is_null()) return int64_t(0);
+        try {
+            return arr[idx].get<int64_t>();
+        } catch (...) {
+            return int64_t(0);
+        }
+    };
+    auto get_double = [](const nlohmann::json& arr, size_t idx) {
+        if (!arr.is_array() || arr.size() <= idx || arr[idx].is_null()) return 0.0;
+        try {
+            return arr[idx].get<double>();
+        } catch (...) {
+            return 0.0;
+        }
+    };
+
     std::array<int64_t, 4> size = {
-        j["size"][0].get<int64_t>(),
-        j["size"][1].get<int64_t>(),
-        j["size"][2].get<int64_t>(),
-        j["size"][3].get<int64_t>()
+        get_int64(j.value("size", nlohmann::json::array()), 0),
+        get_int64(j.value("size", nlohmann::json::array()), 1),
+        get_int64(j.value("size", nlohmann::json::array()), 2),
+        get_int64(j.value("size", nlohmann::json::array()), 3)
     };
-    //std::cout<<size[2]<<" "<<size[3]<<std::endl;
 
-    //std::cout<<"    1"<<std::endl;
     std::array<int64_t, 4> lightFieldPosition = {
-        j["lightFieldPosition"][0].get<int64_t>(),
-        j["lightFieldPosition"][1].get<int64_t>(),
-        j["lightFieldPosition"][2].get<int64_t>(),
-        j["lightFieldPosition"][3].get<int64_t>()
+        get_int64(j.value("lightFieldPosition", nlohmann::json::array()), 0),
+        get_int64(j.value("lightFieldPosition", nlohmann::json::array()), 1),
+        get_int64(j.value("lightFieldPosition", nlohmann::json::array()), 2),
+        get_int64(j.value("lightFieldPosition", nlohmann::json::array()), 3)
     };
-    //std::cout<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
-    //std::cout<<"    2"<<std::endl;
 
-    std::map<double, double> gridSearchAngle = j["gridSearchAngle"].get<std::map<double, double>>();
-    //std::cout<<"    3"<<std::endl;
-    //std::cout<<"Reading Structure Tensor "<<std::endl;
+    std::map<double, double> gridSearchAngle;
+    if (j.contains("gridSearchAngle") && !j["gridSearchAngle"].is_null()) {
+        try {
+            gridSearchAngle = j["gridSearchAngle"].get<std::map<double, double>>();
+        } catch (...) {
+            gridSearchAngle.clear();
+        }
+    }
+
     std::array<double,2> structureTensorHorizontal = {
-        j["structureTensorHorizontal"][0].is_null() ? -90.0 : j["structureTensorHorizontal"][0].get<double>(),
-        j["structureTensorHorizontal"][1].is_null() ? -90.0 : j["structureTensorHorizontal"][1].get<double>(),
+        get_double(j.value("structureTensorHorizontal", nlohmann::json::array()), 0),
+        get_double(j.value("structureTensorHorizontal", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    4"<<std::endl;
 
     std::array<double,2> structureTensorVertical = {
-        j["structureTensorVertical"][0].is_null() ? -90.0 : j["structureTensorVertical"][0].get<double>(),
-        j["structureTensorVertical"][1].is_null() ? -90.0 : j["structureTensorVertical"][1].get<double>(),
+        get_double(j.value("structureTensorVertical", nlohmann::json::array()), 0),
+        get_double(j.value("structureTensorVertical", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    5"<<std::endl;
 
     std::array<double,2> structureTensorAverage = {
-        j["structureTensorAverage"][0].is_null() ? -90.0 : j["structureTensorAverage"][0].get<double>(),
-        j["structureTensorAverage"][1].is_null() ? -90.0 : j["structureTensorAverage"][1].get<double>(),
+        get_double(j.value("structureTensorAverage", nlohmann::json::array()), 0),
+        get_double(j.value("structureTensorAverage", nlohmann::json::array()), 1)
     };
-    //std::cout<<"Read Structure Tensor "<<std::endl;
-
-    //std::cout<<"    6"<<std::endl;
 
     std::array<double,2> logdetHorizontal = {
-        j["logdetHorizontal"][0].get<double>(),
-        j["logdetHorizontal"][1].get<double>(),
+        get_double(j.value("logdetHorizontal", nlohmann::json::array()), 0),
+        get_double(j.value("logdetHorizontal", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    7"<<std::endl;
 
     std::array<double,2> logdetVertical = {
-        j["logdetVertical"][0].get<double>(),
-        j["logdetVertical"][1].get<double>(),
+        get_double(j.value("logdetVertical", nlohmann::json::array()), 0),
+        get_double(j.value("logdetVertical", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    8"<<std::endl;
 
     std::array<double,2> logdetAverage = {
-        j["logdetAverage"][0].get<double>(),
-        j["logdetAverage"][1].get<double>(),
+        get_double(j.value("logdetAverage", nlohmann::json::array()), 0),
+        get_double(j.value("logdetAverage", nlohmann::json::array()), 1)
     };
-    //std::cout<<"Reading Cov "<<std::endl;
 
     std::array<double,2> covarianceHorizontal = {
-        j["covarianceHorizontal"][0].get<double>(),
-        j["covarianceHorizontal"][1].get<double>(),
+        get_double(j.value("covarianceHorizontal", nlohmann::json::array()), 0),
+        get_double(j.value("covarianceHorizontal", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    7"<<std::endl;
-    //std::cout<<"Read Horizontal "<<covarianceHorizontal[0]<<" "<<covarianceHorizontal[1]<<std::endl;
 
     std::array<double,2> covarianceVertical = {
-        j["covarianceVertical"][0].get<double>(),
-        j["covarianceVertical"][1].get<double>(),
+        get_double(j.value("covarianceVertical", nlohmann::json::array()), 0),
+        get_double(j.value("covarianceVertical", nlohmann::json::array()), 1)
     };
-    //std::cout<<"    8"<<std::endl;
-    //std::cout<<"Read Vertical "<<std::endl;
 
     std::array<double,2> covarianceAverage = {
-        j["covarianceAverage"][0].get<double>(),
-        j["covarianceAverage"][1].get<double>(),
+        get_double(j.value("covarianceAverage", nlohmann::json::array()), 0),
+        get_double(j.value("covarianceAverage", nlohmann::json::array()), 1)
     };
-    //std::cout<<"Read Average "<<std::endl;
 
-    //std::cout<<"    9"<<std::endl;
-    //std::cout<<"Read Cov "<<std::endl;
+    double rate = (j.contains("rate") && !j["rate"].is_null()) ? j["rate"].get<double>() : 0.0;
+    double PSNR = (j.contains("PSNR") && !j["PSNR"].is_null()) ? j["PSNR"].get<double>() : 0.0;
+    int angleHeuristicUsed = (j.contains("angleHeuristicUsed") && !j["angleHeuristicUsed"].is_null()) ? j["angleHeuristicUsed"].get<int>() : 0;
 
-    double rate = j["rate"].get<double>();
-    //std::cout<<"    10"<<std::endl;
-
-    double PSNR = j["PSNR"].get<double>();
-    //std::cout<<"    11"<<std::endl;
-
-    int angleHeuristicUsed = j["angleHeuristicUsed"].get<int>();
-    //std::cout<<"    12"<<std::endl;
-
-    SgtSideInfo sgtSideInfo = SgtSideInfo::fromJson(j["sgtSideInfo"]); // Assuming SgtSideInfo has a fromJson method
-    //std::cout<<"    13"<<std::endl;
+    SgtSideInfo sgtSideInfo;
+    if (j.contains("sgtSideInfo") && !j["sgtSideInfo"].is_null()) {
+        try {
+            sgtSideInfo = SgtSideInfo::fromJson(j["sgtSideInfo"]);
+        } catch (...) {
+            // leave as default
+        }
+    }
 
     CodingUnitInfo info(size, lightFieldPosition);
     info.setGridSearchAngle(gridSearchAngle);

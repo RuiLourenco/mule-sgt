@@ -23,6 +23,66 @@ void CodingPartitionInfo::appendCodingUnitInfo(const CodingUnitInfo& codingUnitI
     codingUnitInfos.push_back(codingUnitInfo);
 }
 
+int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<CodingPartitionInfo>& partitionInfos, const std::string& outputDirectory) {
+    int totalChecked = 0;
+    int within10Count = 0;
+    std::vector<double> relDiffsAll;
+    std::vector<double> relDiffsFailing;
+
+    // Ensure the output directory exists
+    std::filesystem::create_directories(outputDirectory);
+
+    for (size_t partitionIdx = 0; partitionIdx < partitionInfos.size(); ++partitionIdx) {
+        const auto& partitionInfo = partitionInfos[partitionIdx];
+        const auto& cuInfos = partitionInfo.getCodingUnitInfos();
+        for (size_t cuIdx = 0; cuIdx < cuInfos.size(); ++cuIdx) {
+            const auto& cuInfo = cuInfos[cuIdx];
+            try {
+                auto [angle10, minAngle, isWithin10, minCostWithin10, relCostDiff] = cuInfo.analyzeGridSearchAngle(delta);
+                totalChecked++;
+                relDiffsAll.push_back(relCostDiff);
+                if (isWithin10) {
+                    within10Count++;
+                } else {
+                    relDiffsFailing.push_back(relCostDiff);
+                    // Generate a unique filename for each failing CU
+                    std::string filename = outputDirectory + "/partition_" + std::to_string(partitionIdx) +
+                                          "_cu_" + std::to_string(cuIdx) + "_grid_search.py";
+                    cuInfo.generatePythonScriptForGridSearchAngle(filename);
+                }
+            } catch (const std::exception& e) {
+                continue;
+            }
+        }
+    }
+    std::cout << "Checked " << totalChecked << " CodingUnitInfos, " << within10Count << " were within 10 degrees." << std::endl;
+    std::cout << (totalChecked - within10Count) << " Python scripts generated for failing units in: " << outputDirectory << std::endl;
+
+    auto printStats = [](const std::vector<double>& diffs, const std::string& label) {
+        if (diffs.empty()) {
+            std::cout << "No " << label << " relative cost differences found." << std::endl;
+            return;
+        }
+        std::vector<double> sortedDiffs = diffs;
+        std::sort(sortedDiffs.begin(), sortedDiffs.end());
+        double avg = std::accumulate(sortedDiffs.begin(), sortedDiffs.end(), 0.0) / sortedDiffs.size();
+        double min = sortedDiffs.front();
+        double max = sortedDiffs.back();
+        double median = sortedDiffs.size() % 2 == 0 ?
+            (sortedDiffs[sortedDiffs.size()/2 - 1] + sortedDiffs[sortedDiffs.size()/2]) / 2.0 :
+            sortedDiffs[sortedDiffs.size()/2];
+        std::cout << label << " (" << sortedDiffs.size() << "):" << std::endl;
+        std::cout << "  Average relative cost difference: " << avg << std::endl;
+        std::cout << "  Min relative cost difference: " << min << std::endl;
+        std::cout << "  Max relative cost difference: " << max << std::endl;
+        std::cout << "  Median relative cost difference: " << median << std::endl;
+    };
+
+    printStats(relDiffsAll, "All cases");
+    printStats(relDiffsFailing, "Failing cases (not within 10 degrees)");
+
+    return within10Count;
+}
 
 // Getter methods
 std::array<int64_t, 4> CodingPartitionInfo::getLightFieldPosition() const {
