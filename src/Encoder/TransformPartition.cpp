@@ -766,10 +766,10 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     //double J0 = RDStructureTensorOrLogdet(block_0,cui0,&coderModelState_0);
     //double J0 = RDrefineStructureTensor(block_0,1,cui0,&coderModelState_0);
-    double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     //std::cout<<"STARTED TESTING"<<std::endl;
 
-    //double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     //double J0 = RDrefineGridSearch(block_0,cui0,&coderModelState_0);
 
     //std::cout<<"FINISHED TESTING WITH J0: "<<J0<<std::endl;
