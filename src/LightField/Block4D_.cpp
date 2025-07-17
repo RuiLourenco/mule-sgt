@@ -638,11 +638,12 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     
     at::Tensor normalizedTransform = transform.clone();
     double eps = 1/sqrt(transform.size(0)) *1e-5;
+    //std::cout<<transform.sizes()<<std::endl;
     // auto indexVec = transform[0] < - eps;
     // transform.index({at::indexing::Slice(),indexVec}) = -transform.index({at::indexing::Slice(),indexVec});
     for(int i = 0; i < transform.size(1); i++){
         int bias = 0;
-        while(true){
+        while(bias < transform.size(0)){
 
             double reference = transform[bias][i].item<double>();
             if(abs(reference) > eps){
@@ -727,12 +728,32 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
 
 
 at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
-    at::Tensor blockGradient = lightField->gradients.index({at::indexing::Slice({lightFieldPosition[0],lightFieldPosition[0]+size[0]}),
-                                                            at::indexing::Slice({lightFieldPosition[1],lightFieldPosition[1]+size[1]}),
-                                                            at::indexing::Slice({lightFieldPosition[2],lightFieldPosition[2]+size[2]}),
-                                                            at::indexing::Slice({lightFieldPosition[3],lightFieldPosition[3]+size[3]}),
-                                                           dimension}).squeeze();
+    std::array<int64_t,4> trueSize;
+    for( int i = 0; i < 4; i++){
+        // if(lightField->data.size(i) >= lightFieldPosition[i]){
+        //     return at::zeros(size, torch::kDouble);
+        // }
+        trueSize[i] = std::min(lightField->data.size(i) - lightFieldPosition[i], size[i]) ;
+    }
+    at::Tensor blockGradient = lightField->gradients.index({at::indexing::Slice({lightFieldPosition[0],lightFieldPosition[0]+trueSize[0]}),
+                                                            at::indexing::Slice({lightFieldPosition[1],lightFieldPosition[1]+trueSize[1]}),
+                                                            at::indexing::Slice({lightFieldPosition[2],lightFieldPosition[2]+trueSize[2]}),
+                                                            at::indexing::Slice({lightFieldPosition[3],lightFieldPosition[3]+trueSize[3]}),
+                                                           dimension});
                                                            write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
+    // std::cout<<"size: "<<size[0]<<" "<<size[1]<<" "<<size[2]<<" "<<size[3]<<std::endl;
+    // std::cout<<"lightFieldPosition: "<<lightFieldPosition[0]<<" "<<lightFieldPosition[1]<<" "<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
+    // std::cout<<"lightField size: "<<lightField->data.sizes()<<std::endl;
+    // std::cout<<"lightField gradients size: "<<lightField->gradients.sizes()<<std::endl;
+    // std::cout<<"trueSize: "<<trueSize[0]<<" "<<trueSize[1]<<" "<<trueSize[2]<<" "<<trueSize[3]<<std::endl;
+    for( int i = 0; i < 4; i++){
+        if(lightField->data.size(i) <= lightFieldPosition[i]){
+            //std::cout<<lightField->data.size(i)<<" >= "<<lightFieldPosition[i]<<" at dimension "<<i<<std::endl;
+             blockGradient = at::zeros(size, torch::kDouble);
+             //std::cout<<"Block gradient is empty because lightFieldPosition is out of bounds!"<<std::endl;
+        }
+    }
+    // std::cout<<"block gradient size: "<<blockGradient.sizes()<<std::endl;
     return blockGradient;
 }
 
@@ -835,7 +856,7 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     double costU = logDetCost(angles[0], true, disparityRange);
     double costU2 = logDetCost(reciprocalAngles[0], true, disparityRange);
     
-    // if(size[2] == 64){
+    // if(size[2] == 128){
     //     std::cout<<L<<std::endl;
     //     std::cout<<Q<<std::endl;
     //     std::cout<<angles[0]<< ": "<<costU<<std::endl;
@@ -2375,8 +2396,12 @@ void SgtSideInfo::print(){
     std::cout<<"Rho S Code = "<<getRhoSCode()<<" Rho T Code = "<<getRhoTCode()<<" Rho U Code = "<<getRhoUCode()<<" Rho V Code = "<<getRhoVCode()<<" Angle Code H: "<<angleHInt<<" Angle Code V: "<<angleVInt<<std::endl;
 }
 SgtSideInfo::SgtSideInfo(std::array<double,2> dispRange){
+    setSpatialRhos();
+    setAngularRhos();
     this->disparityRange = dispRange;
     this->angleRange = angleRangeFromDispRange(dispRange);
+    setAngleH(0);
+    setAngleV(0);
 }
 
 
@@ -2424,6 +2449,7 @@ int SgtSideInfo::codeRho(double rho) const{
     return code;
 }
 int SgtSideInfo::codeAngle(double theta) const{
+
     //std::cout<<"Angle Range codeAngle: "<<this-> angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
     //std::cout<<"theta: "<<theta<<" CodeScale: "<<getAngleCodeScale()<< " CodeBias: "<<getAngleCodeBias()<<" Double Result: "<<theta * getAngleCodeScale() + getAngleCodeBias()<<std::endl;
     if(theta > angleRange[1] ) theta = angleRange[1];
@@ -2557,28 +2583,45 @@ int SgtSideInfo::getAnglePrecision() const{
 }
 void SgtSideInfo::setRhoS(double rhoS){
     //std::cout<<"MAX_RHO = "<<MAX_RHO<<" rhoS = "<<rhoS<<std::endl;
+    if(!isfinite(rhoS)) rhoS = FIXED_ANGULAR_RHO;
+
     rhoS = std::clamp(rhoS,MIN_RHO,MAX_RHO);
     this->rhoSInt = codeRho(rhoS);
 }
 void SgtSideInfo::setRhoU(double rhoU){
+    if(!isfinite(rhoU)) rhoU = FIXED_SPATIAL_RHO;
+
     rhoU = std::clamp(rhoU,MIN_RHO,MAX_RHO);
     this->rhoUInt = codeRho(rhoU);
 
 }
 void SgtSideInfo::setRhoT(double rhoT){
+    if(!isfinite(rhoT)) rhoT = FIXED_ANGULAR_RHO;
+
     rhoT = std::clamp(rhoT,MIN_RHO,MAX_RHO);
     this->rhoTInt = codeRho(rhoT);
 
 }
 void SgtSideInfo::setRhoV(double rhoV){
+    if(!isfinite(rhoV)) rhoV = FIXED_SPATIAL_RHO;
     rhoV = std::clamp(rhoV,MIN_RHO,MAX_RHO);
     this->rhoVInt = codeRho(rhoV);
 }
 void SgtSideInfo::setAngleV(double theta){
+    if(!isfinite(theta)) theta = 0;
     this->angleVInt =codeAngle(theta);
 }
 void SgtSideInfo::setAngleH(double theta){
+    if(!isfinite(theta)) theta = 0;
     this->angleHInt =codeAngle(theta);
+    if(this->angleHInt < 0){
+
+        std::cout<<"ERROR: Negative Angle H Code: "<<this->angleHInt<<std::endl;
+        std::cout<<"Angle H: "<<theta<<std::endl;
+        std::cout<<"Angle Range: "<<this->angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
+        abort();
+    }
+    
 }
 void SgtSideInfo::setAngleVFromDisparity(double d){
     this->angleVInt =codeAngle(atan(d) * 180 / acos(-1));
@@ -3078,10 +3121,8 @@ SgtSideInfo::SgtSideInfo(double angleV, double angleH, std::array<double,2> disp
     this->setAngleH(angleH);
     this->setAngleV(angleV);
 
-    this->setRhoS(FIXED_ANGULAR_RHO);
-    this->setRhoU(FIXED_SPATIAL_RHO);
-    this->setRhoT(FIXED_ANGULAR_RHO);
-    this->setRhoV(FIXED_SPATIAL_RHO);
+    setSpatialRhos();
+    setAngularRhos();
 }
 
 void SgtSideInfo::estimateRhos(const Block4D_& block, double varianceThreshold){
@@ -3089,16 +3130,18 @@ void SgtSideInfo::estimateRhos(const Block4D_& block, double varianceThreshold){
     at::Tensor covFunV = block.covFun(false);
     at::Tensor corrFunH = block.corrFun(true);
     at::Tensor corrFunV = block.corrFun(false);
+    bool calculateRhos = varianceThreshold < 0;
     //std::cout<<covFunH.sizes()<<" "<<corrFunH.sizes()<<std::endl;
     double varH = Block4D_::varianceFromCov(covFunH);
     double varV = Block4D_::varianceFromCov(covFunV);
+
     //std::cout<<"VarH = "<<varH<<" VarV = "<<varV<<std::endl;
     //if(varH < varianceThreshold){
     
     //std::cout<<"FIXED_ANGULAR_RHO : "<<FIXED_ANGULAR_RHO<<" FIXED_SPATIAL_RHO : "<<FIXED_SPATIAL_RHO<<std::endl;
     //std::cout<<"vars: "<<varH<<" > "<<varianceThreshold<<std::endl;
 #if ADAPTIVE_RHO_CALC == 1
-    if(varH < varianceThreshold){
+    if(varH < varianceThreshold && !calculateRhos){
 #else
     if(true){
 #endif
@@ -3109,7 +3152,7 @@ void SgtSideInfo::estimateRhos(const Block4D_& block, double varianceThreshold){
 
     }
 #if ADAPTIVE_RHO_CALC == 1
-    if(varV < varianceThreshold){
+    if(varV < varianceThreshold && !calculateRhos){
 #else
     if(true){
 #endif
