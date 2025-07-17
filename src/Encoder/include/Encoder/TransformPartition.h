@@ -52,7 +52,9 @@ public:
     double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , std::vector<SgtSideInfo>& currSsi,std::vector<CodingUnitInfo>& currCui,char **partitionCode);
     void EncodePartition_( double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
-    double EvaluatePartition_(Block4D_ &block_0, double currGain , double angleH, double angleV, ProbabilityModel *coderModelState);
+    double EvaluatePartition_(Block4D_ &block_0, double currGain , double angleH, double angleV);
+    double EvaluatePartitionLSRho(Block4D_ &block_0, double currGain , double angleH, double angleV);
+    double EvaluatePartitionFixedRho(Block4D_ &block_0, double currGain , double angleH, double angleV);
     double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
     double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
     double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);

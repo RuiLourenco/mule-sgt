@@ -21,10 +21,116 @@
 #define SEGMENTATION_PROB_MODEL_INDEX 32
 #define NUMBER_OF_MODELS 161
 
+struct CostResults {
+    double cost = 0.0;
+    double signalEnergy = 0.0;};
+
+const uint32_t NULL_NODE = static_cast<uint32_t>(-1);
+struct Node {
+    CostResults   costResults;          // 16 bytes
+    char     decision = 'X';                      // 1 byte
+    // 3 bytes of compiler padding will likely go here
+    uint32_t children_idx[4] = {NULL_NODE, NULL_NODE, NULL_NODE, NULL_NODE}; // 16 bytes
+};
+
+// This struct holds the state and the reusable memory pool.
+struct ProcessingContext {
+    std::vector<Node> nodePool;
+    const size_t image_width;
+    const size_t image_height;
+    const int initial_bitdepth;
+    int next_available_idx = 0; // Index for the next available node in the pool
+
+    size_t calculate_depth(size_t dimension) {
+        if (dimension == 0) return 0;
+        size_t depth = 0;
+        size_t dim = 1;
+        while (dim < dimension) {
+            dim *= 2;
+            depth++;
+        }
+        return depth;
+    }
+    
+    // Calculates the total nodes in a full quadtree of a given depth.
+    size_t total_nodes_in_quadtree(size_t depth) {
+        // Using a 128-bit integer to prevent overflow during the geometric sum calculation,
+        // as 4^32 can exceed a 64-bit integer.
+        unsigned __int128 total = 0;
+        unsigned __int128 term = 1;
+        for (size_t i = 0; i <= depth; ++i) {
+            total += term;
+            term *= 4;
+        }
+        return static_cast<size_t>(total);
+    }
+    void resetCounter() {
+        next_available_idx = 0; // Reset the index to reuse the buffer
+    }
+
+    // The constructor takes runtime parameters and allocates the buffer ONCE.
+    ProcessingContext(size_t height, size_t width, int bitdepth) : 
+        image_width(width), image_height(height), initial_bitdepth(bitdepth) {
+
+        // 1. Determine the largest dimension to find the required tree depth.
+        size_t max_dimension = std::max(width, height);
+        size_t tree_depth = calculate_depth(max_dimension);
+
+        // 2. Calculate the number of nodes in the full spatial quadtree structure.
+        size_t n_quad = total_nodes_in_quadtree(tree_depth);
+
+        // 3. Get the number of actual leaf nodes (the true image size).
+        size_t n_leaves_actual = width * height;
+
+        // 4. Calculate the final, tight upper bound for the number of nodes.
+        size_t max_nodes = n_quad + (n_leaves_actual * (initial_bitdepth)); // Simplified from (B-1) for safety
+
+        std::cout << "--- Processing Context Initialized ---" << std::endl;
+        std::cout << "Input: " << width << "x" << height << ", " << bitdepth+1 << " bitdepth levels" << std::endl;
+        std::cout << "Required Tree Depth: " << tree_depth << std::endl;
+        std::cout << "Max Nodes Required (Upper Bound): " << max_nodes << std::endl;
+        std::cout << "Node size: " << sizeof(Node) << " bytes" << std::endl;
+        std::cout << "Allocating reusable buffer of ~" << (static_cast<uint64_t>(max_nodes) * sizeof(Node)) / (1024*1024) << " MB..." << std::endl;
+        
+        // 5. This is the single, large, heap allocation for the lifetime of the context.
+        nodePool.resize(max_nodes);
+        std::cout << "--------------------------------------" << std::endl;
+    }
+    uint32_t add_default_node(){
+        // This function adds a default node with cost 0 and decision 'L' (Low Energy).
+        if (next_available_idx >= nodePool.size()) {
+            throw std::runtime_error("Node pool exhausted, increase the initial size.");
+        }
+        uint32_t idx = next_available_idx++;
+        nodePool[idx].costResults.cost = 0.0;
+        nodePool[idx].costResults.signalEnergy = 0.0;
+        nodePool[idx].decision = ' '; // 'L' for Low Energy
+        nodePool[idx].children_idx[0] = NULL_NODE;
+        nodePool[idx].children_idx[1] = NULL_NODE;
+        nodePool[idx].children_idx[2] = NULL_NODE;
+        nodePool[idx].children_idx[3] = NULL_NODE;
+        return idx;
+    }
+    
+
+};
+
+
+
+
+
+
+struct HexResult {
+    double cost = 0.0;
+    std::string codeStream; // Each node will return its own piece of the code stream
+};
 class Hierarchical4DEncoder {
 public:
+    ProcessingContext mProcessingContext;
+    double mLambda = 0;
     double mRate  = 0;
     double mDistortion = 0;
+    std::array<uint64_t,4> size;
     Block4D_ mSubbandLF_;   
     at::Tensor ignored;
     double currCost;
@@ -44,7 +150,18 @@ public:
     long int mSegmentationTreeCodeBufferSize;
     int OptimumBitplaneFaster_(double lambda);
     Hierarchical4DEncoder(void);
+    Hierarchical4DEncoder(int height, int width);
     ~Hierarchical4DEncoder(void);
+
+    void encodeSubblockFromPool(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane, double lambda);
+    void iterateEncoding(uint32_t current_node_idx, std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane) ;
+
+    CostResults splitInFour(uint32_t current_node_idx,std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane);
+    CostResults calculateTotalEnergy(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane);
+    double build_optimal_tree_from_pool(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane, double lambda);
+    void build_from_node(uint32_t current_node_idx,std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane);
+    CostResults calculateElementCost(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane);
+    bool checkSignificance(std::array<int64_t,4> position, std::array<int64_t,4> length, int bitplane);
     void StartEncoder(FILE *outputFilePointer);
     void RestartProbabilisticModel(void);
     void EncodeBlock(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane);
@@ -56,7 +173,7 @@ public:
     void EncodeInteger(int integerValue, int precision);
     void EncodeAll(double lambda, int inferiorBitPlane);
     void EncodeSubblock_(double lambda);
-    double RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, std::string& codeString, double &signalEnergy,double& rate, double& distortion);
+    HexResult RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, double &signalEnergy,double& rate, double& distortion);
     void RdEncodeHexadecatree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane, int &flagIndex);
     void DoneEncoding(void);
     void LoadOptimizerState(void);
