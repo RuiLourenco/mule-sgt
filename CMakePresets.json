@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "main",
+      "displayName": "Main Branch",
+      "description": "Default build for the main branch",
+      "binaryDir": "${sourceDir}/build/main",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "APP_VERSION": "1.0-main"
+      }
+    },
+    {
+      "name": "All-Heuristics",
+      "displayName": "All-Heuristics",
+      "description": "Build for the All-Heuristics branch",
+      "binaryDir": "${sourceDir}/build/All-Heuristics",
+      "generator": "Ninja", 
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "APP_VERSION": "1.2-feature-AH"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "coarse-to-fine-build",
+      "configurePreset": "main",
+      "displayName": "Build (Main)",
+      "description": "Builds the Release target for the main branch"
+    },
+    {
+      "name": "all-heuristics-build",
+      "configurePreset": "All-Heuristics",
+      "displayName": "Build (All-Heuristics)",
+      "description": "Builds the Release target for the All-Heuristics branch"
+    }
+  ]
+}
