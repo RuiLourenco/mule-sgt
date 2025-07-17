@@ -291,7 +291,6 @@ int main(int argc, char **argv) {
     Block4D_ yBlock,cbBlock,crBlock; 
 
     
-    Hierarchical4DEncoder hdt;
 
 
  
@@ -356,6 +355,9 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    Hierarchical4DEncoder hdt(par.maxPartitionSize[0] * par.maxPartitionSize[2], par.maxPartitionSize[1]* par.maxPartitionSize[3]);
+
+
     //writes the superior bit plane value
     BigEndianUnsignedIntegerWrite(hdt.mSuperiorBitPlane, 2, outputFileNamePointer);
     std::cout<<"Superior bit plane = "<<hdt.mSuperiorBitPlane<<std::endl;
@@ -389,9 +391,9 @@ int main(int argc, char **argv) {
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            //for(int viewLine = 512; viewLine < 512+128; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 0; viewLine < 1*par.maxPartitionSize[2] + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
-                //for(int viewColumn = 384; viewColumn < 384+128; viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 512; viewColumn <4*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
