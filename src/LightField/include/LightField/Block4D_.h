@@ -114,7 +114,7 @@ class SgtSideInfo{
         void estimateRhosLS(const at::Tensor& covFun, bool isHorizontal);
         static double rhoFromCov(const at::Tensor& cov);
         void setSpatialRhos(const at::Tensor& covFunH, const at::Tensor& covFunV);
-        void setSpatialRhos(const double rhoU, const double rhoV);
+        void setSpatialRhos(const double rhoU = FIXED_SPATIAL_RHO, const double rhoV = FIXED_SPATIAL_RHO);
         void setAngularRhos(const double rhoS = FIXED_ANGULAR_RHO, const double rhoT = FIXED_ANGULAR_RHO);
         
 
