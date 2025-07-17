@@ -8,4 +8,3 @@ target_link_libraries(MSGTDecoder
   Decoder
   Boost::program_options
   torch)
-  set_target_properties(MSGTDecoder PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
