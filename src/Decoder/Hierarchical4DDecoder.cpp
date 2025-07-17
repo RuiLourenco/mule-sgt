@@ -44,6 +44,9 @@ void Hierarchical4DDecoder :: RestartProbabilisticModel(void) {
 void Hierarchical4DDecoder :: DecodeBlock(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane) {
     int* data = mSubbandLF.data.data_ptr<int>();
     if(bitplane < mInferiorBitPlane) {
+        // std::cout<<"skipping stuff sized: "<<length_t<<" "<<length_s << " " <<length_v<<" "<<length_u<<std::endl;
+        // std::cout<<data[mSubbandLF.LinearPosition(position_t,position_s,position_v,position_u)]<<std::endl;
+
         return;
     }
     
