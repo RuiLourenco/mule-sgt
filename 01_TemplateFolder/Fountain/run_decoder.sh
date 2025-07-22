@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Define the decoder path
-DECODER="/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/build/main/bin/MSGTDecoder"
+BASE_DIR="$(dirname "$(dirname "$(pwd)")")"
+echo "Base directory: $BASE_DIR"
+DECODER="$BASE_DIR/build/main/bin/MSGTDecoder"
 
 # Define the rates
 RATES=(0.75 0.1 0.02 0.005)
