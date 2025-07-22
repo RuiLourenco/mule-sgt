@@ -29,26 +29,47 @@ int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<
     std::vector<double> relDiffsAll;
     std::vector<double> relDiffsFailing;
 
+    // Map for counting total and failing units per size
+    std::map<int, int> totalUnitsPerSize;
+    std::map<int, int> failingUnitsPerSize;
+    for (int sz : {4, 8, 16, 32, 64, 128}) {
+        totalUnitsPerSize[sz] = 0;
+        failingUnitsPerSize[sz] = 0;
+    }
+
     // Ensure the output directory exists
     std::filesystem::create_directories(outputDirectory);
 
     for (size_t partitionIdx = 0; partitionIdx < partitionInfos.size(); ++partitionIdx) {
+        if(partitionIdx % 3 != 2) {
+            continue; // Keep only every third partition
+        }
+        std::cout<<partitionIdx<<std::endl;
         const auto& partitionInfo = partitionInfos[partitionIdx];
         const auto& cuInfos = partitionInfo.getCodingUnitInfos();
         for (size_t cuIdx = 0; cuIdx < cuInfos.size(); ++cuIdx) {
             const auto& cuInfo = cuInfos[cuIdx];
+            int size2 = cuInfo.getSize()[2];
+            if (totalUnitsPerSize.find(size2) != totalUnitsPerSize.end()) {
+                totalUnitsPerSize[size2]++;
+            }
             try {
                 auto [angle10, minAngle, isWithin10, minCostWithin10, relCostDiff] = cuInfo.analyzeGridSearchAngle(delta);
                 totalChecked++;
                 relDiffsAll.push_back(relCostDiff);
                 if (isWithin10) {
                     within10Count++;
+                    // Only generate a plot file if size is 128
+                    if (size2 == 128) {
+                        std::string filename = outputDirectory + "/partition_" + std::to_string(partitionIdx) +
+                                              "_cu_" + std::to_string(cuIdx) + "_grid_search.py";
+                        cuInfo.generatePythonScriptForGridSearchAngle(filename);
+                    }
                 } else {
                     relDiffsFailing.push_back(relCostDiff);
-                    // Generate a unique filename for each failing CU
-                    std::string filename = outputDirectory + "/partition_" + std::to_string(partitionIdx) +
-                                          "_cu_" + std::to_string(cuIdx) + "_grid_search.py";
-                    cuInfo.generatePythonScriptForGridSearchAngle(filename);
+                    if (failingUnitsPerSize.find(size2) != failingUnitsPerSize.end()) {
+                        failingUnitsPerSize[size2]++;
+                    }
                 }
             } catch (const std::exception& e) {
                 continue;
@@ -56,7 +77,7 @@ int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<
         }
     }
     std::cout << "Checked " << totalChecked << " CodingUnitInfos, " << within10Count << " were within 10 degrees." << std::endl;
-    std::cout << (totalChecked - within10Count) << " Python scripts generated for failing units in: " << outputDirectory << std::endl;
+    std::cout << within10Count << " Python scripts generated for passing units in: " << outputDirectory << std::endl;
 
     auto printStats = [](const std::vector<double>& diffs, const std::string& label) {
         if (diffs.empty()) {
@@ -80,6 +101,15 @@ int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<
 
     printStats(relDiffsAll, "All cases");
     printStats(relDiffsFailing, "Failing cases (not within 10 degrees)");
+
+    // Print percentage of failing units per size
+    std::cout << "Percentage of failing CodingUnits per size (not within 10 degrees):" << std::endl;
+    for (int sz : {4, 8, 16, 32, 64, 128}) {
+        int total = totalUnitsPerSize[sz];
+        int fail = failingUnitsPerSize[sz];
+        double percent = (total > 0) ? (100.0 * fail / total) : 0.0;
+        std::cout << "  Size " << sz << ": " << percent << "% (" << fail << "/" << total << ")" << std::endl;
+    }
 
     return within10Count;
 }

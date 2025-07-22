@@ -793,12 +793,12 @@ std::map<std::pair<int, int>, double> computeVariancesForCPIs(
 // }
 
 TEST(DebugInfoTests,CoarseToFineFeasabilityTest){
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearch1/Sideboard/";
-    string inputInfo = inputDirectory + "sideboard_0.1_info.json";
-    string outputGraphs = inputDirectory + "CoarseToFineGraphs01/";
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearch1/Tarot/";
+    string inputInfo = inputDirectory + "tarot_0.75_info.json";
+    string outputGraphs = inputDirectory + "CoarseToFineGraphs075_good/";
     std::cout<<"Input Info: "<<inputInfo<<std::endl;
     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
-    CodingPartitionInfo::countUnitsWithin10Degrees(10,codingPartitionInfos,outputGraphs);
+    CodingPartitionInfo::countUnitsWithin10Degrees(5,codingPartitionInfos,outputGraphs);
 }
 // TEST(DebugInfoTests,CostGraphPrinting){
 //     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
