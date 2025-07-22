@@ -7,9 +7,11 @@ LOG_FILE="process_log.txt"
 RATES=("0.75" "0.1" "0.02" "0.005")
 
 # Path to the MSGTEncoder binary
-ENCODER_PATH="/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/build/main/bin/MSGTEncoder"
+BASE_DIR="$(dirname "$(dirname "$(pwd)")")"
+echo "Base directory: $BASE_DIR"
+ENCODER_PATH="$BASE_DIR/build/main/bin/MSGTEncoder"
 
-# Clear the log file
+Clear the log file
 echo "Process Log" > "$LOG_FILE"
 echo "===================" >> "$LOG_FILE"
 
