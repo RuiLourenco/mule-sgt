@@ -235,17 +235,11 @@ public:
     bool checkSignificance(std::array<int64_t,4> position, std::array<int64_t,4> length, int bitplane);
     void StartEncoder(FILE *outputFilePointer);
     void RestartProbabilisticModel(void);
-    void EncodeBlock(int position_t, int position_s, int position_v, int position_u, int length_t, int length_s, int length_v, int length_u, int bitplane);
-    void EncodeBlock_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane);
     void EncodeCoefficient(int coefficient, int bitplane);
     void EncodeSegmentationFlag(int flag, int bitplane);
     void EncodePartitionFlag(int flag);
     void EncodeSSI_(SgtSideInfo ssi);
     void EncodeInteger(int integerValue, int precision);
-    void EncodeAll(double lambda, int inferiorBitPlane);
-    void EncodeSubblock_(double lambda);
-    HexResult RdOptimizeHexadecaTree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, double lambda, int bitplane, double &signalEnergy,double& rate, double& distortion);
-    void RdEncodeHexadecatree_(std::array<int64_t,4> position,std::array<int64_t, 4> length, int bitplane, int &flagIndex);
     void DoneEncoding(void);
     void LoadOptimizerState(void);
     void GetOptimizerProbabilisticModelState(ProbabilityModel **state);
