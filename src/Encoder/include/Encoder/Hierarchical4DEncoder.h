@@ -21,6 +21,76 @@
 #define SEGMENTATION_PROB_MODEL_INDEX 32
 #define NUMBER_OF_MODELS 161
 
+
+
+// Forward declarations remain the same
+class ModelBufferHandle; 
+
+class ProbabilityModelArena {
+public:
+    // The constructor now takes the required size at run-time.
+    explicit ProbabilityModelArena(size_t max_depth) 
+        : m_active_count(0),
+          m_max_depth(max_depth) // Store the max depth
+    {
+        // This is the single heap allocation. It happens ONCE.
+        m_pool.resize(m_max_depth * NUMBER_OF_MODELS);
+    }
+
+    ModelBufferHandle get_buffer();
+
+private:
+    friend class ModelBufferHandle;
+
+    // The pool is a dynamic vector, managing its own memory.
+    std::vector<ProbabilityModel> m_pool; 
+    size_t m_active_count;
+    size_t m_max_depth;
+};
+// --- The Handle Class (RAII Guard / Lease) ---
+class ModelBufferHandle {
+public:
+    // Destructor is the key: it automatically returns the resource.
+    ~ModelBufferHandle() {
+        m_arena_counter_ref--; 
+    }
+
+    // Overload -> to make it act like a pointer
+    ProbabilityModel* operator->() { return m_buffer_ptr; }
+    // Overload * to get the underlying array
+    ProbabilityModel(&operator*())[NUMBER_OF_MODELS] { 
+        return *(reinterpret_cast<ProbabilityModel (*)[NUMBER_OF_MODELS]>(m_buffer_ptr)); 
+    }
+    // A simple getter for the raw pointer if needed (e.g., for memcpy)
+    ProbabilityModel* get() { return m_buffer_ptr; }
+
+    // Disable copying to prevent errors. A lease should not be copied.
+    ModelBufferHandle(const ModelBufferHandle&) = delete;
+    ModelBufferHandle& operator=(const ModelBufferHandle&) = delete;
+
+private:
+    // Only the Arena can create a handle.
+    friend class ProbabilityModelArena; 
+    ModelBufferHandle(ProbabilityModel* buffer, size_t& counter) 
+        : m_buffer_ptr(buffer), m_arena_counter_ref(counter) {}
+
+    ProbabilityModel* m_buffer_ptr;
+    size_t& m_arena_counter_ref;
+};
+
+inline ModelBufferHandle ProbabilityModelArena::get_buffer() {
+    if (m_active_count >= m_max_depth) {
+        throw std::runtime_error("ProbabilityModelArena: Exceeded pre-calculated maximum depth!");
+    }
+    // Get the address of the start of the next buffer slice in our 1D vector.
+    ProbabilityModel* buffer_start = &m_pool[m_active_count * NUMBER_OF_MODELS];
+    
+    // Increment the counter and return the handle.
+    m_active_count++;
+    return ModelBufferHandle(buffer_start, m_active_count);
+}
+
+
 struct CostResults {
     double cost = 0.0;
     double signalEnergy = 0.0;};
@@ -125,6 +195,7 @@ struct HexResult {
     std::string codeStream; // Each node will return its own piece of the code stream
 };
 class Hierarchical4DEncoder {
+    ProbabilityModelArena mModelArena; 
 public:
     ProcessingContext mProcessingContext;
     double mLambda = 0;
@@ -180,7 +251,25 @@ public:
     void GetOptimizerProbabilisticModelState(ProbabilityModel **state);
     void SetOptimizerProbabilisticModelState(ProbabilityModel *state);
     void DeleteProbabilisticModelState(ProbabilityModel *state);
-    
 };
+
+static inline void copyNProbabilityModels(
+    ProbabilityModel* destination, 
+    const ProbabilityModel* source, 
+    size_t count
+) {
+    memcpy(destination, source, count * sizeof(ProbabilityModel));
+}
+
+
+// THE CONVENIENT WRAPPER:
+// A specific function for the most common use case.
+static inline void copyOptimizationModels(
+    ProbabilityModel* destination, 
+    const ProbabilityModel* source
+) {
+    // Calls the general workhorse with the known constant.
+    copyNProbabilityModels(destination, source, NUMBER_OF_MODELS);
+}
 #endif /* HIERARCHICAL4DENCODER_H */
 
