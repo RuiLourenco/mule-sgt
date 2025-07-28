@@ -7,7 +7,13 @@
 /*                        Hierachical4DEncoder class methods                   */
 /*******************************************************************************/
 
-Hierarchical4DEncoder :: Hierarchical4DEncoder(int height, int width): mProcessingContext(height, width, 30) {
+Hierarchical4DEncoder :: Hierarchical4DEncoder(int height, int width)
+    :mModelArena(
+        static_cast<size_t>(log2(std::max(height,width))) + 30 + 10 
+      ), 
+    mProcessingContext(height, width, 30)
+    {
+
     mSuperiorBitPlane = 30;
     mInferiorBitPlane = 0;
     mPreSegmentation = 1;
@@ -263,11 +269,11 @@ double Hierarchical4DEncoder::build_optimal_tree_from_pool(std::array<int64_t,4>
     double J0 = mProcessingContext.nodePool[firstNodeIdx].costResults.cost;
     return J0;
 }
-void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane) {
-    if(position[2] <= 5 && position[3] <= 5 && length[2] <= 5 && length[3] <= 5){ 
-        //std::cout<<"Beginning: "<<length[2]<<" "<<length[3]<<std::endl;
-    }
-    
+
+void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane) {    
+    ModelBufferHandle currentProbabilityModel = mModelArena.get_buffer();
+    double J0 = 0.0, J1 = 0.0; 
+
     ProbabilityModel currentProbabilityModel[NUMBER_OF_MODELS];
     double J0 = 0.0, J1 = 0.0;
     // --- 1. Base Case: Reached a single pixel ---
@@ -299,11 +305,8 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
         return;
     }
     
+    copyOptimizationModels(currentProbabilityModel.get(),mOptimizationPmodel);
 
-    //update probability model
-    for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++){
-        currentProbabilityModel[model_index].CopyModel(&mOptimizationPmodel[model_index]);
-    }
     
     int significance = checkSignificance(length,position, bitplane);
     
@@ -358,9 +361,9 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
             // }
             mProcessingContext.nodePool[current_node_idx].costResults.cost = J1; 
             mProcessingContext.nodePool[current_node_idx].decision = '2';       
-            for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++)
-                mOptimizationPmodel[model_index].CopyModel(&currentProbabilityModel[model_index]);
-            
+           copyOptimizationModels(mOptimizationPmodel,currentProbabilityModel.get());
+    
+                
             if(bitplane > BITPLANE_BYPASS_FLAGS) 
                 mOptimizationPmodel[2*bitplane+mSegmentationFlagProbabilityModelIndex].UpdateModel(1);
         }      
@@ -1065,20 +1068,17 @@ int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
 
 
 void Hierarchical4DEncoder :: GetOptimizerProbabilisticModelState(ProbabilityModel **state) {
-       
+   
     ProbabilityModel *pmodelArray = new ProbabilityModel [NUMBER_OF_MODELS];
-    for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++) {
-        pmodelArray[model_index].CopyModel(&mOptimizationPmodel[model_index]);    
-    }
+
+    copyOptimizationModels(pmodelArray,  mOptimizationPmodel);
+
     *state = pmodelArray;
 }
 
 void Hierarchical4DEncoder :: SetOptimizerProbabilisticModelState(ProbabilityModel *state) {
 
-     for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++) {
-        mOptimizationPmodel[model_index].CopyModel(&state[model_index]);    
-    }
-  
+        copyOptimizationModels(mOptimizationPmodel,state);
 }
 
 void Hierarchical4DEncoder :: DeleteProbabilisticModelState(ProbabilityModel *state) {
@@ -1091,9 +1091,5 @@ void Hierarchical4DEncoder :: DeleteProbabilisticModelState(ProbabilityModel *st
 }
 
 void Hierarchical4DEncoder :: LoadOptimizerState(void) {
-
-     for(int model_index = 0; model_index < NUMBER_OF_MODELS; model_index++) {
-        mOptimizationPmodel[model_index].CopyModel(&mPmodel[model_index]);    
-    }
-  
+    copyOptimizationModels(mOptimizationPmodel,mPmodel);
 }
