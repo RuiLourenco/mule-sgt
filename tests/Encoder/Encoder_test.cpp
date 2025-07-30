@@ -1522,67 +1522,67 @@ void encodeHeader(FILE *outputFileNamePointer, Hierarchical4DEncoder& hdt , std:
     BigEndianUnsignedIntegerWrite_(mPGMScale, 2, outputFileNamePointer);
 }
 
-void encodePartition(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_ inputBlock, std::array<double,2> disparityRange, double angleH, double angleV, double& J0,double& conditionNumberH, double& conditionNumberV){
-    std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
-    double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
-    inputBlock.data = inputBlock.data.contiguous();
+// void encodePartition(Hierarchical4DEncoder& entropyCoder, double lambda,Block4D_ inputBlock, std::array<double,2> disparityRange, double angleH, double angleV, double& J0,double& conditionNumberH, double& conditionNumberV){
+//     std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
+//     double scaledLambda = length[0]*length[1]*length[2]*length[3]*lambda;
+//     inputBlock.data = inputBlock.data.contiguous();
     
-    entropyCoder.LoadOptimizerState();
-    //cout<<"Optimizer State Loaded!"<<endl;
+//     entropyCoder.LoadOptimizerState();
+//     //cout<<"Optimizer State Loaded!"<<endl;
 
 
-    double currGain = totalTransformGain_(length,length);
-    //cout<<"currGain: "<<currGain<<endl;
-    inputBlock.ssi = SgtSideInfo(angleV,angleH,disparityRange);
-    //inputBlock.ssi.print();
-    inputBlock.sgtTransform(currGain);
-    conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
-    conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
+//     double currGain = totalTransformGain_(length,length);
+//     //cout<<"currGain: "<<currGain<<endl;
+//     inputBlock.ssi = SgtSideInfo(angleV,angleH,disparityRange);
+//     //inputBlock.ssi.print();
+//     inputBlock.sgtTransform(currGain);
+//     conditionNumberH = (inputBlock.eigenValuesH[0]/inputBlock.eigenValuesH[-1]).item<double>();
+//     conditionNumberV = (inputBlock.eigenValuesV[0]/inputBlock.eigenValuesV[-1]).item<double>();
 
-    ///cout<<"Transformed!"<<endl;
-    entropyCoder.mSubbandLF_ = inputBlock;
-    entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(scaledLambda);
+//     ///cout<<"Transformed!"<<endl;
+//     entropyCoder.mSubbandLF_ = inputBlock;
+//     entropyCoder.mInferiorBitPlane = entropyCoder.OptimumBitplaneFaster_(scaledLambda);
 
-    entropyCoder.LoadOptimizerState();
+//     entropyCoder.LoadOptimizerState();
     
-    ProbabilityModel *currentCoderModelState;
-    entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
-    std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
-    double Energy = 0;
-    double rate = 0;
-    double distortion = 0;
+//     ProbabilityModel *currentCoderModelState;
+//     entropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+//     std::array<int64_t,4> lengthTransform = {entropyCoder.mSubbandLF_.data.size(0), entropyCoder.mSubbandLF_.data.size(1), entropyCoder.mSubbandLF_.data.size(2), entropyCoder.mSubbandLF_.data.size(3)};
+//     double Energy = 0;
+//     double rate = 0;
+//     double distortion = 0;
 
-    entropyCoder.mSegmentationTreeCodeBuffer = "";
+//     entropyCoder.mSegmentationTreeCodeBuffer = "";
 
-    HexResult res = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, scaledLambda, entropyCoder.mSuperiorBitPlane, Energy,rate,distortion);
-    J0 = res.cost;
-    std::cout<<"J0: "<<J0<<endl;
-    std::cout<<"Rate: "<<rate<<endl;
-    std::cout<<"Distortion: "<<distortion<<endl;
-    std::cout<<"Energy: "<<Energy<<endl;
-    std::cout<<"Calculated J0 = "<<distortion + scaledLambda*rate <<endl;
-    std::cout<<"Scaled Lambda = "<<scaledLambda<<endl;
-    ProbabilityModel *coderModelState_0;
-    entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
-    entropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+//     HexResult res = entropyCoder.RdOptimizeHexadecaTree_({0, 0, 0, 0}, lengthTransform, scaledLambda, entropyCoder.mSuperiorBitPlane, Energy,rate,distortion);
+//     J0 = res.cost;
+//     std::cout<<"J0: "<<J0<<endl;
+//     std::cout<<"Rate: "<<rate<<endl;
+//     std::cout<<"Distortion: "<<distortion<<endl;
+//     std::cout<<"Energy: "<<Energy<<endl;
+//     std::cout<<"Calculated J0 = "<<distortion + scaledLambda*rate <<endl;
+//     std::cout<<"Scaled Lambda = "<<scaledLambda<<endl;
+//     ProbabilityModel *coderModelState_0;
+//     entropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
+//     entropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
 
-    entropyCoder.EncodeInteger(entropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
-    entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-    entropyCoder.EncodeSSI_(inputBlock.ssi);
+//     entropyCoder.EncodeInteger(entropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
+//     entropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
+//     entropyCoder.EncodeSSI_(inputBlock.ssi);
     
-    entropyCoder.EncodeSubblock_(scaledLambda);
+//     entropyCoder.EncodeSubblock_(scaledLambda);
 
-    //entropyCoder.mSubbandLF_.orderH = inputBlock.orderH;
-    //entropyCoder.mSubbandLF_.orderV = inputBlock.orderV;
-}
-void encodeBlock(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std::array<double,2> disparityRange,double angleH, double angleV, double& J0, double& conditionNumberH, double& conditionNumberV){
+//     //entropyCoder.mSubbandLF_.orderH = inputBlock.orderH;
+//     //entropyCoder.mSubbandLF_.orderV = inputBlock.orderV;
+// }
+// void encodeBlock(Block4D_ block, Hierarchical4DEncoder& hdt, double lambda, std::array<double,2> disparityRange,double angleH, double angleV, double& J0, double& conditionNumberH, double& conditionNumberV){
     
-    hdt.RestartProbabilisticModel();
-    //std::cout<<"ILY"<<std::endl;
+//     hdt.RestartProbabilisticModel();
+//     //std::cout<<"ILY"<<std::endl;
 
-    encodePartition(hdt, lambda,block, disparityRange, angleH, angleV, J0,conditionNumberH,conditionNumberV);
-    hdt.DoneEncoding();
-}
+//     encodePartition(hdt, lambda,block, disparityRange, angleH, angleV, J0,conditionNumberH,conditionNumberV);
+//     hdt.DoneEncoding();
+// }
 
 
 
