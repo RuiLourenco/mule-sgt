@@ -928,7 +928,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
-    //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
 
     //double J0 = RDrefineCovariance(block_0,1,cui0, &coderModelState_0);
     //double J0 = RDtestLogdet(block_0,cui0,totalTransformGain(),&coderModelState_0);
@@ -939,7 +939,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     //double J0 = RDStructureTensorOrLogdet(block_0,cui0,&coderModelState_0);
     //double J0 = RDrefineStructureTensor(block_0,1,cui0,&coderModelState_0);
-    double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     //std::cout<<"STARTED TESTING"<<std::endl;
 
     //double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
