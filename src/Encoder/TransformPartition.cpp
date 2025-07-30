@@ -60,8 +60,13 @@ double TransformPartition :: totalTransformGain(void){
 
 }
 void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lambda){
-    
+    std::cout<<"Starting RDoptimizeTransform with lambda: " << lambda << std::endl;
     mEntropyCoder.RestartProbabilisticModel();
+    for(int i = 0; i < m_encoder_pool.size(); i++) {
+        m_encoder_pool[i]->RestartProbabilisticModel();
+    }
+
+    std::cout<<"I have a feeling we've double freed something"<<std::endl;
     inputBlock.data = inputBlock.data.contiguous();
     if(!mSsiBuffer.empty()) mSsiBuffer.clear();
     if(!mCuiBuffer.empty()) mCuiBuffer.clear();
