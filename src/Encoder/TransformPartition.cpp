@@ -1,4 +1,9 @@
 #include "Encoder/TransformPartition.h"
+#include <omp.h>
+#include <vector>
+#include <numeric>   // For std::iota
+#include <algorithm> // For std::min_element
+#include <iterator>  // For std::distance
 #include <chrono>
 
 
@@ -11,13 +16,32 @@
     
 //     //mUseSameBitPlane = 1;
 // }
-TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder entropyCoder,std::array<double,2> disparityRange, double transformGain)
-    :mEntropyCoder(entropyCoder), mDisparityRange(disparityRange), mGain(transformGain) {
+TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain)
+    : mEntropyCoder(entropyCoder), mDisparityRange(disparityRange), mGain(transformGain) {
+    
+    create_encoder_pool(omp_get_max_threads(),mEntropyCoder.mProcessingContext.image_height ,mEntropyCoder.mProcessingContext.image_width);
+    std::cout<<"Using "<<m_encoder_pool.size()<<" threads for encoding."<<std::endl;
+    //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
+
     mPartitionCode = NULL;
     mlength_t_min = minLength[0];
     mlength_s_min = minLength[1];
     mlength_v_min = minLength[2];
     mlength_u_min = minLength[3];
+
+    std::cout<<"We gucci"<<std::endl;
+    
+}
+void TransformPartition::create_encoder_pool(size_t num_threads, size_t height, size_t width) {
+    
+    if (num_threads == 0) num_threads = 1; // Sanity check
+
+    // This logic is now cleanly isolated.
+    m_encoder_pool.reserve(num_threads);
+    for (size_t i = 0; i < num_threads; ++i) {
+        m_encoder_pool.emplace_back(std::make_unique<Hierarchical4DEncoder>(height, width));
+    }
+    // Return the fully constructed vector
 }
 TransformPartition :: ~TransformPartition(void) {
     if(mPartitionCode != NULL)
@@ -62,6 +86,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     //std::cout<<"Transformed Block Pre Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
     //std::cout<<"Transformed Block Pre Transform Size: "<<transformedBlock.transformSize[0]<<" "<<transformedBlock.transformSize[1]<<" "<<transformedBlock.transformSize[2]<<" "<<transformedBlock.transformSize[3]<<std::endl;
     mDepth = 0;
+    getOptimalMinimumBitPlane(inputBlock);
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, mSsiBuffer,mCuiBuffer, &mPartitionCode);
     //std::cout<<"Lagrangian Cost: "<<mLagrangianCost<<std::endl;
     mPartitionData_ = transformedBlock;
@@ -74,54 +99,80 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
 
 }
 
+void TransformPartition :: getOptimalMinimumBitPlane(Block4D_& inputBlock){
+    // This function is used to find the optimal minimum bit plane for the input block.
+    // It sets the mInferiorBitPlane of the encoder to the optimal value.
+    Block4D_ block_0 = inputBlock.clone();
+    block_0.ssi = SgtSideInfo(0,0,mDisparityRange);
+    block_0.sgtTransform(this->totalTransformGain());
 
-double TransformPartition :: EvaluatePartitionFixedRho(Block4D_ &block_0, double currGain , double angleV, double angleH){
+    mEntropyCoder.mSubbandLF_ = block_0;
+    mEntropyCoder.RestartProbabilisticModel();
+    mEntropyCoder.mInferiorBitPlane = mEntropyCoder.OptimumBitplaneFaster_(mLambda);
+    mEntropyCoder.LoadOptimizerState();
+    for(int i = 0; i < m_encoder_pool.size(); i++) {
+        m_encoder_pool[i]->mInferiorBitPlane = mEntropyCoder.mInferiorBitPlane;
+    }
+}
+double TransformPartition :: EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angleV, double angleH){
     
     block_0.ssi = SgtSideInfo(angleV,angleH,mDisparityRange);
     //std::cout<<"Evaluating Partition Fixed Rho: "<<angleV<<" "<<angleH<<" "<<block_0.ssi.getAngleH()<<" "<<block_0.ssi.getAngleV()<<std::endl;
-    return EvaluatePartition_(block_0, currGain, angleV, angleH);
+    return EvaluatePartition_(encoder,block_0, currGain, angleV, angleH);
 }
-double TransformPartition :: EvaluatePartitionLSRho(Block4D_ &block_0, double currGain , double angleV, double angleH){
+double TransformPartition :: EvaluatePartitionLSRho(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleV, double angleH){
     block_0.ssi = SgtSideInfo(angleV,angleH,mDisparityRange);
     block_0.ssi.estimateRhos(block_0,-1);
-    return EvaluatePartition_(block_0, currGain, angleV, angleH);
+    return EvaluatePartition_(encoder,block_0, currGain, angleV, angleH);
 }
 
-double TransformPartition :: EvaluatePartition_(Block4D_ &block_0, double currGain , double angleV, double angleH){
+double TransformPartition :: EvaluatePartition_(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angleV, double angleH){
     
     std::chrono::steady_clock::time_point begin;
     std::chrono::steady_clock::time_point end;
     //double angle = (angleV + angleH)/2;
     //block_0.ssi = SgtSideInfo(angleV,angleH,mDisparityRange);
     //block_0.ssi.estimateRhos(block_0,3000);
-
+    std::chrono::steady_clock::time_point sTranform = std::chrono::steady_clock::now();
     block_0.sgtTransform(currGain);
+
+    //std::cout<<"After Transform Pointer: " <<block_0.data.data_ptr<int>() <<" in thread: "<<omp_get_thread_num()<<std::endl;
+
+    std::chrono::steady_clock::time_point fTransform = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> eTransform = fTransform - sTranform;
+    //std::cout << "Transform Time: " << eTransform.count() << " ms" << std::endl;
     
     
     
     SgtSideInfo ssi0 = block_0.ssi; 
-    mEntropyCoder.mSubbandLF_ = block_0;
+
+    encoder.mSubbandLF_ = block_0;
+    //std::cout<<"After Transform Pointer: " <<block_0.data.data_ptr<int>() <<" in thread: "<<omp_get_thread_num()<<std::endl;
 
 
     double Energy;
     double rate = 0;
     double distortion = 0;
 
-
-    if(mEvaluateOptimumBitPlane == 1){
-        mEntropyCoder.mInferiorBitPlane = mEntropyCoder.OptimumBitplaneFaster_(mLambda);
-        mEntropyCoder.LoadOptimizerState();
-        mEvaluateOptimumBitPlane = 0;
-        //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
-    }
+    //encoder.mInferiorBitPlane = 14; // Set the inferior bit plane to a default value 
+    // if(mEvaluateOptimumBitPlane == 1){
+    //     encoder.mInferiorBitPlane = encoder.OptimumBitplaneFaster_(mLambda);
+    //     encoder.LoadOptimizerState();
+    //     mEvaluateOptimumBitPlane = 0;
+    //     //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
+    // }
    
     
     //begin  = std::chrono::steady_clock::now();
-    std::array<int64_t,4> lengthTransform = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
+    std::array<int64_t,4> lengthTransform = {encoder.mSubbandLF_.data.size(0), encoder.mSubbandLF_.data.size(1), encoder.mSubbandLF_.data.size(2), encoder.mSubbandLF_.data.size(3)};
     // //std::cout<<mEntropyCoder.mSuperiorBitPlane<<std::endl;
     // std::cout<<"OPTIMIZING HEXADECA TREE THE NEW WAY"<<std::endl;
     // std::cout<<"_____________________________________________________"<<std::endl;
-    double J0 = mEntropyCoder.build_optimal_tree_from_pool(lengthTransform,{0,0,0,0}, mEntropyCoder.mSuperiorBitPlane, mLambda);
+    std::chrono::steady_clock::time_point sEncode = std::chrono::steady_clock::now();
+    double J0 = encoder.build_optimal_tree_from_pool(lengthTransform,{0,0,0,0}, encoder.mSuperiorBitPlane, mLambda);
+    std::chrono::steady_clock::time_point fEncode = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> eEncode= fEncode- sEncode;
+    //std::cout << "Encoding Time: " << eEncode.count() << " ms" << std::endl;
     //std::cout<<mEntropyCoder.mSuperiorBitPlane<<std::endl;
     // std::cout<<"_____________________________________________________"<<std::endl;
     // std::cout<<"OPTIMIZING HEXADECA TREE THE OLD WAY"<<std::endl;
@@ -157,7 +208,7 @@ double TransformPartition :: RDtestAngle(double angle,Block4D_& block_0, CodingU
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
     //Evaluate Structure Tensor
     ProbabilityModel *modelStateCurr;
-    double J0 = EvaluatePartitionFixedRho(temp_block_0,currGain,angle,angle);
+    double J0 = EvaluatePartitionFixedRho(mEntropyCoder,temp_block_0,currGain,angle,angle);
     block_0 = temp_block_0;
     mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
 
@@ -193,7 +244,7 @@ double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnit
     std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
     //std::cout<<"Angles to test: "<<anglesToTest[0]<<" "<<anglesToTest[1]<<" "<<anglesToTest[2]<<std::endl;
     for (int i = 0; i < 3; i++){
-        double J0_curr = EvaluatePartitionFixedRho(temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
+        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder,temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
         //std::cout<<"Before: "<<temp_block_0.ssi.getAngleH()<<" "<<temp_block_0.ssi.getAngleV()<<std::endl;
 
         //std::cout<<i<<" - "<<anglesToTest[i]<<": "<<J0_curr<<std::endl;
@@ -235,7 +286,7 @@ double TransformPartition :: RDtestCovariance(Block4D_& block_0, CodingUnitInfo&
     std::array<double,3> anglesToTest = {angles[0],angles[1],(angles[0]+angles[1])/2};
     //std::cout<<"Angles to test: "<<anglesToTest[0]<<" "<<anglesToTest[1]<<" "<<anglesToTest[2]<<std::endl;
     for (int i = 0; i < 3; i++){
-        double J0_curr = EvaluatePartitionFixedRho(temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
+        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder,temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
         if(i == 0) cui0.setCovarianceHorizontal({temp_block_0.ssi.getAngleH(),J0_curr});
         if(i == 1) cui0.setCovarianceVertical({temp_block_0.ssi.getAngleH(),J0_curr});
         if(i == 2) cui0.setCovarianceAverage({temp_block_0.ssi.getAngleH(),J0_curr});
@@ -276,7 +327,7 @@ double TransformPartition :: RDtestLogdet(Block4D_& block_0,  CodingUnitInfo& cu
 
     for (int i = 0; i < 3; i++){
 
-        double J0_curr = EvaluatePartitionFixedRho(temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
+        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder,temp_block_0,currGain,anglesToTest[i],anglesToTest[i]);
         //std::cout<<i<<" - "<<anglesToTest[i]<<": "<<J0_curr<<std::endl;
         //std::cout<<temp_block_0.ssi.getAngleH()<<" "<<temp_block_0.ssi.getAngleV()<<std::endl;
         if(i == 0) cui0.setLogdetHorizontal({temp_block_0.ssi.getAngleH(),J0_curr});
@@ -300,55 +351,169 @@ double TransformPartition :: RDtestLogdet(Block4D_& block_0,  CodingUnitInfo& cu
 
     return J0;
 }
-double TransformPartition :: RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+// double TransformPartition :: RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+//     std::chrono::steady_clock::time_point begin;
+//     std::chrono::steady_clock::time_point end;
+//     begin = std::chrono::steady_clock::now();
+//     Block4D_ blockOrig = block_0.clone();
+//     Block4D_ temp_block_0 = block_0;
+//     ProbabilityModel *currentCoderModelState;
+//     double J0 = std::numeric_limits<double>::max();
+//     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+//     //Evaluate GS
+
+//     double minAngle = angleRange[0];
+//     double maxAngle = angleRange[1];
+//     int count = 0;
+//     for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ 
+//         double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder,temp_block_0,currGain,angle,angle);
+//         //std::cout<<angle<<": "<<J0_curr<<std::endl;
+//         //std::cout<<temp_block_0.ssi.getAngleH()<<" "<<temp_block_0.ssi.getAngleV()<<std::endl;
+//         cui0.addGridSearchAngle(angle,J0_curr);
+//         if (J0_curr < J0){
+//             J0 = J0_curr;
+//             block_0 = temp_block_0;
+//             mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+//             cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+            
+//             //std::cout<<"tempBlock: ";
+//             //tempBlock.ssi.print();
+//             //block_0.ssi.print();
+//         }
+//         mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
+//         temp_block_0 = blockOrig;
+
+//         //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
+//     }
+//     //std::cout<<"TESTed GridSearch. J0 = "<< J0<<" "<<block_0.ssi.getAngleV()<<std::endl;
+    
+//     delete[] currentCoderModelState;
+//     //std::cout<<"TESTed NonFixedRhos. J0 = "<< J0<<" "<<block_0.ssi.getAngleV()<<std::endl;
+//             end = std::chrono::steady_clock::now();
+//         std::chrono::duration<double, std::milli> elapsed = end - begin;
+//         std::cout << "Grid Search Time: " << elapsed.count() << " ms" << std::endl;
+
+//     return J0;
+
+// }
+
+double TransformPartition::RDtestGridSearch(double angleStep, std::array<double, 2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0) {
+    std::chrono::steady_clock::time_point begin;
+    std::chrono::steady_clock::time_point end;
+    begin = std::chrono::steady_clock::now();
+    //std::cout<<"Starting Grid Search with angleStep: " << angleStep << " and angleRange: [" << angleRange[0] << ", " << angleRange[1] << "]" << std::endl;
+
     Block4D_ blockOrig = block_0.clone();
-    Block4D_ temp_block_0 = block_0;
-    ProbabilityModel *currentCoderModelState;
-    double J0 = std::numeric_limits<double>::max();
-    mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
-    //Evaluate GS
+    ProbabilityModel *initialCoderModelState;
+    mEntropyCoder.GetOptimizerProbabilisticModelState(&initialCoderModelState);
 
     double minAngle = angleRange[0];
     double maxAngle = angleRange[1];
-    int count = 0;
-    for (double angle = minAngle; angle <=maxAngle; angle+=angleStep){ 
-        double J0_curr = EvaluatePartitionFixedRho(temp_block_0,currGain,angle,angle);
-        //std::cout<<angle<<": "<<J0_curr<<std::endl;
-        //std::cout<<temp_block_0.ssi.getAngleH()<<" "<<temp_block_0.ssi.getAngleV()<<std::endl;
-        cui0.addGridSearchAngle(angle,J0_curr);
-        if (J0_curr < J0){
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
-            cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
-            
-            //std::cout<<"tempBlock: ";
-            //tempBlock.ssi.print();
-            //block_0.ssi.print();
-        }
-        mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
-        temp_block_0 = blockOrig;
-
-        //std::cout<<"                       \rAngle Search: "<<count++<<"/"<<trunc((maxAngle-minAngle)/angleStep)<<std::flush;
+    // Ensure numSteps is not negative if angleRange is invalid
+    if (minAngle > maxAngle) {
+        // Handle error case or return a default value
+        delete[] initialCoderModelState;
+        return std::numeric_limits<double>::max();
     }
-    //std::cout<<"TESTed GridSearch. J0 = "<< J0<<" "<<block_0.ssi.getAngleV()<<std::endl;
+    int numSteps = static_cast<int>(trunc((maxAngle - minAngle) / angleStep)) + 1;
+
+    // --- Phase 1: Allocate Storage for ALL Iterations ---
+    // This is the significant memory allocation you requested.
+    std::vector<double> all_J_values(numSteps);
+    std::vector<double> all_angles(numSteps);
+    std::vector<Block4D_> all_blocks(numSteps);
+    std::vector<ProbabilityModel*> all_models(numSteps);
+
+    for (int i = 0; i < numSteps; ++i) {
+        // This is now guaranteed to be safe.
+        all_blocks[i] = blockOrig.clone();
+        //sanity check for all blocks:
+        int* useless_ptr = all_blocks[i].data.data_ptr<int>();
+        
+        // We can also pre-calculate the angles here.
+        all_angles[i] = minAngle + i * angleStep;
+    }
+    // --- Phase 2: Map (Parallel Evaluation) ---
+    // This loop has no inter-thread communication or locking. Each iteration is fully independent.
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < numSteps; ++i) {
+        int thread_id = omp_get_thread_num();
+        auto& localEncoderPtr = m_encoder_pool[thread_id];
+        //std::cout<<"WE ARE STARTING " <<omp_get_thread_num()<<std::endl;
+        //std::cout<< "Angle Search: " << i << "/" << numSteps << "\r" << std::flush;
+        Block4D_& current_block = all_blocks[i];
+        double angle = all_angles[i];
+
+        //std::cout<<"WE RUN CRITICAL!" <<omp_get_thread_num()<<std::endl;
+
+        ProbabilityModel* loopIterationModelState;
+        localEncoderPtr->GetOptimizerProbabilisticModelState(&loopIterationModelState);
+        //std::cout<<"Evaluation INCOMING "<<omp_get_thread_num()<<std::endl;
+
+        // Evaluate the cost for the current angle.
+        double J0_curr = EvaluatePartitionFixedRho(*localEncoderPtr,current_block, currGain, angle, angle);
+        //std::cout<<"Evaluation Successful "<<omp_get_thread_num()<<std::endl;
+        // Store the complete result of this iteration without any comparisons.
+        all_angles[i] = angle;
+        all_J_values[i] = J0_curr;
+        //all_blocks[i] = temp_block;
+        all_models[i] = loopIterationModelState; // Store the pointer; will be managed later.
+    } // --- End of parallel region ---
+
+    //std::cout<<std::endl<<"We Finished it"<<std::endl;
+    // --- Phase 3: Reduce (Serial Selection) ---
+    // This section is executed by a single thread after the parallel work is done.
     
-    double J =  EvaluatePartitionLSRho(temp_block_0,currGain,block_0.ssi.getAngleV(),block_0.ssi.getAngleH());
-    if(J < J0){
-        //std::cout<<"J0: "<<J0<<" J: "<<J<<std::endl;
-        J0 = J;
-        block_0 = temp_block_0;
-        mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
-        cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+    // First, find the index of the best result.
+    auto min_iterator = std::min_element(all_J_values.begin(), all_J_values.end());
+    int best_index = std::distance(all_J_values.begin(), min_iterator);
+
+    double J0 = all_J_values[best_index];
+    
+    // Set the final output parameters from the winning iteration.
+    block_0 = all_blocks[best_index];
+    //std::cout<<"is sgt domain: "<<block_0.sgtDomain<<std::endl;
+
+    *coderModelState_0 = all_models[best_index]; // Transfer ownership of the winning model state.
+    cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+
+    // Populate the GridSearchAngle info in cui0 and clean up memory.
+    for (int i = 0; i < numSteps; ++i) {
+        cui0.addGridSearchAngle(all_angles[i], all_J_values[i]);
+        
+        // CRITICAL: Clean up all model states that were not chosen.
+        // The winning model's ownership was transferred, so we must not delete it.
+        if (i != best_index) {
+            delete[] all_models[i];
+        }
     }
-    mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
 
-    delete[] currentCoderModelState;
-    //std::cout<<"TESTed NonFixedRhos. J0 = "<< J0<<" "<<block_0.ssi.getAngleV()<<std::endl;
+    // --- Final LS Rho Evaluation ---
+    // This final check remains serial, using the best result from the grid search.
+    // mEntropyCoder.SetOptimizerProbabilisticModelState(initialCoderModelState);
+    // Block4D_ temp_block_ls = block_0; // Use the best block from grid search
+    // double J_ls = EvaluatePartitionLSRho(temp_block_ls, currGain, block_0.ssi.getAngleV(), block_0.ssi.getAngleH());
 
+    // if (J_ls < J0) {
+    //     J0 = J_ls;
+    //     block_0 = temp_block_ls;
+    //     // If this is better, we need to get its corresponding model state.
+    //     // We must also de-allocate the previous best model from the grid search.
+    //     delete[] *coderModelState_0; 
+    //     mEntropyCoder.GetOptimizerProbabilisticModelState(coderModelState_0);
+    //     cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+    // }
+    
+    // mEntropyCoder.SetOptimizerProbabilisticModelState(initialCoderModelState);
+     delete[] initialCoderModelState;
+    // std::cout<<"We exited it! "<< J0<<std::endl;
+        end = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end - begin;
+        //std::cout << "Grid Search Time: " << elapsed.count() << " ms" << std::endl;
 
     return J0;
 }
+
 double TransformPartition :: RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
 
     double currGain = totalTransformGain();
@@ -501,7 +666,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
     //std::cout<<std::endl;
     blockTemp = blockOrig;
 
-    J =  EvaluatePartitionLSRho(blockTemp,currGain,block_0.ssi.getAngleV(),block_0.ssi.getAngleH());
+    J =  EvaluatePartitionLSRho(mEntropyCoder,blockTemp,currGain,block_0.ssi.getAngleV(),block_0.ssi.getAngleH());
     //std::cout<<"ls try: "<<blockTemp.ssi.getRhoS()<<" SUCCESS!!"<<std::endl;
     if(J < J0){
 
@@ -713,6 +878,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     ProbabilityModel *currentCoderModelState;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
+    for(int i = 0; i < m_encoder_pool.size(); i++){
+        m_encoder_pool[i]->SetOptimizerProbabilisticModelState(currentCoderModelState);
+    }   
     
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;

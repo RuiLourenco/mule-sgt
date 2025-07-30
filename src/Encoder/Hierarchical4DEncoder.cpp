@@ -21,8 +21,13 @@ Hierarchical4DEncoder :: Hierarchical4DEncoder(int height, int width)
     mSegmentationTreeCodeBufferSize = 0;
     mSegmentationFlagProbabilityModelIndex = SEGMENTATION_PROB_MODEL_INDEX;
     mSymbolProbabilityModelIndex = SYMBOL_PROBABILITY_MODEL_INDEX;
-    mPmodel = NULL;
-    mOptimizationPmodel = NULL;
+
+    mPmodel = new ProbabilityModel[NUMBER_OF_MODELS];
+    mOptimizationPmodel = new ProbabilityModel[NUMBER_OF_MODELS];
+    for(int n = 0; n < NUMBER_OF_MODELS; n++) {
+         mPmodel[n].ResetModel();
+         mOptimizationPmodel[n].ResetModel();
+    }
     
 }
 Hierarchical4DEncoder :: ~Hierarchical4DEncoder(void) {
@@ -206,8 +211,6 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
     ModelBufferHandle currentProbabilityModel = mModelArena.get_buffer();
     double J0 = 0.0, J1 = 0.0; 
 
-    ProbabilityModel currentProbabilityModel[NUMBER_OF_MODELS];
-    double J0 = 0.0, J1 = 0.0;
     // --- 1. Base Case: Reached a single pixel ---
     if (bitplane < mInferiorBitPlane) {
 
@@ -553,6 +556,7 @@ void Hierarchical4DEncoder :: GetOptimizerProbabilisticModelState(ProbabilityMod
     copyOptimizationModels(pmodelArray,  mOptimizationPmodel);
 
     *state = pmodelArray;
+
 }
 
 void Hierarchical4DEncoder :: SetOptimizerProbabilisticModelState(ProbabilityModel *state) {
