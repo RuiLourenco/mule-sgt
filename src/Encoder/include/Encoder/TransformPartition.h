@@ -22,12 +22,24 @@
 class MultiScaleTransfrom;
 
 class TransformPartition {
+     void create_encoder_pool(size_t num_threads, 
+                                                                  size_t height, 
+                                                                  size_t width);
+    std::vector<std::unique_ptr<Hierarchical4DEncoder>> m_encoder_pool;
+    void getOptimalMinimumBitPlane(Block4D_& inputBlock);
 public:  
+    // --- THE FIX: MAKE THE MANAGER CLASS NON-COPYABLE/MOVABLE ---
+    // Because this class owns a pool of non-copyable encoders,
+    // the class itself cannot be safely copied or moved.
+    TransformPartition(const TransformPartition&) = delete;
+    TransformPartition& operator=(const TransformPartition&) = delete;
+    TransformPartition(TransformPartition&&) = delete;
+    TransformPartition& operator=(TransformPartition&&) = delete;
     std::array<double,2> mDisparityRange;
     std::vector<SgtSideInfo> mSsiBuffer;
     std::vector<CodingUnitInfo> mCuiBuffer;
     CodingPartitionInfo mCodingPartitionInfo;
-    Hierarchical4DEncoder mEntropyCoder;
+    Hierarchical4DEncoder& mEntropyCoder;
     int mDepth = 0;           /*!< Current depth in the partition tree */
 
     
@@ -46,15 +58,15 @@ public:
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);
-    TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder entropyCoder,std::array<double,2> disparityRange, double transformGain);
+    TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain);
     ~TransformPartition(void);
     void RDoptimizeTransform_(Block4D_ &inputBlock, double lambda);
     double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , std::vector<SgtSideInfo>& currSsi,std::vector<CodingUnitInfo>& currCui,char **partitionCode);
     void EncodePartition_( double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
-    double EvaluatePartition_(Block4D_ &block_0, double currGain , double angleH, double angleV);
-    double EvaluatePartitionLSRho(Block4D_ &block_0, double currGain , double angleH, double angleV);
-    double EvaluatePartitionFixedRho(Block4D_ &block_0, double currGain , double angleH, double angleV);
+    double EvaluatePartition_(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
+    double EvaluatePartitionLSRho(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
+    double EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
     double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
     double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
     double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
