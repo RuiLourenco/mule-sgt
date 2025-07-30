@@ -93,7 +93,8 @@ inline ModelBufferHandle ProbabilityModelArena::get_buffer() {
 
 struct CostResults {
     double cost = 0.0;
-    double signalEnergy = 0.0;};
+    double signalEnergy = 0.0;
+};
 
 const uint32_t NULL_NODE = static_cast<uint32_t>(-1);
 struct Node {
@@ -152,13 +153,13 @@ struct ProcessingContext {
         // 3. Get the number of actual leaf nodes (the true image size).
         size_t n_leaves_actual = width * height;
 
-        // 4. Calculate the final, tight upper bound for the number of nodes.
-        size_t max_nodes = n_quad + (n_leaves_actual * (initial_bitdepth)); // Simplified from (B-1) for safety
+        // 4. Calculate the final, loose upper bound for the number of nodes.
+        size_t max_nodes = std::max(1000.0,(n_quad + n_leaves_actual * (initial_bitdepth)) *0.1); // Simplified from (B-1) for safety
 
         std::cout << "--- Processing Context Initialized ---" << std::endl;
         std::cout << "Input: " << width << "x" << height << ", " << bitdepth+1 << " bitdepth levels" << std::endl;
         std::cout << "Required Tree Depth: " << tree_depth << std::endl;
-        std::cout << "Max Nodes Required (Upper Bound): " << max_nodes << std::endl;
+        std::cout << "Max Nodes Required (Loose Upper Bound): " << max_nodes << std::endl;
         std::cout << "Node size: " << sizeof(Node) << " bytes" << std::endl;
         std::cout << "Allocating reusable buffer of ~" << (static_cast<uint64_t>(max_nodes) * sizeof(Node)) / (1024*1024) << " MB..." << std::endl;
         
@@ -169,7 +170,16 @@ struct ProcessingContext {
     uint32_t add_default_node(){
         // This function adds a default node with cost 0 and decision 'L' (Low Energy).
         if (next_available_idx >= nodePool.size()) {
-            throw std::runtime_error("Node pool exhausted, increase the initial size.");
+            // --- THE FALLBACK LOGIC ---
+            // Our pool is exhausted. Let's add a big new chunk.
+            // Don't just add one! Add another 10% of the original size, for example.
+            size_t current_size = nodePool.size();
+            size_t growth_amount = std::max(1UL, current_size / 10); // Grow by 10% or at least 1
+            
+            std::cout << "Node pool exhausted. Growing by " << growth_amount << " nodes." << std::endl;
+            
+            // This is the correct way to add a batch of new, usable nodes.
+            nodePool.resize(current_size + growth_amount);
         }
         uint32_t idx = next_available_idx++;
         nodePool[idx].costResults.cost = 0.0;
@@ -195,8 +205,15 @@ struct HexResult {
     std::string codeStream; // Each node will return its own piece of the code stream
 };
 class Hierarchical4DEncoder {
+    Hierarchical4DEncoder(const Hierarchical4DEncoder&) = delete;
+    Hierarchical4DEncoder& operator=(const Hierarchical4DEncoder&) = delete;
+    Hierarchical4DEncoder(Hierarchical4DEncoder&&) = delete;
+    Hierarchical4DEncoder& operator=(Hierarchical4DEncoder&&) = delete;
+
+
     ProbabilityModelArena mModelArena; 
 public:
+
     ProcessingContext mProcessingContext;
     double mLambda = 0;
     double mRate  = 0;
