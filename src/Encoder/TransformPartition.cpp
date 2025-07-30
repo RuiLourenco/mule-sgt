@@ -514,9 +514,7 @@ double TransformPartition :: RDtestAllAngleHeuristics(Block4D_& block_0, CodingU
     mEntropyCoder.SetOptimizerProbabilisticModelState(currentCoderModelState);
     delete[] currentCoderModelState;
     //std::cout<<"After LS Refinement: "<<blockTemp.ssi.getAngleH()<<" SUCCESS!! ";
-    for (int i = 0; i < 4;i++){
-        //std::cout<<block_0.data.size(i)<<"x";
-    }
+
     //std::cout<<std::endl;
 
     //std::cout<<"GridSearch: "<<blockTemp.ssi.getAngleH()<<std::endl;

@@ -793,9 +793,9 @@ std::map<std::pair<int, int>, double> computeVariancesForCPIs(
 // }
 
 TEST(DebugInfoTests,CoarseToFineFeasabilityTest){
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearch1/Sideboard/";
-    string inputInfo = inputDirectory + "sideboard_0.1_info.json";
-    string outputGraphs = inputDirectory + "CoarseToFineGraphs01/";
+    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-all-heuristics/results/Greek/";
+    string inputInfo = inputDirectory + "greek_0.75_info.json";
+    string outputGraphs = inputDirectory + "CoarseToFineGraphs075/";
     std::cout<<"Input Info: "<<inputInfo<<std::endl;
     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
     CodingPartitionInfo::countUnitsWithin10Degrees(10,codingPartitionInfos,outputGraphs);
