@@ -11,7 +11,7 @@ class ProbabilityModel {
   public:  
     unsigned int mCumulativeFrequency[2];  /*> cumulative number of occurences of each symbol.*/
     double mRate[2];                       /*> rates needed to encode each symbol.*/
-    double mLog_2;
+    //double mLog_2;
     ProbabilityModel(void);
     void UpdateModel(int bit);
     void ResetModel();

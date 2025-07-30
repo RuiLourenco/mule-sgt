@@ -10,7 +10,7 @@ ProbabilityModel :: ProbabilityModel(void) {
     mCumulativeFrequency[1] = 2;  
     mRate[0] = 1.0;
     mRate[1] = 1.0;
-    mLog_2 = log(2);
+    //mLog_2 = 0.30102999566;//log(2);
 }
 
 void ProbabilityModel :: UpdateModel(int bit) {
@@ -31,8 +31,10 @@ void ProbabilityModel :: UpdateModel(int bit) {
    
    double f0 = mCumulativeFrequency[0];
    double f1 = mCumulativeFrequency[1]-mCumulativeFrequency[0]; 
-   //mRate[0] = -log(f0/mCumulativeFrequency[1])/mLog_2;
-   //mRate[1] = -log(f1/mCumulativeFrequency[1])/mLog_2;
+   mRate[0] = 0.8;
+   mRate[1] = 0.1;
+//    mRate[0] = -log(f0/mCumulativeFrequency[1])/mLog_2;
+//    mRate[1] = -log(f1/mCumulativeFrequency[1])/mLog_2;
    mRate[0] = -log2(f0/mCumulativeFrequency[1]);
    mRate[1] = -log2(f1/mCumulativeFrequency[1]);
 }
