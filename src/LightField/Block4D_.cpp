@@ -1092,7 +1092,7 @@ void Block4D_::sgtTransform(double scale){
         begin_i += 32+border_size;
 
     }
-    write_tensor(log2(1+(vizTransform*vizTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/4DTransformViz.png",{0,log2(1+(vizTransform*vizTransform)).max().item<double>()});
+    //write_tensor(log2(1+(vizTransform*vizTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/4DTransformViz.png",{0,log2(1+(vizTransform*vizTransform)).max().item<double>()});
 #endif
     //at::Tensor transform = flatTransform.unsqueeze(0).unsqueeze(0);
     this->data = transform.round().to(at::kInt).contiguous();
@@ -1274,7 +1274,7 @@ std::array<double,2> Block4D_::getMainFrequency(at::Tensor basisFunction,double 
     
     
     if(index == 70){
-        write_tensor(block_dft,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/frequency.png");
+        //write_tensor(block_dft,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/frequency.png");
     }
     #endif
     auto [peaks_unq, unq] = at::_unique(peaks.round(5),true,true);
@@ -1318,7 +1318,7 @@ at::Tensor Block4D_::getFrequencyOrdering(at::Tensor basisFrequenciesH, at::Tens
             ordering[j][i] = distance;
         }
     }
-    write_tensor(ordering,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anOrdering4.png");
+    //write_tensor(ordering,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anOrdering4.png");
     auto [orderingSorted,orderingIndices] = ordering.flatten().sort({},false);
     std::cout<<orderingSorted.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
     return orderingIndices;
@@ -1532,7 +1532,7 @@ void Block4D_::view4DFrequencies(at::Tensor fullOrdinalFrequencies, at::Tensor f
         }
         //std::cout<<"vizTransform: "<<vizTransform.min().item()<<" "<<vizTransform.max().item()<<std::endl;
 
-        write_tensor(vizTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/Frequency4D_"+std::to_string(j)+".png");
+        //write_tensor(vizTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/Frequency4D_"+std::to_string(j)+".png");
         // write_tensor(vizTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/Frequency4D_"+std::to_string(j)+".png",{0,vizTransform.max().item<double>()});
     }
 }
@@ -1550,8 +1550,8 @@ at::Tensor Block4D_::orderCoefficientsByFrequency(const at::Tensor& coefficientB
     //std::cout<<"Index of Max Frequency: "<<basisFrequenciesV.index({at::indexing::Slice(),0}).argmax().item<int64_t>()<<std::endl;
     at::Tensor basisFrequenciesViewTH = basisFrequenciesH.index({at::indexing::Slice(),0}).squeeze().repeat({basisFrequenciesV.size(0),1});
     at::Tensor basisFrequenciesViewTV = basisFrequenciesV.index({at::indexing::Slice(),0}).t().repeat({basisFrequenciesH.size(0),1}).t();
-    write_tensor(basisFrequenciesViewTH,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesH.png");
-    write_tensor(basisFrequenciesViewTV,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesV.png");
+    //write_tensor(basisFrequenciesViewTH,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesH.png");
+    //write_tensor(basisFrequenciesViewTV,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesV.png");
 
     at::Tensor ordinalFrequenciesH = getOrdinalFrequencies(basisFrequenciesH);
     at::Tensor ordinalFrequenciesV = getOrdinalFrequencies(basisFrequenciesV);
@@ -1654,8 +1654,8 @@ at::Tensor Block4D_::frequencyOrderedSgt(at::Tensor flatBlock, at::Tensor sgtMat
     at::Tensor sortedSgt = quadTreeSorting(transformSize, orderedCoefficients);
     std::cout<<"Got the Sorted SGT!"<<std::endl;
     std::cout<<sortedSgt.sizes()<<std::endl;
-    write_tensor(log(1+(sortedSgt * sortedSgt)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/aFrequencyQuadTreeSgT.png");
-    write_tensor(log(1+(sgtCoefficients * sgtCoefficients)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anUnsortedSgT.png");
+    //write_tensor(log(1+(sortedSgt * sortedSgt)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/aFrequencyQuadTreeSgT.png");
+    //write_tensor(log(1+(sgtCoefficients * sgtCoefficients)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anUnsortedSgT.png");
 
     return sortedSgt;
 }
@@ -2206,8 +2206,8 @@ at::Tensor Block4D_::orderSGTByMonotony( at::Tensor epiTransform,at::Tensor sgtT
 
     at::Tensor energy = epiTransform * epiTransform;
     at::Tensor newOrderTransform = sgtTransform.clone();
-    write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_energy.png");
-    write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_transform.png");
+    //write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_energy.png");
+    //write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_transform.png");
     int j = 0;
     order = at::arange(0,sgtTransform.size(1));
     while(j < epiTransform.size(1)-1){
@@ -2230,8 +2230,8 @@ at::Tensor Block4D_::orderSGTByMonotony( at::Tensor epiTransform,at::Tensor sgtT
         }
         j++;     
     }
-    write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_energy.png");
-    write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_transform.png");
+    //write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_energy.png");
+    //write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_transform.png");
     return newOrderTransform;
 }
 
@@ -3544,7 +3544,7 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
         }
         //std::cout<<"Model Size: "<<model.sizes()<<std::endl;
         model = model * weights;
-        if(alpha == 1) write_tensor(model,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/model.png");
+        //if(alpha == 1) write_tensor(model,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/model.png");
         double result = model.mul(cov).sum().item<double>();
         //std::cout<<model.sizes()<<" "<<cov.sizes()<<std::endl;
         //std::cout<<theta<<": "<<result<<std::endl;
