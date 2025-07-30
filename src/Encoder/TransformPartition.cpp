@@ -681,7 +681,7 @@ double TransformPartition :: RDrefineAllAngleHeuristics(Block4D_& block_0, Codin
     //Evaluate Grid Search
     std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
-    J = RDtestGridSearch(10,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    J = RDtestGridSearch(5,angleRange,blockTemp,cui0,currGain,&tempModelState);
     if(J < J0){
         J0 = J;
         block_0 = blockTemp;
@@ -693,7 +693,7 @@ double TransformPartition :: RDrefineAllAngleHeuristics(Block4D_& block_0, Codin
     blockTemp = blockOrig;
     //Grid Search Refinement
     double angle = block_0.ssi.getAngleH();
-    std::array<double,2> refinementAngleRange = {angle-9,angle+9};
+    std::array<double,2> refinementAngleRange = {angle-4,angle+4};
 
     J = RDtestGridSearch(SgtSideInfo::PRECISION_ANGLE,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);
     if(J < J0){
