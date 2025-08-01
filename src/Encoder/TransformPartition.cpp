@@ -119,6 +119,15 @@ void TransformPartition :: getOptimalMinimumBitPlane(Block4D_& inputBlock){
         m_encoder_pool[i]->mInferiorBitPlane = mEntropyCoder.mInferiorBitPlane;
     }
 }
+
+double TransformPartition :: EvaluatePartitionArbitraryRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angle, double rhoAngle, double rhoSpace){
+    
+    block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
+    block_0.ssi.setAngularRhos(rhoAngle,rhoAngle);
+    block_0.ssi.setSpatialRhos(rhoSpace,rhoSpace);
+    //std::cout<<"Evaluating Partition Fixed Rho: "<<angleV<<" "<<angleH<<" "<<block_0.ssi.getAngleH()<<" "<<block_0.ssi.getAngleV()<<std::endl;
+    return EvaluatePartition_(encoder,block_0, currGain, angle, angle);
+}
 double TransformPartition :: EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angleV, double angleH){
     
     block_0.ssi = SgtSideInfo(angleV,angleH,mDisparityRange);
