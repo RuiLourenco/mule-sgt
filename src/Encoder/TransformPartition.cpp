@@ -429,7 +429,10 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
         delete[] initialCoderModelState;
         return std::numeric_limits<double>::max();
     }
-    int numSteps = static_cast<int>(trunc((maxAngle - minAngle) / angleStep)) + 1;
+       // A small value to counteract floating point inaccuracies.
+    const double epsilon = 1e-9;
+    // The resilient calculation
+    int numSteps = static_cast<int>(floor((maxAngle - minAngle) / angleStep + epsilon)) + 1;
 
     // --- Phase 1: Allocate Storage for ALL Iterations ---
     // This is the significant memory allocation you requested.
