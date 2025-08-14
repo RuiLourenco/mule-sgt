@@ -528,6 +528,119 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
     return J0;
 }
 
+double TransformPartition :: parallelRhoSearch(bool searchSpace, double fixedRho,double angle, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+
+    double defaultSpaceRho = 0.99;
+    double defaultAngularRho = 0.99999;
+        int num_points = 16; // Number of points to sample in the rho space
+
+    if (fixedRho < 0){
+        if(searchSpace){
+            fixedRho = defaultAngularRho;
+        }else{
+            fixedRho = defaultSpaceRho;
+        }
+    } 
+
+    //std::vector<double> all_rhos = {0.6,0.7,0.8,0.9,0.95,0.99,0.995,0.999, 0.9995, 0.9999,0.99995,0.99999};
+    std::vector<double> all_rhos = {};
+    double minimumCovariance = 1e-2;
+    double max_corr_distance = block_0.size[2]+abs(block_0.size[0] * tan(angle * M_PI / 180.0)); // Calculate the maximum size based on the angle 
+    double rho_min = std::max(SgtSideInfo::MIN_RHO,std::pow(minimumCovariance, 1.0 / max_corr_distance)); // Calculate rho_min based on the maximum correlation distance
+    double delta_max = 1 - rho_min;
+    double delta_min = 1e-5;
+    
+    // std::cout<<"Maximum Correlation Distance: "<<max_corr_distance<<std::endl;
+    // std::cout<<"delta_min: "<<delta_min<<", delta_max: "<<delta_max<<std::endl;
+    //std::cout<<"Rhos: ";
+    for (int i = 0; i < num_points; i++){
+        double k = static_cast<double>(i) / (num_points - 1);
+        double delta = delta_min * std::pow(delta_max / delta_min, k);
+        //std::cout<<1-delta<<" ";
+        all_rhos.push_back(1-delta);
+    }
+    //std::cout<<std::endl;
+
+    int numSteps = all_rhos.size();
+
+    // --- Phase 1: Allocate Storage for ALL Iterations ---
+    // This is the significant memory allocation you requested.
+    std::vector<double> all_J_values(numSteps);
+    std::vector<Block4D_> all_blocks(numSteps);
+    std::vector<ProbabilityModel*> all_models(numSteps);
+    Block4D_ blockOrig = block_0.clone();
+
+    for (int i = 0; i < numSteps; ++i) {
+        // This is now guaranteed to be safe.
+        all_blocks[i] = blockOrig.clone();
+    }
+
+    // --- Phase 2: Map (Parallel Evaluation) ---
+    // This loop has no inter-thread communication or locking. Each iteration is fully independent.
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < numSteps; ++i) {
+        int thread_id = omp_get_thread_num();
+        auto& localEncoderPtr = m_encoder_pool[thread_id];
+        //std::cout<<"WE ARE STARTING " <<omp_get_thread_num()<<std::endl;
+        //std::cout<< "Angle Search: " << i << "/" << numSteps << "\r" << std::flush;
+        Block4D_& current_block = all_blocks[i];
+        double rho_space;
+        double rho_angle;
+        if(searchSpace){
+            rho_space = all_rhos[i]; // Varying rho space for each iteration
+            rho_angle = fixedRho; // Fixed rho angle for all iterations
+        }else{
+            // If not searching space, we search angle, so we fix the rho space and vary the angle.
+            // This is the opposite of the previous case.
+            rho_angle = all_rhos[i]; // Varying rho angle for each iteration
+            rho_space = fixedRho; // Fixed rho space for all iterations
+        }
+
+        //std::cout<<"WE RUN CRITICAL!" <<omp_get_thread_num()<<std::endl;
+
+        ProbabilityModel* loopIterationModelState;
+        localEncoderPtr->GetOptimizerProbabilisticModelState(&loopIterationModelState);
+        //std::cout<<"Evaluation INCOMING "<<omp_get_thread_num()<<std::endl;
+
+        // Evaluate the cost for the current angle. encoder, Block4D_ &block_0, double currGain , double angle, double rhoAngle, double rhoSpace
+        double J0_curr = EvaluatePartitionArbitraryRho(*localEncoderPtr,current_block, currGain, angle, rho_angle, rho_space);
+        //std::cout<<"Evaluation Successful "<<omp_get_thread_num()<<std::endl;
+        // Store the complete result of this iteration without any comparisons.
+        all_J_values[i] = J0_curr;
+        //all_blocks[i] = temp_block;
+        all_models[i] = loopIterationModelState; // Store the pointer; will be managed later.
+    } // --- End of parallel region ---
+
+    //std::cout<<std::endl<<"We Finished it"<<std::endl;
+    // --- Phase 3: Reduce (Serial Selection) ---
+    // This section is executed by a single thread after the parallel work is done.
+    
+    // First, find the index of the best result.
+    auto min_iterator = std::min_element(all_J_values.begin(), all_J_values.end());
+    int best_index = std::distance(all_J_values.begin(), min_iterator);
+
+    double J0 = all_J_values[best_index];
+    
+    // Set the final output parameters from the winning iteration.
+    block_0 = all_blocks[best_index];
+    //std::cout<<"is sgt domain: "<<block_0.sgtDomain<<std::endl;
+
+    *coderModelState_0 = all_models[best_index]; // Transfer ownership of the winning model state.
+    cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+
+    //clean up memory
+    for (int i = 0; i < numSteps; ++i) {        
+        // CRITICAL: Clean up all model states that were not chosen.
+        // The winning model's ownership was transferred, so we must not delete it.
+        if (i != best_index) {
+            delete[] all_models[i];
+        }
+    }
+
+    return J0;
+
+}
+
 double TransformPartition :: RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
 
     double currGain = totalTransformGain();
