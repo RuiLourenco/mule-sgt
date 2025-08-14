@@ -37,18 +37,6 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
     auto ranges = sizes
         | transformed([&](auto&& sz){return at::arange(1-sz, sz, opts);})| to_t<tensor_arr_t>{};
 
-    // tensor_arr_t ranges;
-    // for (auto sz : sizes) {
-    //     std::cout<<"sz = "<<sz<<std::endl;
-    //     auto range = at::arange(1-sz, sz, opts);
-    //     std::cout << "Range for sz=" << sz << ": " << range << std::endl;
-    //     ranges.push_back(range);
-    // }
-        
-    auto meshes = at::meshgrid(ranges, "ij");
-    return {meshes[0], meshes[1]};
-}
-
 
 
 
@@ -387,64 +375,7 @@ at::Tensor SgtSideInfo::constrainedLeastSquares(at::Tensor A, at::Tensor b){
 
     return QPOptimization(P,q);
 }
-// at::Tensor SgtSideInfo::constrainedLeastSquares(at::Tensor A, at::Tensor b){
-//     // Compute Quadratic and Linear term for QP: 
-//     // P = A^T A (Hessian matrix)
-//     // q = -A^T b (Linear term)
-//     std::cout<<"0"<<std::endl;
-//     torch::Tensor P = A.t().mm(A);
-//     torch::Tensor q = -A.t().mm(b);
-//     std::cout<<"1"<<std::endl;
 
-//     // Convert tensors to raw C arrays (OSQP requires raw pointers)
-//     auto P_data = P.contiguous().data_ptr<double>();
-//     auto q_data = q.contiguous().data_ptr<double>();
-
-//     std::cout<<"2"<<std::endl;
-
-//     // Setup OSQP problem
-//     OSQPSettings settings;
-//     osqp_set_default_settings(&settings);
-//     std::cout<<"3"<<std::endl;
-
-//     settings.alpha = 1.0;  // Step size parameter
-//     settings.verbose = true;
-
-//     OSQPWorkspace *work;
-//     OSQPData data;
-//     c_int n = 2;  // Number of variables
-//     std::cout<<"4"<<std::endl;
-//     std::cout<<A.sizes()<<std::endl;
-
-//     // Convert P (Hessian) into sparse format (only diagonal stored)
-//     csc *P_sparse = csc_matrix(P.size(0), P.size(1), P.numel(), P_data, nullptr, nullptr);
-//     //csc *A_sparse = csc_matrix(A_constrains.size(0), A_constrains.size(1), A_constrains.numel(), A_constrains_data.contiguous().data_ptr<double>(), nullptr, nullptr);
-//     std::cout<<"5"<<std::endl;
-//     std::vector<c_float> l(n, 0.0), u(n, 0.99999);
-    
-//     std::cout<<"6"<<std::endl;
-
-//     // Initialize OSQP data
-//     data.n = n;
-//     data.m = 0;
-//     data.P = P_sparse;
-//     data.q = q_data;
-//     data.l = l.data();
-//     data.u = u.data();
-
-//     std::cout<<"I have initialized optimization data!"<<std::endl;
-//     // Setup solver
-//     osqp_setup(&work, &data, &settings);
-//     std::cout<<"setup is complete!"<<std::endl;
-//     // Solve the problem
-//     osqp_solve(work);
-//     std::cout<<"I have found the solution! It should be "<<work->solution->x[0]<<" and "<<work->solution->x[1]<<std::endl;
-
-//     // Extract solution into a Torch tensor (from raw pointer)
-//     torch::Tensor x = torch::from_blob(work->solution->x, {n}, torch::kDouble);
-//     return x;
-
-// }
 
 void Block4D_::Extend_T(int length_t) {
     this->data.index({at::indexing::Slice(length_t,data.size(0)),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()}) = this->data.index({at::indexing::Slice(length_t-1,length_t),at::indexing::Slice(),at::indexing::Slice(),at::indexing::Slice()}).repeat({data.size(0)-length_t,1,1,1});
@@ -720,11 +651,7 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
     return cov;
   }
 
-  std::vector<std::array<int64_t,4>> Block4D_::treeOrderedCoefficientPositions(std::array<int64_t,4> size){
-    std::vector<std::array<int64_t,4>> positions;
-    splitHexaDecaTree(size,{0,0,0,0},positions);
-    return positions;
-}
+ 
 
 
 at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
@@ -892,151 +819,8 @@ void Block4D_::saveBlockGradient(int64_t dimension) const{
 //     std::cout<<"L = "<<L<<std::endl;
 //     std::cout<<"Q = "<<Q<<std::endl;
 // }
-void Block4D_::splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions){
-    int64_t numElems = length[0]*length[1]*length[2]*length[3];
-    //std::cout<<"Position: "<<position[0]<<","<<position[1]<<","<<position[2]<<","<<position[3]<<" Length: "<<length[0]<<","<<length[1]<<","<<length[2]<<","<<length[3]<<std::endl;
-
-    if(numElems == 1){
-        positions.push_back(position);
-        return;
-    }
-
-    std::array<int64_t,4> half_length;
-    std::array<int64_t,4> number_of_subdivisions;
-    for(int i = 0; i < 4; i++){
-        half_length[i] = (length[i] > 1) ? length[i]/2 : 1;
-        number_of_subdivisions[i] = (length[i] > 1) ? 2 : 1;
-    }
-
-    for(int index_t = 0; index_t < number_of_subdivisions[0]; index_t++) {     
-        for(int index_s = 0; index_s < number_of_subdivisions[1]; index_s++) {    
-            for(int index_v = 0; index_v < number_of_subdivisions[2]; index_v++) {    
-                for(int index_u = 0; index_u < number_of_subdivisions[3]; index_u++) {
-                    std::array<int64_t,4> new_position;
-                    std::array<int64_t,4> new_length;
-                    std::array<int64_t,4> index = {index_t,index_s,index_v,index_u};
-                    for(int i = 0; i < 4; i++){
-                        new_position[i] = position[i]+index[i]*half_length[i];
-                        new_length[i] = (index[i] == 0) ? half_length[i] : (length[i] - half_length[i]);
-                    }  
-                        //std::cout<<"New Position: "<<new_position[0]<<","<<new_position[1]<<","<<new_position[2]<<","<<new_position[3]<<"New Length: "<<new_length[0]<<","<<new_length[1]<<","<<new_length[2]<<","<<new_length[3]<<std::endl;
-
-                    splitHexaDecaTree(new_length,new_position,positions);
-                }
-                    
-            }
-            
-        }   
-    }         
-} 
-
-void Block4D_::quadTreeUnsorting(at::Tensor treeSortedTransform, at::Tensor& sortedTransformCoefficients){
-    //std::cout<<treeSortedTransform.sizes()<<std::endl;
-    std::vector<std::array<int64_t,4>> treeOrderedPositions = Block4D_::treeOrderedCoefficientPositions({1,1,treeSortedTransform.size(0),treeSortedTransform.size(1)});
-        //std::cout<<"2 "<<treeSortedTransform.size(0)<<" "<<treeSortedTransform.size(1)<<std::endl;
-
-    int numElems = treeSortedTransform.size(0)*treeSortedTransform.size(1);
-        //std::cout<<"2 numElems = "<<numElems<<std::endl;
-
-    sortedTransformCoefficients = at::zeros({numElems});
-        //std::cout<<"2"<<std::endl;
-
-    for(int i = 0; i < treeOrderedPositions.size(); ++i){
-        sortedTransformCoefficients[i] = treeSortedTransform.index({treeOrderedPositions[i][2],treeOrderedPositions[i][3]});
-    }
-    //std::cout<<"sortedVectorWritten"<<std::endl;
-}
-at::Tensor Block4D_::quadTreeSorting(std::array<int64_t,4> size, at::Tensor sortedTransformCoefficients){
-    std::vector<std::array<int64_t,4>> treeOrderedPositions = Block4D_::treeOrderedCoefficientPositions(size);
-    at::Tensor orderedFlatTransform = at::zeros(size);
-    for(int i = 0; i < treeOrderedPositions.size(); ++i){
-        orderedFlatTransform.index({treeOrderedPositions[i][0],treeOrderedPositions[i][1],treeOrderedPositions[i][2],treeOrderedPositions[i][3]}) =sortedTransformCoefficients[i];
-    }
-    return orderedFlatTransform.squeeze();
-}
-
-at::Tensor Block4D_::blockAsSecondModelOrderedVector(at::Tensor flatBlock, SgtSideInfo secondModel, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV){
-    at::Tensor sortModelCovMatH = this->calcModelCovMatrix(secondModel,true);
-    at::Tensor sortModelCovMatV = this->calcModelCovMatrix(secondModel,false);
-    at::Tensor sortCoeffsH = at::diag(at::mm(at::mm(sgtMatrixH.t(),sortModelCovMatH),  sgtMatrixH)).unsqueeze(0);
-    at::Tensor sortCoeffsV = at::diag(at::mm(at::mm(sgtMatrixV.t(),sortModelCovMatV),  sgtMatrixV)).unsqueeze(0);
-    sortCoeffsH = sortCoeffsH/sortCoeffsH.abs().max();
-    sortCoeffsV = sortCoeffsV/sortCoeffsV.abs().max();
-    //saveTensorAsMatlabScript(at::mm(sortCoeffsV.t(),sortCoeffsH),"sortCoeffProportion");
-    //saveTensorAsMatlabScript(flatBlock,"zzBlock");
 
 
-    at::Tensor coefficientProportion = at::mm(sortCoeffsV.t(),sortCoeffsH).flatten();
-    auto [a,indEigOrder] = at::sort(coefficientProportion,0,true);
-    at::Tensor sortedFlatTransform = flatBlock.flatten().index({indEigOrder});
-    //this->ssi.print();
-    //secondModel.print();
-    //std::cout<<sortCoeffsH.sizes()<<std::endl;
-    // std::cout<<sortCoeffsH.index({0,at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
-    // std::cout<<sortCoeffsV.index({0,at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
-    // std::cout<<flatBlock.flatten().index({at::indexing::Slice(0,6)}).unsqueeze(0)<<std::endl;
-    return sortedFlatTransform;
-}
-void Block4D_::reOrderSGTMatrices(at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV, SgtSideInfo secondModel){
-    at::Tensor sortModelCovMatH = this->calcModelCovMatrix(secondModel,true);
-    at::Tensor sortModelCovMatV = this->calcModelCovMatrix(secondModel,false);
-    at::Tensor sortCoeffsH = at::diag(at::mm(at::mm(sgtMatrixH.t(),sortModelCovMatH),  sgtMatrixH));
-    at::Tensor sortCoeffsV = at::diag(at::mm(at::mm(sgtMatrixV.t(),sortModelCovMatV),  sgtMatrixV));
-
-    auto [coeffsH,indH] = at::sort(sortCoeffsH,0,true);
-    auto [coeffsV,indV] = at::sort(sortCoeffsV,0,true);
-    
-    sgtMatrixH = sgtMatrixH.index({at::indexing::Slice(),indH});
-    sgtMatrixV = sgtMatrixV.index({at::indexing::Slice(),indV});
-
-
-}
-// void Block4D_::reReOrderSGTMatrices(at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV, SgtSideInfo secondModel){
-//     at::Tensor sortModelCovMatH = this->calcModelCovMatrix(secondModel,true);
-//     at::Tensor sortModelCovMatV = this->calcModelCovMatrix(secondModel,false);
-//     at::Tensor sortCoeffsH = at::diag(at::mm(at::mm(sgtMatrixH.t(),sortModelCovMatH),  sgtMatrixH));
-//     at::Tensor sortCoeffsV = at::diag(at::mm(at::mm(sgtMatrixV.t(),sortModelCovMatV),  sgtMatrixV));
-
-//     auto [coeffsH,indH] = at::sort(sortCoeffsH,0,true);
-//     auto [coeffsV,indV] = at::sort(sortCoeffsV,0,true);
-    
-//     sgtMatrixH.index({at::indexing::Slice(),indH}) = sgtMatrixH;
-//     sgtMatrixV.index({at::indexing::Slice(),indV}) = sgtMatrixV;
-// }
-at::Tensor Block4D_::secondModelOrderedBlock2SGT(at::Tensor flatTransform, SgtSideInfo secondModel, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV){
-    at::Tensor sortedTransformCoefficients;
-    quadTreeUnsorting(flatTransform,sortedTransformCoefficients);
-    
-    at::Tensor sortModelCovMatH = this->calcModelCovMatrix(secondModel,true);
-    at::Tensor sortModelCovMatV = this->calcModelCovMatrix(secondModel,false);
-    at::Tensor sortCoeffsH = at::diag(at::mm(at::mm(sgtMatrixH.t(),sortModelCovMatH),  sgtMatrixH)).unsqueeze(0);
-    at::Tensor sortCoeffsV = at::diag(at::mm(at::mm(sgtMatrixV.t(),sortModelCovMatV),  sgtMatrixV)).unsqueeze(0);
-   // saveTensorAsMatlabScript(at::mm(sortCoeffsV.t(),sortCoeffsH),"sortCoeffProportion");
-
-
-    at::Tensor coefficientProportion = at::mm(sortCoeffsV.t(),sortCoeffsH).flatten();
-    auto [a,indEigOrder] = at::sort(coefficientProportion,0,true);
-
-    at::Tensor indices = indEigOrder;
-
-    at::Tensor sgtCoefficients = at::zeros(sortedTransformCoefficients.sizes());
-    sgtCoefficients = sgtCoefficients.index_put({indices},sortedTransformCoefficients);
-    flatTransform = sgtCoefficients.reshape(flatTransform.sizes()).to(at::kDouble);
-    
-    
-    return flatTransform;
-}
-
-
-at::Tensor Block4D_::blockAsEigenOrderedVector(at::Tensor flatBlock, at::Tensor eigenValuesH, at::Tensor eigenValuesV){
-    eigenValuesH = eigenValuesH.unsqueeze(0);
-    eigenValuesV = eigenValuesV.unsqueeze(0);
-    at::Tensor coefficientProportion = at::mm(eigenValuesV.t(),eigenValuesH).flatten();
-    auto [a,indEigOrder] = at::sort(coefficientProportion,0,true);
-    //saveTensorAsMatlabScript(at::mm(eigenValuesV.t(),eigenValuesH),"eigenCoeffProportion");
-    at::Tensor sortedFlatTransform = flatBlock.flatten().index({indEigOrder});
-    return sortedFlatTransform;
-}
 void Block4D_::sgtTransform(double scale){
     //std::cout<<"SGT transform"<<std::endl;
     
@@ -1052,8 +836,9 @@ void Block4D_::sgtTransform(double scale){
     at::Tensor flatBlock = scale * getFlatBlock();
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
+    
 
-    saveTensorAsMatlabScript(sgtMatrixH,"sgtMatrixH_n47");
+
     
     
     this->eigenValuesH = eigValsH;
@@ -1068,9 +853,9 @@ void Block4D_::sgtTransform(double scale){
     //std::cout<<" Dt/Dv: "<<Dt/Dv<<std::endl;
     //std::cout<<" Ds/Dt: "<<Ds/Dt<<std::endl;
     //std::cout<<" Du/Dv: "<<Du/Dv<<std::endl;
-    write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
+    //write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
-    write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
+    //write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
 
     //flatTransform.index({at::indexing::Slice({flatTransform.size(0)/8,flatTransform.size(0)}),at::indexing::Slice({flatTransform.size(1)/8,flatTransform.size(1)})}) = 0 ;
 
@@ -1140,608 +925,15 @@ void Block4D_::kltTransform(double scale){
     std::cout<<"KLT Compressed!"<<std::endl;
 }
 
-at::Tensor Block4D_::getZigZagIndexes(std::array<int64_t,2> size){
-    int64_t size2 = size[0]*size[1];
 
-    at::Tensor indMatrix = at::range(0,size[0]*size[1]-1,1).reshape({size[0],size[1]});
 
-    torch::TensorOptions options = torch::TensorOptions();
-    at::Tensor zigZag = at::empty({0},options.dtype(at::kLong));
-
-    for(int i = -(size[0] - 1); i < size[1] ; ++i){
-
-        at::Tensor diag = at::diag(indMatrix.fliplr(),i).to(at::kLong);
-        if(i%2 == 0){
-            diag = diag.flip(0);
-        }
-        zigZag =at::cat({zigZag,diag},0);
-    }
-    zigZag = zigZag.flip(0);
-    //std::cout<<zigZag.index({at::indexing::Slice(0,10)})<<std::endl;
-    return zigZag;
-}
-
-at::Tensor Block4D_::getOrdered2DFromZigZagCoeffs(at::Tensor coeffs){
-    std::array<int64_t,2> size = {data.size(0)*data.size(2),data.size(1)*data.size(3)};
-    at::Tensor flatBlock = coeffs.reshape(size);
-    //std::cout<<"data type = "<<flatBlock.dtype()<<std::endl;
-    return flatBlock;
-}
-at::Tensor Block4D_::flatBlockFrom4DTensor(at::Tensor block){
-    at::Tensor coeffs = diagonalOrder4DSampling(block);
-    //std::cout<<"coeffs: "<<coeffs.index({at::indexing::Slice(0,10)})<<std::endl;
-    coeffs = coeffs.index({getReverseZigZagIndexes({block.size(0)*block.size(2),block.size(1)*block.size(3)})});
-    //std::cout<<"original coeffs: "<<coeffs.index({at::indexing::Slice(0,10)})<<std::endl;
-    return getOrdered2DFromZigZagCoeffs(coeffs);
-}
-at::Tensor Block4D_::sgtFrom2DCoefficients(at::Tensor coefficients){
-    at::Tensor indexes = getZigZagIndexes({coefficients.size(0),coefficients.size(1)});
-    at::Tensor sgtCoefficients = coefficients.flatten().index({indexes});
-    //std::cout<<" SGT Coeffs: "<<std::endl<<sgtCoefficients.index({at::indexing::Slice(0,10)})<<std::endl;
-    //std::cout<<" SGT Orig Coeffs: "<<std::endl<<coefficients.flatten().index({at::indexing::Slice(0,10)})<<std::endl;
-
-    return diagonalOrder4DBlock(sgtCoefficients);
-}
-
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> findLocalMaxima(const torch::Tensor& tensor, float relative_threshold = 0.0) {
-    // Ensure the input is a 2D tensor
-    TORCH_CHECK(tensor.dim() == 2, "Input tensor must be 2D");
-
-    // Find the global maximum value in the tensor
-    auto global_max = tensor.max().item<float>();
-
-    // Calculate the absolute threshold based on the relative threshold
-    float absolute_threshold = global_max * relative_threshold;
-
-    // Pad the tensor to handle border elements
-    auto padded_tensor = torch::constant_pad_nd(tensor, {1, 1, 1, 1}, -std::numeric_limits<float>::infinity());
-
-    // Get the size of the original tensor
-    auto rows = tensor.size(0);
-    auto cols = tensor.size(1);
-
-    // Create shifted versions of the tensor to compare with neighbors
-    std::vector<torch::Tensor> neighbors;
-    std::vector<std::pair<int64_t, int64_t>> shifts = {
-        {0, 0},   // center
-        {0, 1},   // right
-        {0, -1},  // left
-        {1, 0},   // down
-        {-1, 0},  // up
-        {1, 1},   // down-right
-        {1, -1},  // down-left
-        {-1, 1},  // up-right
-        {-1, -1}  // up-left
-    };
-
-    for (const auto& shift : shifts) {
-        neighbors.push_back(padded_tensor.slice(0, 1 + shift.first, 1 + shift.first + rows)
-                                         .slice(1, 1 + shift.second, 1 + shift.second + cols));
-    }
-
-    // Stack all shifted tensors along a new dimension
-    auto neighbor_stack = torch::stack(neighbors);
-
-    // Compare the center with all its neighbors
-    auto local_maxima = (tensor > neighbor_stack.slice(0, 1, neighbor_stack.size(0))).all(0);
-
-    // Apply the threshold to filter out insignificant maxima
-    local_maxima = local_maxima & (tensor >= absolute_threshold);
-
-    // Get the indices of local maxima
-    auto maxima_indices = local_maxima.nonzero();
-
-    // Extract vertical (n) and horizontal (m) coordinates
-    auto n = maxima_indices.select(1, 0);
-    auto m = maxima_indices.select(1, 1);
-
-    // Extract the values of the peaks
-    auto peaks = tensor.index({n, m});
-
-    return std::make_tuple(peaks, n, m);
-}
-
-
-at::Tensor Block4D_::get2DBasis(at::Tensor sgtMatrix, int n) const{
-    return sgtMatrix.index({at::indexing::Slice(),n}).reshape({this->size[0],this->size[2]});
-}
-
-double deg2rad(double angle){
-    return angle * M_PI / 180.0;
-}
-std::array<double,2> Block4D_::getMainFrequency(at::Tensor basisFunction,double angle, int index) const{
-    using namespace torch::fft;
-    
-    int scale = 4;
-    double slope = -(angle);
-    double orthAngle = slope+90;
-    std::array<int64_t,2> fftSize = {4*basisFunction.size(0),4*basisFunction.size(1)};
-
-    int bias_h = round(fftSize[1]/2);
-    int bias_v = round(fftSize[0]/2);
-
-    //std::cout<<bias_h<<" "<<bias_v<<std::endl;
-    double weight_h = 2.0/fftSize[1];
-    double weight_v = 2.0/fftSize[0];
-
-    at::Tensor v_th = torch::tensor({sin(deg2rad(orthAngle)),cos(deg2rad(orthAngle))});
-    
-
-    auto block_dft = fftshift(fftn(basisFunction, fftSize).abs());
-
-    auto [peaks,w_k,w_m] = findLocalMaxima(block_dft,0.4);
-    #if DEBUG == 1
-    
-    
-    if(index == 70){
-        //write_tensor(block_dft,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/frequency.png");
-    }
-    #endif
-    auto [peaks_unq, unq] = at::_unique(peaks.round(5),true,true);
-    auto w_k_unq = w_k.index({unq});
-    auto w_m_unq = w_m.index({unq});
-
-    w_k_unq = (w_k_unq - bias_v)*weight_v;
-    w_m_unq = (w_m_unq - bias_h)*weight_h;
- 
-    //   std::cout<<peaks_unq<<" "<<unq<<std::endl;
-    // std::cout<<w_k_unq<<std::endl;
-    // std::cout<<w_m_unq<<std::endl;
-    auto w = at::stack({w_k_unq,w_m_unq},0);
-    at::Tensor w_th = at::mm(v_th.unsqueeze(0),w).squeeze();
-    //    if(index == 70){
-    //     std::cout<<"peaks:"<<std::endl<<peaks<<std::endl;
-    //     std::cout<<"w_k:"<<std::endl<<w_k_unq<<std::endl;
-    //     std::cout<<"w_m:"<<std::endl<<w_m_unq<<std::endl;
-    //     std::cout<<"w_th:"<<std::endl<<w_th<<std::endl;
-    // }
-    auto w_th_min = w_th.abs().min();
-    auto min_index = w_th.argmin();
-    auto w_m_min = w_m_unq.index({min_index}).abs();
-    return {w_th_min.item<double>(),w_m_min.item<double>()};
-
-}
-at::Tensor Block4D_::getFrequencyOrdering(at::Tensor basisFrequenciesH, at::Tensor basisFrequenciesV){
-
-    double angleWeight = 4;
-    double spatialWeight = 1;
-    at::Tensor ordering = at::zeros({basisFrequenciesH.size(0),basisFrequenciesV.size(0)},at::kDouble);
-    int64_t orderingIndex = 0;
-    for(int i = 0; i < basisFrequenciesH.size(0);i++){
-        for(int j = 0; j < basisFrequenciesV.size(0);j++){
-            double distance = sqrt((angleWeight * (basisFrequenciesH[i][0]*basisFrequenciesH[i][0])
-                                   + angleWeight * (basisFrequenciesV[j][0]*basisFrequenciesV[j][0])
-                                   + spatialWeight * (basisFrequenciesH[i][1] *basisFrequenciesH[i][1])
-                                   + spatialWeight * (basisFrequenciesV[j][1] * basisFrequenciesV[j][1])
-                                   ).item<double>());
-            //if(i == 0) std::cout<<"("<<basisFrequenciesH[i][0].item<double>()<<" "<<basisFrequenciesH[i][1].item<double>()<<" "<<basisFrequenciesV[j][0].item<double>()<<" "<<basisFrequenciesV[j][1].item<double>()<<") = " <<distance<<std::endl;
-            ordering[j][i] = distance;
-        }
-    }
-    //write_tensor(ordering,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anOrdering4.png");
-    auto [orderingSorted,orderingIndices] = ordering.flatten().sort({},false);
-    std::cout<<orderingSorted.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-    return orderingIndices;
-}
-
-at::Tensor Block4D_::getOrdinalFrequencies(const at::Tensor& basisFrequencies) const {
-    std::cout<<"Something is gonna get fucked up"<<std::endl;
-    auto [sortedTh,indexTh] = basisFrequencies.index({at::indexing::Slice(),0}).sort(true,0,false);
-    torch::Tensor range = torch::arange(indexTh.size(0), indexTh.options());
-    torch::Tensor orderTh = torch::empty_like(indexTh);
-    orderTh.scatter_(0, indexTh, range);
-    at::Tensor ordinalTh = (orderTh/transformSize[3]).floor().to(at::kLong); //TO DO: This does not work for rectangular blocks.
-
-    
-    at::Tensor basisFrequenciesM = basisFrequencies.index({at::indexing::Slice(),1});
-    at::Tensor basisFrequenciesTh = basisFrequencies.index({at::indexing::Slice(),0});
-    at::Tensor frequencyWeight = basisFrequenciesM*basisFrequenciesM; //+ 200*(basisFrequenciesTh*basisFrequenciesTh);
-    at::Tensor basisFrequenciesMReordered = torch::empty_like(basisFrequenciesM);
-    basisFrequenciesMReordered.scatter_(0,orderTh,frequencyWeight);
-    //std::cout<<"basisFrequenciesM "<<std::endl<<basisFrequenciesM.index({at::indexing::Slice(32,64)})<<std::endl;
-    //auto [sortedM,ordinalM] = basisFrequencies.index({at::indexing::Slice(),1}).sort(true,0,false);
-    at::Tensor ordinalM = at::zeros(ordinalTh.sizes(),at::kLong);
-    //std::cout<<ordinalTh.unsqueeze(0)<<std::endl;
-    at::Tensor orderedOrdinalTh = ordinalTh.index({indexTh});
-
-    //std::cout<<"We should be good still"<<std::endl;
-    
-    for(int i = 0; i <transformSize[1];i++){
-        int originalIndexBias = i*transformSize[3]; 
-        at::Tensor dbgOrdinalSegment = orderedOrdinalTh.index({at::indexing::Slice(i*transformSize[3],(i+1)*transformSize[3])});
-        at::Tensor freqSegment = basisFrequenciesMReordered.index({at::indexing::Slice(i*transformSize[3],(i+1)*transformSize[3])});
-        auto [sortedMSegment,indexM] = freqSegment.sort(true,0,false);
-        torch::Tensor range2 = torch::arange(indexM.size(0), indexM.options());
-        torch::Tensor segmentOrdinalM = torch::empty_like(indexM);
-        segmentOrdinalM.scatter_(0, indexM, range2);
-        ordinalM.index({at::indexing::Slice(i*transformSize[3],(i+1)*transformSize[3])}) = segmentOrdinalM;
-        //std::cout<<at::stack({range2+originalIndexBias,freqSegment,segmentOrdinalM},0)<<std::endl;
-    }
-    ordinalM = ordinalM.index({{orderTh}});
-    //std::cout<<"ordinalM: "<<ordinalM.index({at::indexing::Slice(32,39)}).unsqueeze(0) <<std::endl;
-    //std::cout<<"cardinalM: "<<basisFrequenciesM.index({at::indexing::Slice(32,39)}).unsqueeze(0) <<std::endl;
-    //std::cout<<"cardinalMReordered: "<<basisFrequenciesMReordered.index({at::indexing::Slice(32,39)}).unsqueeze(0) <<std::endl;
-
-    //std::cout<<"ordinalTH: "<<ordinalTh.sizes()<<std::endl<< ordinalTh.index({at::indexing::Slice()}).unsqueeze(0) <<std::endl;
-    //std::cout<<"ordinalM: "<<ordinalM.sizes()<<std::endl<< ordinalM.unsqueeze(0) <<std::endl;
-    
-    
-    //std::cout<<"basisFrequenciesTH:"<<std::endl<<basisFrequencies.index({at::indexing::Slice(0,10),0}).unsqueeze(0)<<std::endl;
-
-    return at::stack({ordinalTh,ordinalM},0);
-}
-at::Tensor getFullOrdinalFrequency(const at::Tensor& basisFrequenciesH, const at::Tensor& basisFrequenciesV,const at::Tensor& ordinalFrequenciesH, const at::Tensor& ordinalFrequenciesV, at::Tensor& frequencies){
-    //at::Tensor fullOrdinalFrequencies = at::zeros({ordinalFrequenciesV.size(1),ordinalFrequenciesH.size(1),4},at::kDouble);
-    //frequencies = at::zeros(fullOrdinalFrequencies.sizes(),at::kDouble);
-    
-    at::Tensor ordinalH = ordinalFrequenciesH.permute({1, 0}).unsqueeze(0);
-    at::Tensor ordinalV = ordinalFrequenciesV.permute({1, 0}).unsqueeze(1);
-    std::cout<<"ordinalH Size = " << ordinalH.sizes()<<std::endl;
-    ordinalH = ordinalH.expand({ordinalFrequenciesV.size(1), ordinalFrequenciesH.size(1), 2});
-    ordinalV = ordinalV.expand({ordinalFrequenciesV.size(1), ordinalFrequenciesH.size(1), 2});
-    at::Tensor fullOrdinalFrequencies = torch::cat({ordinalV, ordinalH}, /*dim=*/2);
-    at::Tensor indexes = torch::tensor({0,2,1,3},torch::kLong);
-    fullOrdinalFrequencies = fullOrdinalFrequencies.index({at::indexing::Slice(),at::indexing::Slice(),indexes});
-    fullOrdinalFrequencies = fullOrdinalFrequencies.flatten(0,1).t();
-#if DEBUG == 1
-    std::cout<<"Freq Sizes = "<<basisFrequenciesH.sizes()<<std::endl;
-    std::cout<<"Ordinal Sizes = "<<ordinalFrequenciesH.sizes()<<std::endl;
-    at::Tensor freqH = basisFrequenciesH.t().permute({1, 0}).unsqueeze(0);
-    at::Tensor freqV = basisFrequenciesV.t().permute({1, 0}).unsqueeze(1);
-    std::cout<<"ordinalH Size = " << ordinalH.sizes()<<std::endl;
-    freqH = freqH.expand({basisFrequenciesV.t().size(1),basisFrequenciesV.t().size(1),2});
-    freqV = freqV.expand({basisFrequenciesV.t().size(1),basisFrequenciesV.t().size(1),2});
-    frequencies = torch::cat({freqV,freqH},2);
-    frequencies = frequencies.index({at::indexing::Slice(),at::indexing::Slice(),indexes});
-    frequencies = frequencies.flatten(0,1).t().round(1);
- 
-#endif 
-    return fullOrdinalFrequencies;
-}
-at::Tensor Block4D_::to4DTransform(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const {
-    at::Tensor output = at::zeros(transformSize,coefficients.dtype());
-     auto flattened_indices = fullOrdinalFrequencies[0] * output.size(1) * output.size(2) * output.size(3)
-                           + fullOrdinalFrequencies[1] * output.size(2) * output.size(3)
-                           + fullOrdinalFrequencies[2] * output.size(3)
-                           + fullOrdinalFrequencies[3];
-     output.view(-1).index_add_(0, flattened_indices, coefficients);                      
-
-    return output;
-}
-
-at::Tensor Block4D_::from4DTransform(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients4D) const {
-    at::Tensor coefficients = at::zeros({coefficients4D.numel()},coefficients4D.dtype());
-    //std::cout<<coefficients.sizes()<<std::endl;
-    //std::cout<<coefficients4D.sizes()<<std::endl;
-    for(int i = 0; i < fullOrdinalFrequencies.size(1); i++){
-        //output[fullOrdinalFrequencies[0][i].item<int64_t>()][fullOrdinalFrequencies[1][i].item<int64_t>()][fullOrdinalFrequencies[2][i].item<int64_t>()][fullOrdinalFrequencies[3][i].item<int64_t>()] = 1000000;
-        coefficients[i] = coefficients4D[fullOrdinalFrequencies[0][i].item<int64_t>()][fullOrdinalFrequencies[1][i].item<int64_t>()][fullOrdinalFrequencies[2][i].item<int64_t>()][fullOrdinalFrequencies[3][i].item<int64_t>()] ;
-    }
-    coefficients = coefficients.reshape({1,1,size[0]*size[2],size[1]*size[3]});
-    return coefficients;
-}
-// at::Tensor Block4D_::getFullOrder(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const {
-    
-//     at::Tensor output = at::zeros(coefficients.sizes(),at::kDouble);
-//     std::cout<<"Empty Tensor Created"<<std::endl;
-//     std::cout<<"fullOrdinalFrequencies: "<<fullOrdinalFrequencies.sizes()<<std::endl;
-//     std::cout<<"fullOrdinalFrequencies: "<<std::endl<<fullOrdinalFrequencies.index({at::indexing::Slice(),at::indexing::Slice({0,10})})<<std::endl;
-//     int i = 0;
-//     int64_t maxSum = (this->size[0]-1)+(this->size[1]-1);
-//     int64_t maxInnerSum = (this->size[2]-1)+(this->size[3]-1);
-//         std::cout<<"Max Sums Computed. Outer Max: "<<maxSum<<" Inner Max: "<<maxInnerSum<<std::endl;
-
-
-//     for (int summ = 0; summ < maxSum; summ++){
-//         std::vector<int64_t> indices;
-//         for (int64_t w_l = 0; w_l < transformSize[0]; w_l++){
-//             for (int64_t w_k = 0; w_k < transformSize[1]; w_k++){
-
-//             at::Tensor currentW = fullOrdinalFrequencies.index({at::indexing::Slice(),j});
-            
-//             //std::cout<<j<<":"<<currentW<<std::endl;
-//             int64_t sumAngle = (currentW[0] + currentW[1]).item<int64_t>();
-//             //if(summ == 0) std::cout<<sumAngle<<" ("<<currentW[0].item()<<" "<<currentW[1].item()<<std::endl;
-
-//             // if(currentW[0].item<int64_t>() == 0 && currentW[1].item<int64_t>() == 0 && summ == 0){
-//             //     std::cout<<"apt apt apt: "<<sumAngle<<" ("<<currentW[0].item()<<" "<<currentW[1].item()<<" )"<<coefficients[indices[j]].item()<<std::endl;
-//             // }
-//             if (sumAngle == summ){
-//                 indices.push_back(j);
-//             }
-//         }
-//         std::cout<<"Finished Outer Loop "<<indices.size()<<std::endl;
-
-
-//         for (int innerSum = 0; innerSum < maxInnerSum; innerSum++){
-//                 for(int64_t j = 0; j < indices.size(); j++){
-//                     at::Tensor currentW = fullOrdinalFrequencies.index({at::indexing::Slice(),indices[j]});
-//                     int64_t sumSpace = (currentW[2] + currentW[3]).item<int64_t>();
-//                     if(currentW[0].item<int64_t>() == 0 && currentW[1].item<int64_t>() == 0 && innerSum == 0){
-//                         //std::cout<<"apt apt: "<<sumSpace<<" "<<currentW[2]<<" "<<currentW[3]<<" "<<coefficients[indices[j]]<<std::endl;
-//                     }
-//                     if (sumSpace == innerSum){
-//                         output[i] = coefficients[indices[j]];
-//                         //std::cout<<"hello "<<sumSpace<<" "<<innerSum<<" "<<indices[j]<<" "<<coefficients[indices[j]]<<std::endl;
-//                         i++;
-//                     }
-//                 }
-//            //std::cout<<"Finished Inner Loop "<<innerSum<<std::endl;    
-//         }
-//     }
-//     std::cout<<"Output: "<<std::endl;
-//     std::cout<<output.index({at::indexing::Slice(0,10)})<<std::endl;
-//     return output;
-// }
-
-at::Tensor Block4D_::recoverOrder(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const {
-
-    at::Tensor order = at::zeros(coefficients.sizes(),at::kDouble);
-    int i = 0;
-    int64_t maxSum = (this->size[0]-1)+(this->size[1]-1);
-    int64_t maxInnerSum = (this->size[2]-1)+(this->size[3]-1);
-
-    for (int summ = 0; summ < maxSum; summ++){
-        std::vector<int64_t> indices;
-        for (int64_t j = 0; j < fullOrdinalFrequencies.size(2); j++){
-            at::Tensor currentW = fullOrdinalFrequencies.index({at::indexing::Slice(),j});
-            int64_t sumAngle = (currentW[0] + currentW[1]).item<int64_t>();
-            if (sumAngle == summ){
-                indices.push_back(j);
-            }
-        }
-
-        for (int innerSum = 0; innerSum < maxInnerSum; innerSum++){
-            for(int64_t j = 0; j < indices.size(); j++){
-                at::Tensor currentW = fullOrdinalFrequencies.index({at::indexing::Slice(),indices[j]});
-                int64_t sumSpace = (currentW[2] + currentW[3]).item<int64_t>();
-                if (sumSpace == innerSum){
-                    order[i] = indices[j];
-                    i++;
-                }
-            }
-            
-        }
-    }
-    at::Tensor output = coefficients.index({order});
-    return output;
-}
-                
-void Block4D_::view4DFrequencies(at::Tensor fullOrdinalFrequencies, at::Tensor frequencies) const{
-    at::Tensor output = at::zeros(this->transformSize,frequencies.dtype());
-    for( int j = 0; j < frequencies.size(0);j++){
-        for(int i = 0; i < fullOrdinalFrequencies.size(1); i++){
-            //output[fullOrdinalFrequencies[0][i].item<int64_t>()][fullOrdinalFrequencies[1][i].item<int64_t>()][fullOrdinalFrequencies[2][i].item<int64_t>()][fullOrdinalFrequencies[3][i].item<int64_t>()] = 1000000;
-            output[fullOrdinalFrequencies[0][i].item<int64_t>()][fullOrdinalFrequencies[1][i].item<int64_t>()][fullOrdinalFrequencies[2][i].item<int64_t>()][fullOrdinalFrequencies[3][i].item<int64_t>()] = frequencies[j][i];
-        }
-        //std::cout<<output.min().item()<<" "<<output.max().item()<<std::endl;
-        int border_size = 4;
-        at::Tensor vizTransform = at::zeros({output.size(0)*output.size(2)+border_size*8,output.size(1)*output.size(3)+border_size*8},at::kDouble);
-        int begin_i = 0;
-        for(int k = 0; k < this->transformSize[1]; k++){
-            int begin_j = 0;
-            for(int l = 0; l < this->transformSize[0]; l++){
-               //std::cout<<j<<","<<k<<","<<l<<std::endl;
-                //std::cout<<"hello!"<<std::endl;
-                //std::cout<<begin_i<<" "<<begin_i+32<<"| "<<begin_j<<" "<<begin_j+32;
-                vizTransform.index({at::indexing::Slice({begin_i,begin_i+this->transformSize[3]}),at::indexing::Slice({begin_j,begin_j+this->transformSize[3]})}) = output[k][l]; 
-                begin_j += this->transformSize[2]+border_size;
-                //std::cout<<" done"<<std::endl;
-            }
-            begin_i += this->transformSize[3]+border_size;
-        }
-        //std::cout<<"vizTransform: "<<vizTransform.min().item()<<" "<<vizTransform.max().item()<<std::endl;
-
-        //write_tensor(vizTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/Frequency4D_"+std::to_string(j)+".png");
-        // write_tensor(vizTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/Frequency4D_"+std::to_string(j)+".png",{0,vizTransform.max().item<double>()});
-    }
-}
-
-at::Tensor Block4D_::orderCoefficientsByFrequency(const at::Tensor& coefficientBlock,const at::Tensor& sgtMatrixH,const at::Tensor& sgtMatrixV) const{
-    //std::cout<<"Ordering Coefficients"<<std::endl;
-    std::cout<<"MAX COEFFICIENT BIT SIZE: "<<log2(coefficientBlock.max().item<double>())<<std::endl;
-    at::Tensor flatBlockDouble = coefficientBlock.to(at::kDouble);
-    std::cout<<log2(1+(flatBlockDouble[70][0].abs().item<double>()))<<" "<<log2(1+(flatBlockDouble[0][70].abs().item<double>()))<<std::endl;
-    double angleH = this->ssi.getAngleH();
-    double angleV = this->ssi.getAngleV();
-    at::Tensor basisFrequenciesH = getBasisFrequencies(sgtMatrixH,angleH);
-    at::Tensor basisFrequenciesV = getBasisFrequencies(sgtMatrixV,angleV);
-    std::cout<<"basisFrequencies: "<<basisFrequenciesH[70];
-    //std::cout<<"Index of Max Frequency: "<<basisFrequenciesV.index({at::indexing::Slice(),0}).argmax().item<int64_t>()<<std::endl;
-    at::Tensor basisFrequenciesViewTH = basisFrequenciesH.index({at::indexing::Slice(),0}).squeeze().repeat({basisFrequenciesV.size(0),1});
-    at::Tensor basisFrequenciesViewTV = basisFrequenciesV.index({at::indexing::Slice(),0}).t().repeat({basisFrequenciesH.size(0),1}).t();
-    //write_tensor(basisFrequenciesViewTH,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesH.png");
-    //write_tensor(basisFrequenciesViewTV,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/BasisFrequenciesV.png");
-
-    at::Tensor ordinalFrequenciesH = getOrdinalFrequencies(basisFrequenciesH);
-    at::Tensor ordinalFrequenciesV = getOrdinalFrequencies(basisFrequenciesV);
-
-    std::cout<<"LOOK HERE: "<<ordinalFrequenciesH.t()[70]<<std::endl;
-    //std::cout<<"RelevantH: "<<ordinalFrequenciesH.t()[0]<<std::endl;
- 
-    
-        std::cout<<"Acquired Frquency Order of Basis"<<std::endl;
-    at::Tensor frequencies;
-    
-    at::Tensor ordinalFrequenciesFull = getFullOrdinalFrequency(basisFrequenciesH, basisFrequenciesV,ordinalFrequenciesH,ordinalFrequenciesV, frequencies);
-        std::cout<<"Acquired Full Coefficient Order"<<std::endl;
-
-        #if DEBUG == 1
-    //std::cout<<"Acquired Basis Frequencies"<<std::endl;
-    //std::cout<<"RelevantH: "<<basisFrequenciesH[0]<<std::endl;
-    //std::cout<<"RelevantV: "<<basisFrequenciesV[96]<<std::endl;
-    //std::cout<<"RelevantV: "<<ordinalFrequenciesV.t()[96]<<std::endl;
-    view4DFrequencies(ordinalFrequenciesFull, frequencies);
-#endif   
-    //std::cout<<ordinalFrequenciesH.index({at::indexing::Slice(),at::indexing::Slice()})<<std::endl;
-    //std::cout<<ordinalFrequenciesFull.index({at::indexing::Slice(),at::indexing::Slice({32,64})})<<std::endl;
-    //std::cout<<"frequencies: "<<std::endl<<frequencies.index({at::indexing::Slice(),at::indexing::Slice(32,64)})<<std::endl;
-    //view4DFrequencies(ordinalFrequenciesFull,frequencies);
-    //at::Tensor reOrdered = getFullOrder(ordinalFrequenciesFull,flatBlockDouble.flatten());
-    at::Tensor reOrdered = to4DTransform(ordinalFrequenciesFull,flatBlockDouble.flatten());
-        std::cout<<"Reordered Coefficients"<<std::endl;
-    //view4DFrequencies(ordinalFrequenciesFull,frequencies);
-    //reOrdered = reOrdered.reshape({this->transformSize[0],this->transformSize[1],this->transformSize[2],this->transformSize[3]});
-    std::cout<<"Reshaped to 4D"<<std::endl;
-
-    return reOrdered;    
-}
-
-
-
-at::Tensor Block4D_::reverseOrderCoefficientsByFrequency(const at::Tensor& coefficientBlock,const at::Tensor& sgtMatrixH,const at::Tensor& sgtMatrixV) const{
-    std::cout<<"Ordering Coefficients"<<std::endl;
-    //at::Tensor flatBlockDouble = coefficientBlock.to(at::kDouble);
-    double angleH = this->ssi.getAngleH();
-    double angleV = this->ssi.getAngleV();
-    at::Tensor basisFrequenciesH = getBasisFrequencies(sgtMatrixH,angleH);
-    at::Tensor basisFrequenciesV = getBasisFrequencies(sgtMatrixV,angleV);
-        std::cout<<"Acquired Basis Frequencies"<<std::endl;
-
-    at::Tensor ordinalFrequenciesH = getOrdinalFrequencies(basisFrequenciesH);
-    at::Tensor ordinalFrequenciesV = getOrdinalFrequencies(basisFrequenciesV);
-        std::cout<<"Acquired Frquency Order of Basis"<<std::endl;
-    at::Tensor frequencies;
-    
-    at::Tensor ordinalFrequenciesFull = getFullOrdinalFrequency(basisFrequenciesH, basisFrequenciesV,ordinalFrequenciesH,ordinalFrequenciesV, frequencies);
-        std::cout<<"Acquired Full Coefficient Order"<<std::endl;
-    //std::cout<<ordinalFrequenciesH.index({at::indexing::Slice(),at::indexing::Slice()})<<std::endl;
-    //std::cout<<ordinalFrequenciesFull.index({at::indexing::Slice(),at::indexing::Slice({32,64})})<<std::endl;
-    //std::cout<<"frequencies: "<<std::endl<<frequencies.index({at::indexing::Slice(),at::indexing::Slice(32,64)})<<std::endl;
-
-    //at::Tensor reOrdered = getFullOrder(ordinalFrequenciesFull,flatBlockDouble.flatten());
-    at::Tensor reOrdered = from4DTransform(ordinalFrequenciesFull,coefficientBlock);
-        std::cout<<"Reordered Coefficients"<<std::endl;
-    //view4DFrequencies(ordinalFrequenciesFull,frequencies);
-    //reOrdered = reOrdered.reshape({this->transformSize[0],this->transformSize[1],this->transformSize[2],this->transformSize[3]});
-    std::cout<<"Reshaped to 2D:  "<<reOrdered.sizes()<<std::endl;
-
-    return reOrdered;    
-}
-// at::Tensor Block4D_::recoverCoefficientOrder(const at::Tensor& reOrderedCoefficientBlock, const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) const{
-//         double angleH = this->ssi.getAngleH();
-//     double angleV = this->ssi.getAngleV();
-//     at::Tensor basisFrequenciesH = getBasisFrequencies(sgtMatrixH,angleH);
-//     at::Tensor basisFrequenciesV = getBasisFrequencies(sgtMatrixV,angleV);
-    
-//     at::Tensor ordinalFrequenciesH = getOrdinalFrequencies(basisFrequenciesH);
-//     at::Tensor ordinalFrequenciesV = getOrdinalFrequencies(basisFrequenciesV);
-//     at::Tensor ordinalFrequenciesFull = getFullOrdinalFrequency(ordinalFrequenciesH,ordinalFrequenciesV);
-//     at::Tensor recovered = recoverOrder(ordinalFrequenciesFull,reOrderedCoefficientBlock.flatten());
-//     recovered = recovered.reshape({1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]});
-//     return recovered;
-// }
-at::Tensor Block4D_::frequencyOrderedSgt(at::Tensor flatBlock, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV){
-    flatBlock = flatBlock.to(at::kDouble);
-    double angleH = this->ssi.getAngleH();
-    double angleV = this->ssi.getAngleV();
-    at::Tensor basisFrequenciesH = getBasisFrequencies(sgtMatrixH,angleH);
-    at::Tensor basisFrequenciesV = getBasisFrequencies(sgtMatrixV, angleV);
-    std::cout<<"Got Frequencies!"<<std::endl;
-    at::Tensor ordering = getFrequencyOrdering(basisFrequenciesH,basisFrequenciesV);
-    std::cout<<"Got the Ordering!"<<std::endl;
-    std::cout<<ordering.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-    std::cout<<flatBlock.dtype()<<std::endl;
-    at::Tensor sgtCoefficients = at::mm(at::mm(sgtMatrixV.t(), flatBlock), sgtMatrixH);
-
-    std::cout<<"Got the Coefficients!"<<std::endl;
-    std::cout<<"THIS > "<<basisFrequenciesH[2][0]<<std::endl;
-    at::Tensor orderedCoefficients = reOrderCoefficients(sgtCoefficients,ordering);
-    std::cout<<"Got the Ordered Coefficients!"<<std::endl;
-    std::cout<<orderedCoefficients.index({at::indexing::Slice(0,10)}).unsqueeze(0)<<std::endl;
-    //at::Tensor sortedSgt = triangleSorting(transformSize, orderedCoefficients);
-    //at::Tensor sortedSgt = squareSorting(transformSize, orderedCoefficients);
-    at::Tensor sortedSgt = quadTreeSorting(transformSize, orderedCoefficients);
-    std::cout<<"Got the Sorted SGT!"<<std::endl;
-    std::cout<<sortedSgt.sizes()<<std::endl;
-    //write_tensor(log(1+(sortedSgt * sortedSgt)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/aFrequencyQuadTreeSgT.png");
-    //write_tensor(log(1+(sgtCoefficients * sgtCoefficients)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/anUnsortedSgT.png");
-
-    return sortedSgt;
-}
-at::Tensor Block4D_::reOrderCoefficients(const at::Tensor& coefficients, at::Tensor ordering){
-    at::Tensor flatCoefficients = coefficients.flatten();
-    at::Tensor orderedCoefficients = coefficients.flatten().index({ordering});
-    return orderedCoefficients;
-}
-at::Tensor Block4D_::getBasisFrequencies(const at:: Tensor sgtMatrix, double angle) const{
-
-    at::Tensor basisFrequencies = at::zeros({sgtMatrix.size(1),2},at::kDouble);
-    for(int i=0;i<sgtMatrix.size(1);i++){
-        
-        at::Tensor basis = get2DBasis(sgtMatrix,i);
-        
-        std::array<double,2> freq = getMainFrequency(basis,angle,i);
-        basisFrequencies[i][0] = freq[0];
-        basisFrequencies[i][1] = freq[1];
-    }
-    return basisFrequencies;
-}
-at::Tensor Block4D_::diagonalOrder4DSampling(at::Tensor tensor){
-   int maxSum = 0;
-   int nElems = 1;
-   //std::array<int64_t,4> size = {tensor.size(0),tensor.size(1),tensor.size(2),tensor.size(3)};
-    for(int i = 0; i < tensor.ndimension();i++){
-        maxSum += tensor.size(i);
-        nElems *= tensor.size(i);
-        //std::cout<<i<<": "<<tensor.size(i)<<std::endl;
-    }
-
-    //std::cout<<"Max Sum = "<<maxSum<<" nElems = "<<nElems<<std::endl;
-    at::Tensor coefficients = at::zeros({nElems},at::kDouble);
-    int i = 0;
-    for(int sum = 0; sum < maxSum; sum ++){
-        for(int n = 0;n<tensor.size(0);n++){
-            for(int m = 0;m<tensor.size(1);m++){
-                int currentSum = m+n;
-                if(sum == currentSum){
-                    coefficients[i] = tensor[m][n] ;
-                    i++;
-                    //std::cout<<"     \r i = "<<i<< " Sum = "<<sum<<" maxSum = "<<maxSum<<std::endl;
-                }
-            }
-        }
-    }
-    if( i != coefficients.size(0)){
-        std::cerr<<"ERROR:"<< i <<"!="<< coefficients.size(0)<<std::endl;
-    }
-    return coefficients;
-}
-at::Tensor Block4D_::diagonalOrder4DBlock(at::Tensor coefficients){
-    int maxSum = 0;
-    std::array<int64_t,4> size = {data.size(0),data.size(1),data.size(2),data.size(3)};
-    for(int i = 0; i < 4; i++){
-        maxSum += size[i];
-    }
-    //std::cout<<"Max Sum = "<<maxSum<<std::endl;
-    at::Tensor tensor4D = at::zeros({size[0],size[1],size[2],size[3]});
-    int i = 0;
-    for(int sum = 0;sum<maxSum;sum++){
-        for(int n = 0;n<size[0];n++){
-            for(int m = 0;m<size[1];m++){
-                for(int k = 0;k<size[3];k++){
-                    for(int l = 0;l<size[2];l++){
-                        int currentSum = m+n+k+l;
-                        if(sum == currentSum){
-                            tensor4D[m][n][k][l] = coefficients[i];
-                            i++;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if( i != coefficients.size(0)){
-        std::cerr<<"ERROR:"<< i <<"!="<< coefficients.size(0)<<std::endl;
-    }
-    return tensor4D;
-}
 at::Tensor Block4D_::ikltTransformData(double scale, at::Tensor covH, at::Tensor covV) {
 
     at::Tensor flatBlock = this->data.squeeze().to(at::kDouble)/scale;  
     at::Tensor eigValsH,eigValsV; 
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(covH,true,eigValsH);
-    at::Tensor sgtMatrixV = getSgtTransformMatrix(covV,false,eigValsV);     
+    at::Tensor sgtMatrixV = getSgtTransformMatrix(covV,false,eigValsV);   
+      
     
     at::Tensor flatTransform = isgt(flatBlock,sgtMatrixH,sgtMatrixV);
     at::Tensor newData = flat24D(flatTransform);
@@ -1772,25 +964,6 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
 at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     auto [L, Q] = torch::linalg::eigh(covMat, "U");
     eigVals = L.flip({-1});
-    // std::ofstream eigenValues;
-    // eigenValues.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/eigenValues.m");
-    // eigenValues<<"eigV = [";
-    // for(int i = 0; i < eigVals.size(-1); i++){
-    //     eigenValues<<eigVals[i].item()<<" ";
-    // }
-    // eigenValues<<"];"<<std::endl;
-
-    // std::ofstream stuff;
-    // stuff.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/covMat.m");
-    // stuff<<"R_cpp = [";
-    // for(int n = 0; n < covMat.size(0); n++){
-    //     if(n != 0) stuff<<";"<<std::endl;
-    //     for(int m = 0; m < covMat.size(1); m++){
-    //         if (m != 0) stuff<<",";
-    //         stuff<<covMat[n][m].item();
-    //     }
-    // }
-    // stuff<<"];"<<std::endl;
     return Q.flip({-1}); // flip such that coefficients are in DESCENDING order
 }
 
@@ -1803,165 +976,18 @@ at::Tensor Block4D_::getOrderV(){
 
 at::Tensor Block4D_::sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV,const at::Tensor& eigValsH,const at::Tensor& eigValsV) {
     at::Tensor block = flatBlock.to(at::kDouble);
-    // for(int i = 0; i < eigValsH.size(0); i++){
-    //     if (eigValsH[i].item<double>() < 0) {
-    //         std::cerr<<"eigValsH < 0"<<std::endl;
-    //        // exit(-2);
-    //     }
-    //     if (eigValsV[i].item<double>() < 0) {
-    //         std::cerr<<"eigValsV < 0"<<std::endl;
-    //         //exit(-2);
-    //     }
-    // }
-
     at::Tensor transform = at::mm(at::mm(sgtMatrixV.t(), block), sgtMatrixH);
-    
     return transform;
 }
 
 at::Tensor Block4D_::isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) {
-    //std::cout<<"sgtMatrixV: "<<sgtMatrixV.mean({1}).index({at::indexing::Slice(0,10)})<<std::endl;
     at::Tensor transform = at::mm(at::mm(sgtMatrixV, flatBlock), sgtMatrixH.t()).round().to(at::kInt);
     return transform;
 }
 
 
-at::Tensor Block4D_::squareTransform(at::Tensor transform, at::Tensor eigenValuesH, at::Tensor eigenValuesV){
-    eigenValuesV = eigenValuesV.unsqueeze(1);
-    eigenValuesH = eigenValuesH.unsqueeze(0);
-    at::Tensor newTransform = at::zeros(transform.sizes(),transform.dtype());
-    at::Tensor eigenValueMat = at::mm(eigenValuesV,eigenValuesH).flatten();
 
-    auto [sorted, indices] = torch::sort(eigenValueMat,0,true);
-    at::Tensor transformVec = transform.flatten();
-    transformVec.index({indices}) = transformVec;
-    int i = 0;
-    
-    for(int sum = 0; sum < std::max(transform.size(0),transform.size(1)); sum++){
-        for(int n = 0; n < transform.size(0); n++){
-            for(int m = 0; m < transform.size(1); m++){
-                if(std::max(n,m) == sum){
 
-                    newTransform[n][m] = transformVec[i++];
-                }
-            }
-        }  
-    }
-
-    return newTransform; 
-}
-at::Tensor Block4D_::getReverseZigZagIndexes(std::array<int64_t,2> size){
-    using namespace std;
-    int64_t maxSize = max(size[0],size[1]);
-    int64_t minSize = min(size[0],size[1]);
-    at::Tensor cumm = at::zeros(size,at::kLong);
-    int bias = 0;
-    for (int64_t i = -size[0] + 1; i<size[1]; ++i){
-        int diagSize = min(min(abs(i-size[1]),i+size[0]),minSize);
-        at::Tensor diag = at::zeros(diagSize,at::kLong);
-        for (int64_t j = 0; j<diagSize; ++j){
-            int64_t m = min(i+size[0] -1,size[0] -1) - j;
-            int64_t n = j+max((int64_t)0,i);
-            if(i%2 == 0){
-                cumm[m][n] = bias + (diagSize - 1 - j);
-            }else{
-                cumm[m][n] = bias + j;
-            }
-        }
-        bias = bias + diagSize;
-    }
-    //cout<<"CUMM: "<<endl<<cumm.flatten().index({at::indexing::Slice(0,7)})<<endl;
-    return cumm.flatten();
-}
-at::Tensor Block4D_::squareSorting(std::array<int64_t,4> size, at::Tensor coefficients){
-    using namespace std;
-    int maxSum = 0;
-    for(int i = 0; i < 4; i++){
-        if(size[i] > maxSum){
-            maxSum = size[i];
-        }
-    }
-    maxSum -= 1;
-    at::Tensor triangle = at::zeros(size,at::kDouble);
-    int i = 0;
-    for (int summ = 0; summ < maxSum; summ++){
-        for (int k = 0; k< size[0]; k++){
-            for( int l = 0; l < size[1]; l++){
-                for (int m = 0; m < size[2]; m++){
-                    for (int n = 0; n < size[3]; n++){
-                        int currentSum = max(max(max(m,n),k),l);
-                        if(summ == currentSum){
-                            triangle[k][l][m][n] = coefficients[i];
-                            i++;
-                        }
-                    }
-                }
-            }
-        }
-    } 
-    return triangle.squeeze();
-}
-at::Tensor Block4D_::triangleSorting(std::array<int64_t,4> size, at::Tensor coefficients){
-    using namespace std;
-    int maxSum = std::accumulate(size.begin(),size.end(),0) - 4;
-    at::Tensor triangle = at::zeros(size,at::kDouble);
-    int i = 0;
-    for (int summ = 0; summ < maxSum; summ++){
-        for (int k = 0; k< size[0]; k++){
-            for( int l = 0; l < size[1]; l++){
-                for (int m = 0; m < size[2]; m++){
-                    for (int n = 0; n < size[3]; n++){
-                        int currentSum = m+n+k+l;
-                        if(summ == currentSum){
-                            triangle[k][l][m][n] = coefficients[i];
-                            i++;
-                        }
-                    }
-                }
-            }
-        }
-    } 
-    return triangle.squeeze();
-}
-at::Tensor Block4D_::getTriangleIndexes(std::array<int64_t,2> size){
-    using namespace std;
-    int64_t maxSize = max(size[0],size[1]);
-    int64_t minSize = min(size[0],size[1]);
-    at::Tensor cumm = at::zeros(size,at::kLong);
-    int bias = 0;
-    for (int64_t i = -size[0] + 1; i<size[1]; ++i){
-        int diagSize = min(min(abs(i-size[1]),i+size[0]),minSize);
-        at::Tensor diag = at::zeros(diagSize,at::kLong);
-        for (int64_t j = 0; j<diagSize; ++j){
-            int64_t m = min(i+size[0] -1,size[0] -1) - j;
-            int64_t n = j+max((int64_t)0,i);
-            cumm[m][n] = bias + j;
-        }
-        bias = bias + diagSize;
-    }
-    return cumm.flatten();
-}
-
-at::Tensor Block4D_::zigZagTransformMatrix(at::Tensor transform,bool isHorizontal){
-    std::array<int64_t,2> size;
-    if(isHorizontal){
-         size = {data.size(1),data.size(3)};
-    }else{
-        size = {data.size(0),data.size(2)};
-    }
-    at::Tensor zigZagIndices = getZigZagIndexes(size);
-    return transform.index({at::indexing::Slice(),zigZagIndices});
-}
-at::Tensor Block4D_::triangleTransformMatrix(at::Tensor transform,bool isHorizontal){
-    std::array<int64_t,2> size;
-    if(isHorizontal){
-         size = {data.size(1),data.size(3)};
-    }else{
-        size = {data.size(0),data.size(2)};
-    }
-    at::Tensor triangleIndices = getTriangleIndexes(size);
-    return transform.index({at::indexing::Slice(),triangleIndices});
-}
 at::Tensor Block4D_::flat24D(const at::Tensor& flatBlock) const{
     at::Tensor block;
     if(includesInvalidCorners){
@@ -2188,208 +1214,6 @@ SgtSideInfo::SgtSideInfo(int RhoSInt,int RhoTInt,int RhoUInt,int RhoVInt,int ang
     this->disparityRange = dispRange;
     this->angleRange = angleRangeFromDispRange(dispRange);
 }
-
-
-double calcMonotonyCost(at::Tensor current, at::Tensor previous, at::Tensor& positiveOnly){
-    at::Tensor diff = current - previous;
-    double avg = diff.abs().mean().item<double>();
-    at::Tensor positive = diff > 0.0*avg;
-    //std::cout<<"BunchONumbers:"<<positive<<std::endl;
-    positiveOnly = at::clamp_min(diff, 0.0);
-    double cost = positive.sum().item<double>();
-    //at::Tensor fullCost = (negativeOnly*negativeOnly) + positiveOnly;
-    //double monotonyCost = -fullCost.sum().item<double>();
-    return cost;
-} 
-
-at::Tensor Block4D_::orderSGTByMonotony( at::Tensor epiTransform,at::Tensor sgtTransform,at::Tensor& order){
-
-    at::Tensor energy = epiTransform * epiTransform;
-    at::Tensor newOrderTransform = sgtTransform.clone();
-    //write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_energy.png");
-    //write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/old_transform.png");
-    int j = 0;
-    order = at::arange(0,sgtTransform.size(1));
-    while(j < epiTransform.size(1)-1){
-        for(int i = 0; i < epiTransform.size(1)-1-j;i++){
-            at::Tensor previous = energy.index({i,at::indexing::Slice()}).clone();
-            at::Tensor current = energy.index({i+1,at::indexing::Slice()}).clone();
-            at::Tensor positive;
-            double cost = calcMonotonyCost(current, previous,positive);
-            if(cost > epiTransform.size(1)/2){
-                at::Tensor currentSigned = newOrderTransform.index({i+1,at::indexing::Slice()}).clone();
-                at::Tensor previousSigned = newOrderTransform.index({i,at::indexing::Slice()}).clone();
-                energy.index({i,at::indexing::Slice()}) = current;
-                energy.index({i+1,at::indexing::Slice()}) = previous;
-                newOrderTransform.index({i,at::indexing::Slice()}) = currentSigned;
-                newOrderTransform.index({i+1,at::indexing::Slice()}) = previousSigned;
-                int aux = order[i].item<int>();    
-                order[i] = order[i+1];
-                order[i+1] = aux;
-            }   
-        }
-        j++;     
-    }
-    //write_tensor(log(1+energy),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_energy.png");
-    //write_tensor(newOrderTransform,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/new_transform.png");
-    return newOrderTransform;
-}
-
-double optimizeMonotony(at::Tensor epiTransforms){
-    int j = 0;
-    double swapCount = 0;
-    double totalSwapCost = 0;
-    //epiTransforms = epiTransforms.index({at::indexing::Slice(0,6),at::indexing::Slice(0,6)});
-    //std::cout<<epiTransforms<<std::endl;
-    //std::cout<<epiTransforms.sizes()<<std::endl;
-    //saveTensorAsMatlabScript(epiTransforms,"epiTransformsBefore");
-
-    
-    while(j < epiTransforms.size(1)-1){
-        for(int i = 0; i < epiTransforms.size(1)-1-j;i++){
-            at::Tensor previous = epiTransforms.index({i,at::indexing::Slice()}).clone();
-            
-            at::Tensor current = epiTransforms.index({i+1,at::indexing::Slice()}).clone();
-            //if(i == 0) std::cout<<previous.index({at::indexing::Slice(0,6)})<<std::endl;
-            //if(i == 0) std::cout<<(current).index({at::indexing::Slice(0,6)})<<std::endl;
-            at::Tensor positive;
-            double cost = calcMonotonyCost(current, previous,positive);
-            double swapCost = positive.sum().item<double>();
-
-            //if(i == 43-j && j < 44)std::cout<<positiveOnly<<std::endl;
-            //if(i == 43-j && j < 44)std::cout<<" i = "<<i<<" j = "<<j<<" cost = "<<cost<<std::endl;
-
-            //std::cout<<j<<","<<i<<" cost:"<<cost<<std::endl;
-            if(cost > epiTransforms.size(1)/2){
-                epiTransforms.index({i,at::indexing::Slice()}) = current;
-                epiTransforms.index({i+1,at::indexing::Slice()}) = previous;
-                
-
-                totalSwapCost+=swapCost;
-                swapCount++;
-                //if(j == 0) std::cout<<i<<":"<<swapCount<<std::endl;
-            }            
-        }
-        //std::cout<<j<<" : "<<swapCount<<std::endl;
-
-        j++;
-        
-    }
-    //saveTensorAsMatlabScript(epiTransforms,"epiTransformsAfter");
-
-    //std::cout<<epiTransforms<<std::endl;
-    //std::cout<<"SWAP COUNT:"<<swapCount<<std::endl;
-    return totalSwapCost;
-}
-
-void SgtSideInfo::estimateRhosFromMonotony(Block4D_ block){
-    at::Tensor flatBlock = block.getFlatBlock().to(at::kDouble);
-    //std::cout<<flatBlock.dtype()<<std::endl;
-
-    // at::Tensor covFunH = Block4D_::normalizeCov(block.covFun(true));
-    // at::Tensor covFunV = Block4D_::normalizeCov(block.covFun(false));
-    // int64_t k_center = covFunH.size(0)/2;
-    // int64_t m_center = covFunH.size(1)/2;     
-    // int64_t l_center = covFunV.size(0)/2;
-    // int64_t n_center = covFunV.size(1)/2;     
-    // setRhoU(covFunH[k_center][m_center+1].item<double>());
-    // setRhoV(covFunV[l_center][n_center+1].item<double>());
-    // setRhoT(0.999);
-
-    std::vector<double> rhoAngleVector = {0.5,0.9,0.99,0.999,0.9999,0.99999};
-    //std::vector<double> rhoAngleVector = {0.999};
-    double minimumCost = 1.7976931348623157E+308;
-    double chosenRhoS = 0.999;
-    for(int i = 0; i < rhoAngleVector.size();i++){
-        setRhoS(rhoAngleVector[i]);
-        at::Tensor modelCovMatH = block.calcModelCovMatrix(*this,true);
-        at::Tensor eigValsH;
-        at::Tensor sgtMatrixH = block.getSgtTransformMatrix(modelCovMatH,true,eigValsH);
-        at::Tensor epiTransformH = at::mm(flatBlock,sgtMatrixH).t();
-        double cost = optimizeMonotony(epiTransformH*epiTransformH);
-        //std::cout<<rhoAngleVector[i]<<":"<<cost<<std::endl;
-        if(cost < minimumCost){
-            chosenRhoS = rhoAngleVector[i];
-            minimumCost = cost;
-        }        
-    }
-    setRhoS(chosenRhoS);
-
-    minimumCost = 1.7976931348623157E+308;
-    double chosenRhoT = 0.999;
-    for(int i = 0; i < rhoAngleVector.size();i++){
-        setRhoT(rhoAngleVector[i]);
-        at::Tensor modelCovMatV = block.calcModelCovMatrix(*this,false);
-        at::Tensor eigValsV;
-        at::Tensor sgtMatrixV = block.getSgtTransformMatrix(modelCovMatV,false,eigValsV);
-        at::Tensor epiTransformV = at::mm(sgtMatrixV.t(),flatBlock);
-        double cost = optimizeMonotony(epiTransformV*epiTransformV);
-        //std::cout<<rhoAngleVector[i]<<":"<<cost<<std::endl;
-
-        if(cost < minimumCost){
-            chosenRhoT = rhoAngleVector[i];
-            minimumCost = cost;
-        }        
-    }
-    setRhoT(chosenRhoT);
-}
-
-
-void SgtSideInfo::estimateAngleFromMonotony(Block4D_ block){
-    at::Tensor flatBlock = block.getFlatBlock().to(at::kDouble);
-    //std::cout<<flatBlock.dtype()<<std::endl;
-    std::vector<double> monotonyCostHVec;
-    std::vector<double> monotonyCostVVec;
-    std::vector<double> thetaVec;
-
-    double minimumCost = 1.7976931348623157E+308;
-    double chosenAngleH = 0;
-    double chosenAngleV = 0;
-
-
-    double minimumCostH = 1.7976931348623157E+308;
-    double minimumCostV = 1.7976931348623157E+308;
-    for(double theta = this->angleRange[0];theta<=this->angleRange[1];theta+=PRECISION_ANGLE){
-        setAngleH(theta);
-        setAngleV(theta);
-        at::Tensor modelCovMatV = block.calcModelCovMatrix(*this,false);
-        at::Tensor modelCovMatH = block.calcModelCovMatrix(*this,true);
-
-        at::Tensor eigValsV;
-        at::Tensor eigValsH;
-
-        at::Tensor sgtMatrixV = block.getSgtTransformMatrix(modelCovMatV,false,eigValsV);
-        at::Tensor sgtMatrixH = block.getSgtTransformMatrix(modelCovMatH,true,eigValsH);
-
-        at::Tensor epiTransformH = at::mm(flatBlock,sgtMatrixH).t();
-        at::Tensor epiTransformV = at::mm(sgtMatrixV.t(),flatBlock);
-        double costV = optimizeMonotony(epiTransformV*epiTransformV);
-        double costH = optimizeMonotony(epiTransformH*epiTransformH);
-        monotonyCostHVec.push_back(costH);
-        monotonyCostVVec.push_back(costV);
-        thetaVec.push_back(theta);
-        //print();
-        //std::cout<<theta<<":"<<costH<<std::endl;
-        //write_tensor(epiTransformH*epiTransformH,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/epiAngleImages/"+std::to_string((int)theta)+".png");
-
-        if(costH < minimumCostH){
-            chosenAngleH = theta;
-            minimumCostH = costH;
-        }
-        if(costV < minimumCostV){
-            chosenAngleV = theta;
-            minimumCostV = costH;
-        }             
-    }
-    setAngleH(chosenAngleH);
-    setAngleV(chosenAngleV);
-    saveVectorAsMatlabScript(monotonyCostHVec,"monotonyCostH");
-    saveVectorAsMatlabScript(monotonyCostHVec,"monotonyCostV");
-    saveVectorAsMatlabScript(thetaVec,"thetaVec");
-
-    
-}
-
 
 void SgtSideInfo::print(){
     std::cout<<"Rho S = "<<getRhoS()<<" Rho T = "<<getRhoT()<<" Rho U = "<<getRhoU()<<" Rho V = "<<getRhoV()<<" Angle V = "<<getAngleV()<< " Angle H = "<<getAngleH()<<std::endl;
@@ -2680,46 +1504,8 @@ at::Tensor Block4D_::calcModelCovFun(SgtSideInfo ssi,bool isHorizontal) const{
     return modelCovFun;
 }
 at::Tensor Block4D_::calcModelCovMatrix(SgtSideInfo ssi,bool isHorizontal) const{
-    //std::cout<<"Calculating Model Cov Matrix"<<std::endl;
     at::Tensor modelCovFun = calcModelCovFun(ssi, isHorizontal);
-
-    //at::Tensor horizontalGrid = at::abs(u - ssi.getDisparity() * s);
-    //saveTensorAsMatlabScript(horizontalGrid,"mGrid");
-
-    // if(!isHorizontal){
-    //     std::cout<<"Inside CovMatrix Function Vertical"<<std::endl;
-    //     std::cout<<modelCovFun[8][32].item()<<std::endl;
-    //     std::cout<<rhoSpt<<" "<<rhoAng<<std::endl;
-    //     ssi.print();
-    //     saveTensorAsMatlabScript(modelCovFun,"modelCovFunVerticalissimo");
-    // }
-    // if(isHorizontal){
-    //     std::cout<<"Inside CovMatrix Function Horizontal"<<std::endl;
-    //     std::cout<<modelCovFun[8][32].item()<<std::endl;      
-    //     std::cout<<rhoSpt<<" "<<rhoAng<<std::endl;
-    //     ssi.print();
-    //     saveTensorAsMatlabScript(modelCovFun,"modelCovFunHorizontalisssimo");
-    // }
-
-    
     at::Tensor modelCovMat = covFun2Mat(modelCovFun,isHorizontal);
-    
-
-    
-    
-    //modelCovMat = modelCovMat.round(20);
-    
-    // if(ssi.getDCode() == 45 && ssi.getRhoUCode() == 99){
-    // if(isHorizontal){
-        
-    //     std::cout<<"HORIZONTAL MODEL COV: "<<modelCovFun.sizes()<<std::endl;
-    //     std::cout<<modelCovFun.index({at::indexing::Slice(8,15),at::indexing::Slice(63,69)})<<std::endl;
-    // }else{
-    //     std::cout<<"Vertical MODEL COV: "<<modelCovFun.sizes()<<std::endl;
-    //     std::cout<<modelCovFun.index({at::indexing::Slice(8,15),at::indexing::Slice(63,69)})<<std::endl;
-    // }
-    // }
-
     return modelCovMat;
 }
 
@@ -2731,6 +1517,7 @@ at::Tensor Block4D_::normalizeCov(at::Tensor cov){
      cov = cov / cov[s_center][u_center];
     return cov;
 }
+
 double Block4D_::logDetCost(double angle, bool isHorizontal, std::array<double,2> disparityRange) const{
     SgtSideInfo temp(disparityRange);
     at::Tensor covFunH = Block4D_::normalizeCov(this->covFun(true));
@@ -2810,75 +1597,35 @@ void SgtSideInfo::estimateDisparity(const Block4D_& block){
     std::vector<double> thetaVec;
 
     SgtSideInfo temp(this->disparityRange);
-    //temp.setSpatialRhos(covFunH,covFunV);
     int64_t k_center = covFunH.size(0)/2;
     int64_t m_center = covFunH.size(1)/2;     
     int64_t l_center = covFunV.size(0)/2;
     int64_t n_center = covFunV.size(1)/2;     
     temp.setRhoU(covFunH[k_center][m_center+1].item<double>());
     temp.setRhoV(covFunV[l_center][n_center+1].item<double>());
-    //std::cout<<covFunH[k_center][m_center+1].item<double>()<<" "<<covFunV[l_center][n_center+1].item<double>()<<std::endl;
-    //temp.setRhoU(0.99999);
-    //temp.setRhoV(0.99999);
     temp.setAngularRhos();
     
-    //std::cout<<"RhoU = "<<covFunH[k_center][m_center+1].item<double>()<<" RhoV = "<<covFunV[l_center][n_center+1].item<double>()<<std::endl;
 
     at::Tensor iSqrtCovMatH = block.iSqrtCovMat(true);
-    //std::cout<<"iSqrt: "<<std::endl<<iSqrtCovMatH[0]<<std::endl<<std::endl<<std::endl;
     at::Tensor iSqrtCovMatV = block.iSqrtCovMat(false);
-    //std::cout<<iSqrtCovMatH.sizes()<<std::endl;
-    //std::cout<<iSqrtCovMatV.sizes()<<std::endl;
-    //saveTensorAsMatlabScript(iSqrtCovMatH,"iSqrtCovMatH");
-    //SgtSideInfo modelModel(25,25,this->disparityRange);
-    //at::Tensor modelModeliCov = block.iSqrtCovMat(block.calcModelCovMatrix(modelModel,true),true);
-
-    
-   
-
     double min = std::numeric_limits<double>::max();
     double minV = std::numeric_limits<double>::max();
     double minH = std::numeric_limits<double>::max();
     double angleV = 0;
     double angleH = 0;
-    //temp.print();
     
     for(double theta = this->angleRange[0];theta<=this->angleRange[1];theta+=PRECISION_ANGLE){
-    //for(double theta = 20;theta<=20;theta+=PRECISION_ANGLE){
         temp.setAngleH(theta);
         temp.setAngleV(theta);
-        //std::cout<<"PRINT COMING"<<std::endl;
-        //temp.print();
-        //double d = tan(acos(-1)/180 * theta)
         at::Tensor modelCovMatH = block.calcModelCovMatrix(temp,true);
         at::Tensor modelCovMatV = block.calcModelCovMatrix(temp,false);
-
-        //saveTensorAsMatlabScript(modelCovMatH,"modelCovComparison/modelCovMatH"+std::to_string((int)theta));
-        //saveTensorAsMatlabScript(modelCovMatV,"modelCovComparison/modelCovMatV"+std::to_string((int)theta));
-         //Little Test
-        //at::Tensor iSqrtModelCovMatH = block.iSqrtCovMat(modelCovMatH,true);
-
-
-        // if(theta == 0){
-        //     saveTensorAsMatlabScript(modelCovMatH,"modelCovMatH0");
-        //     std::cout<<"TEST RESULT = "<<genDivergence(modelCovMatH,iSqrtModelCovMatH)<<std::endl;
-        //     saveTensorAsMatlabScript(iSqrtModelCovMatH,"iSqrtModelCovMatH");
-
-        // }
-        // if(d == -3){
-        //     std::cout<<modelCovMatH<<std::endl;
-        // }
         double genDivH = genDivergence(modelCovMatH,iSqrtCovMatH);
         double genDivV = genDivergence(modelCovMatV,iSqrtCovMatV);
-        //double genDivCheck = genDivergence(modelCovMatV,iSqrtModelCovMatH);
-        //std::cout<<theta<<": "<<genDivCheck<<std::endl;
-        //double testDiv = genDivergence(modelCovMatH,modelModeliCov);
 
         double genDiv = genDivH + genDivV;
         genDivHVec.push_back(genDivH);
         genDivVVec.push_back(genDivV);
         thetaVec.push_back(theta);
-        ///std::cout<<theta<<": "<<testDiv<<std::endl;
 
         if (genDivH < minH){
             minH = genDivH;
@@ -2890,79 +1637,39 @@ void SgtSideInfo::estimateDisparity(const Block4D_& block){
             angleV = theta;
             setAngleV(theta);
         }
-        
-
-        //std::cout<<"Angle Range divergence:" <<this->angleRange[0]<<" "<<this->angleRange[1]<<std::endl;
-        //std::cout<<theta<<": "<<genDiv<<" "<<genDivH<<" "<<genDivV<< " "<<min<<std::endl;
-
-        // if (genDiv < min){
-
-        //     min = genDiv;
-        //     setAngleV(theta);
-        //     setAngleH(theta);
-        // }
     }
-    //std::cout<<"angleV: "<<angleV<<" angleH: "<<angleH<<std::endl;
-
-    // setRhoS(temp.getRhoS());
-    //     setRhoU(temp.getRhoU());
-    //     setRhoV(temp.getRhoV());
-    //     setRhoT(temp.getRhoT());
-    //saveVectorAsMatlabScript(genDivHVec,"dummyReg_genDivH");
-    //saveVectorAsMatlabScript(genDivVVec,"dummyReg_genDivV");
-    //saveVectorAsMatlabScript(thetaVec,"dummyReg_thetaVec");
 }
 
 
 double SgtSideInfo::genDivergence(const at::Tensor& p, const at::Tensor& qRsqrt){
     double eps = 1e-2; 
-    //double eps = 1e-0; 
-    //double k = 10;
     at::Tensor p_regularized = p+at::eye(p.size(-1),p.options())*eps;
-    //saveTensorAsMatlabScript(p,"p");
-    //saveTensorAsMatlabScript(p_regularized,"pReg");
+
 
     auto prod = at::einsum("...xm,...xy,...yn->...mn", {qRsqrt, p_regularized, qRsqrt});
     auto eigvals = torch::linalg::eigvalsh(prod, "U");
-    // double genDivExp =  ((eigvals.mean(-1).log())/ exp(eigvals.log().mean(-1))).item<double>();
-    // double regQuotient = 1 + k * genDivExp;
-    // double genDiv = genDivExp / regQuotient;
-    //std::cout<<eigvals<<std::endl;
 
-    //std::cout<<"Divergence: "<<eigvals.mean(-1).log().item<double>()<< " "<<eigvals.log().mean(-1).item<double>()<<" "<<(eigvals.mean(-1).log() - eigvals.log().mean(-1)).item<double>() <<std::endl;
    return (eigvals.mean(-1).log() - eigvals.log().mean(-1)).item<double>();
-   //return genDiv;
 }
 
 
 at::Tensor Block4D_::iSqrtCovMat(at::Tensor covMat, bool isHorizontal ) const{
     auto [L, Q] = torch::linalg::eigh(covMat, "U");
-    //std::cout<<"Cov Mat Size:"<<covMat.sizes()<<std::endl;
-    //std::cout<<"L Size:"<<L.sizes()<<std::endl;
-    //std::cout<<"Q Size:"<<Q.sizes()<<std::endl;
-    // get largest eigenvalue of each matrix
+    
     auto&& [Lmax, Lloc] = L.max(-1, /*keepdims*/true);
     auto Lrel = L / Lmax; // 'relative' eigenvalues
-    // take worst case across batches for condition number
     auto&& [Lmin, min_where]  = L.view({-1, L.size(-1)}).min(0);
-    //std::cout<<Lmin<<std::endl;
-    // indices of eigenpairs to keep
     auto Lkeep = Lmin > 1e-4;
-    // take
     auto Lselect = L.index({"...", Lkeep});
     auto Qselect = Q.index({"...", Lkeep});
-    //std::cout<<"LSelect = "<<Lselect.sizes()<<std::endl;
-    // safely take the inverse sqrt
     auto Lrsqrt = Lselect.rsqrt_();
 
     auto result = at::einsum("...x,...x->...x", {Qselect, Lrsqrt});
     return result;
 }
 at::Tensor Block4D_::iSqrtCovMat(bool isHorizontal ) const{
-    //std::cout<<"is Horizontal: "<<isHorizontal<<std::endl;
     at::Tensor covFun = normalizeCov(this->covFun(isHorizontal));
     at::Tensor covMat = covFun2Mat(covFun,isHorizontal);
-    //at::Tensor covMat = this->batchedCovMatrix(isHorizontal);  
     return iSqrtCovMat(covMat,isHorizontal );
 }
 
@@ -2972,7 +1679,6 @@ at::Tensor Block4D_::covFun2Mat(const at::Tensor& covFun,bool isHorizontal) cons
         std::cerr<<"Invalid Corners?????????"<<std::endl;
         covMat = covFun2MatValid(covFun,isHorizontal);
     }else{
-        //std::cout<<"Correctimundo"<<std::endl;
         covMat = covFun2MatAll(covFun);
     }
     return covMat;
@@ -3035,8 +1741,6 @@ at::Tensor Block4D_::covFun2MatValid(const at::Tensor& covFun,bool isHorizontal)
   } 
 
 void SgtSideInfo::estimateRhoAngle(const Block4D_& block){
-    //at::Tensor covFunH = Block4D_::normalizeCov(block.covFun(true));
-    //at::Tensor covFunV = Block4D_::normalizeCov(block.covFun(false));
     at::Tensor iSqrtCovMatH = block.iSqrtCovMat(true);
     at::Tensor iSqrtCovMatV = block.iSqrtCovMat(false);
     at::Tensor covFunH = block.covFun(true);
@@ -3053,12 +1757,6 @@ void SgtSideInfo::estimateRhoAngle(const Block4D_& block){
         this->setRhoS(FIXED_ANGULAR_RHO);
         this->setRhoU(FIXED_SPATIAL_RHO);
     }else{
-
-
-        //double rhoSpace = 0.8;
-        //temp.setRhoU(rhoSpace);
-        //temp.setRhoV(rhoSpace);
-        
 
         for(double rho_u_order = 0;rho_u_order < spatialRhos.size();rho_u_order++){
             for(double rho_s_order = 0;rho_s_order < angularRhos.size();rho_s_order++){
@@ -3229,67 +1927,6 @@ void Block4D_::Shift_UVPlane(int shift, int position_t, int position_s){
         this->data[position_t][position_s] = this->data[position_t][position_s].bitwise_right_shift(-shift);
     }
 }
-// void Block4D_::YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
-//     // std::cout<<"Data type = "<<Y.data.dtype()<<std::endl;
-//     // std::cout<<"Decoding Scale = "<<Scale<<std::endl;
-//     // std::cout<<"Chrominance Bias Correction: "<<((Scale+1)/2)<<std::endl;
-//     Block4d_ Ytemp = Y.clone()data.to(at::kDouble);
-//     auto CbTemp = (Cb.data - ((Scale+1)/2)).to(at::kDouble);
-//     auto CrTemp = (Cr.data - ((Scale+1)/2)).to(at::kDouble);
-
-//     //std::cout<<Ytemp[0][0][0][0].item()<<" "<<CbTemp[0][0][0][0].item()<<" "<<CrTemp[0][0][0][0].item()<<std::endl;
-//     R = (Ytemp - 0.0000071525 * CbTemp + 1.4020 * CrTemp).round().to(at::kInt);
-//     G = (Ytemp- 0.34413 * CbTemp - 0.71414 * CrTemp).round().to(at::kInt);
-//     B = (Ytemp + 1.7720 * CbTemp - 0.000040249 * CrTemp).round().to(at::kInt);
-//    //std::cout<<Ytemp[0][0][0][0].item()<<" "<<-0.34413 * CbTemp[0][0][0][0].item<double>()<<" "<<- 0.71414 *(CrTemp[0][0][0][0].item<double>())<<" "<<G.data[0][0][0][0]<<std::endl;
-
-// }
-
-// void Block4D_::YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
-//     auto CoTemp = Co.data - (Scale+1)/2;
-//     auto CgTemp = Cg.data - (Scale+1)/2;
-//     auto t = Y - (CgTemp.bitwise_right_shift(1));
-//     G = CgTemp + t;
-//     B.data = t - (CoTemp.bitwise_right_shift(1));
-//     R.data = B.data + CoTemp;          
-// }
-// void Block4D_::RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-//     static const auto Y_weights = at::tensor({0.299, 0.587, 0.114}, at::kDouble).reshape({3, 1});  
-//     static const auto Cb_weights = at::tensor({-0.168736, -0.331264, 0.5}, at::kDouble).reshape({3, 1}); 
-//     static const auto Cr_weights = at::tensor({0.5, -0.418688, -0.081312}, at::kDouble).reshape({3, 1}); 
-//     static const int D = 1<<((int)log2(Scale+1)-8);
-//     static const int Y8bitBias = 0;
-//     static const int CbCr8bitBias = (1<<9);
-//     //std::cout<<"D = "<<D<<" CbCr8bitBias = "<<CbCr8bitBias<<" Y8bitBias = "<<Y8bitBias<<std::endl;
-
-//     auto Ey = R.data.to(at::kDouble)/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
-//     //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Y_weights[0].item()<<" Ey min = "<<Ey.min().item()<<" max = "<<Ey.max().item()<<std::endl;
-
-//     Y.data = ((1023 * Ey + Y8bitBias)).round().to(at::kInt);
-
-//     auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + B.data.to(at::kDouble)/Scale * Cb_weights[2];
-//     //std::cout<<"ECb min = "<<Ecb.min().item()<<" max = "<<Ecb.max().item()<<std::endl;
-//     Cb.data = ((1023 * Ecb + CbCr8bitBias)).round().to(at::kInt);
-//     auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + B.data.to(at::kDouble)/Scale * Cr_weights[2];
-//     //std::cout<<(R.data.to(at::kDouble)/Scale)[0][0][0][0].item()<<" "<<Cr_weights[0]<<" Ecr min = "<<Ecr.min().item()<<" max = "<<Ecr.max().item()<<std::endl;
-    
-//     Cr.data = ((1023 * Ecr + CbCr8bitBias)).round().to(at::kInt); 
-//     Y.validPositions = R.validPositions;
-//     Cb.validPositions = R.validPositions;
-//     Cr.validPositions = R.validPositions;
-// }
-
-// void Block4D_::RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-//     Co = R.data - B.data;
-//     auto temp = B.data + Co.data.bitwise_right_shift(1);
-//     Cg = G.data - temp;
-//     Y = temp + Cg.data.bitwise_right_shift(1);
-//     Co.data+= (Scale + 1)/2;
-//     Cg.data+= (Scale + 1)/2;
-//     Y.validPositions = R.validPositions;
-//     Co.validPositions = R.validPositions;
-//     Cg.validPositions = R.validPositions;        
-// }
 
 Block4D_ Block4D_::operator + (const Block4D_ &B) const{
     Block4D_ newBlock = this->clone();
