@@ -338,6 +338,7 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
+    inputLF.slantLightField(1);
 
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");

@@ -169,7 +169,7 @@ void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern,
         this->data = io::read_collection(rootPath, pattern,this->mPGMScale).to(torch::kInt16);
         std::cout<<"First View: "<<firstView[0]<<" "<<firstView[1]<<" View Size: "<<viewSize[0]<<" "<<viewSize[1]<<std::endl;
         this->data = this->data.index({at::indexing::Slice({firstView[0],firstView[0]+viewSize[0]}),at::indexing::Slice({firstView[1],firstView[1]+viewSize[1]}),at::indexing::Slice(),at::indexing::Slice()});
-        computeGradients();
+        //computeGradients();
 }
 void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern, char readOrWriteLightField,std::array<int64_t,2> firstView = {0,0} ) {
     if(readOrWriteLightField == 'r'){
@@ -221,4 +221,53 @@ void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<in
                     
 
 
+}
+
+void LightField::slantLightField(double slope){
+    if (this->data.dim() != 5) {
+        throw std::runtime_error("LightField data must be 5D");
+    }
+    this->data = slantData(this->data, slope);
+    std::cout<<"sloped size:"<<this->data.sizes()<<std::endl;
+    at::Tensor view = this->data[4][4];
+    at::Tensor epi = this->data.index({torch::indexing::Slice(), 4, torch::indexing::Slice() ,120, 0});
+    std::cout<<"Slanted View Size: "<<view.sizes()<<std::endl;
+    write_tensor(view.index({torch::indexing::Slice(),torch::indexing::Slice(),0}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant/results/Greek/slanted_light_field.png");
+    write_tensor(epi, "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant/results/Greek/slanted_epi.png");
+    std::cout<<"Slanted Light Field with slope: "<<slope<<std::endl;
+    this->preSlantTan = slope;
+}
+ 
+at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope){
+    if(slantSlope == 0) return block;
+    auto size = block.sizes();
+    torch::TensorOptions options = torch::TensorOptions().dtype(torch::kDouble);
+    int size_increase = (int)(abs(round(slantSlope*(size[0]-1))));
+    at::Tensor new_block = torch::zeros({(int)size[0],(int)size[1],(int)size[2]+size_increase,(int)size[3]+size_increase,size[4]},options);
+    double true_alpha = slantSlope/abs(slantSlope) * (double)size_increase/((double)size[0]-1);
+    for (int c = 0; c < size[4]; c++){
+
+    
+        for(int l_ = 0; l_<size[0]; l_++){
+
+            int n_start = round(l_*true_alpha);
+            int n_end = (size[2]) + round(l_*true_alpha);
+
+            if(slantSlope < 0){
+                n_start -= (size[0]-1)*true_alpha;
+                n_end -= (size[0]-1)*true_alpha;
+            }
+
+            for(int k_ = 0; k_ < size[1]; k_++){
+                int m_start = round(k_*true_alpha);
+                int m_end = (size[3]) + round(k_*true_alpha);
+                if(slantSlope < 0){
+                    m_start -= (size[1]-1)*true_alpha;
+                    m_end -= (size[1]-1)*true_alpha;
+                }
+                new_block.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(m_start,m_end),c}) = block.index({l_,k_,torch::indexing::Slice(),torch::indexing::Slice(),c});              
+            }
+        }
+    }
+    return new_block;
 }

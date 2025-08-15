@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "main",
+      "inherits": "main",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-gcc",
+        "CMAKE_CXX_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-c++"
+      }
+    }
+  ]
+}

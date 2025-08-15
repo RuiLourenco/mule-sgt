@@ -22,6 +22,10 @@ public:
     void OpenLightFieldPPM_(std::string path,std::string pattern,char readOrWriteLightField,std::array<int64_t,2> firstView);
     Block4D_ ReadBlock4DfromLightField_(std::array<int64_t,4> size, std::array<int64_t,4> position_t,int64_t channel );
     void WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position);
+    void slantLightField(double slope);
+    static at::Tensor slantData(const at::Tensor& block, double slantSlope);
+
+
 };
 
 #endif

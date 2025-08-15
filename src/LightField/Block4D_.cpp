@@ -52,7 +52,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 
 
 
-#define DEBUG 0
+#define DEBUG 1
 #define MATLAB_DEBUG 0
 
 void saveVectorAsMatlabScript(std::vector<double> vector,std::string name){
