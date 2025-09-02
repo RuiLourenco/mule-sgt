@@ -245,8 +245,35 @@ double TransformPartition :: RDtestZero(Block4D_& block_0, CodingUnitInfo& cui0,
     cui0.setAngleHeuristicUsed(AngleHeuristic::ZERO);
     return RDtestAngle(0,block_0,cui0,currGain, coderModelState_0);
 }
-
-
+double TransformPartition :: RDgridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+    Block4D_ blockTemp = block_0.clone();
+    double J0;
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+    ProbabilityModel *tempModelState;
+    J0 = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    delete[] tempModelState;
+    //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);
+    double angle = blockTemp.ssi.getAngleH();
+    blockTemp = block_0.clone();
+    //double angle = 45;
+    J0 = parallelRhoSearch(false,-1, angle, block_0, cui0, currGain, coderModelState_0);
+    //J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
+    return J0;
+}
+double TransformPartition :: RDtestStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
+     ProbabilityModel *tempModelState;
+    
+    Block4D_ blockTemp = block_0.clone();
+    double J0;
+    J0 = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
+    delete[] tempModelState;
+    double angle = blockTemp.ssi.getAngleH();
+    blockTemp = block_0.clone();
+    //double angle = 45;
+    J0 = parallelRhoSearch(false,-1, angle, blockTemp, cui0, currGain, &tempModelState);
+    J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
+    return J0;
+}
 double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
     Block4D_ blockOrig = block_0.clone();
     Block4D_ temp_block_0 = block_0;
@@ -254,10 +281,10 @@ double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnit
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
 
 
-    ProbabilityModel *tempModelState;
     //std::cout<<"TESTING  zero"<<std::endl;
 
     double J0 = RDtestZero(block_0,cui0,currGain,coderModelState_0);
+
     
     //std::cout<<"TESTed zero. J0 = "<< J0<<std::endl;
 
@@ -420,7 +447,55 @@ double TransformPartition :: RDtestLogdet(Block4D_& block_0,  CodingUnitInfo& cu
 //     return J0;
 
 // }
+double TransformPartition::RefineGridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0) {
+    // This function refines the grid search and rho search for the given block.
+    // It first performs a grid search to find the best angle, then refines the rhos.
+    Block4D_ blockTemp = block_0.clone();
+    double J0;
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+    ProbabilityModel *tempModelState;
+    J0 = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    delete[] tempModelState;
+    double angle = blockTemp.ssi.getAngleH();
+    std::array<double,2> refinementAngleRange = {angle-0.9,angle+0.9};
+    blockTemp = block_0.clone();
+    double J = RDtestGridSearch(0.1,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);  
+    angle = blockTemp.ssi.getAngleH();
+    delete[] tempModelState;
 
+
+    //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);
+    //double angle = blockTemp.ssi.getAngleH();
+    //double angle = 45;
+    J0 = parallelRhoSearch(false,-1, angle, block_0, cui0, currGain, coderModelState_0);
+    //J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
+    return J0;
+}
+double TransformPartition::RefineStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0) {
+    // This function refines the grid search and rho search for the given block.
+    // It first performs a grid search to find the best angle, then refines the rhos.
+    Block4D_ blockTemp = block_0.clone();
+    double J0;
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+    ProbabilityModel *tempModelState;
+    //J0 = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,&tempModelState);
+    J0 = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
+    delete[] tempModelState;
+    double angle = blockTemp.ssi.getAngleH();
+    std::array<double,2> refinementAngleRange = {angle-5,angle+5};
+    blockTemp = block_0.clone();
+    double J = RDtestGridSearch(1,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);  
+    angle = blockTemp.ssi.getAngleH();
+    delete[] tempModelState;
+
+
+    //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);
+    //double angle = blockTemp.ssi.getAngleH();
+    //double angle = 45;
+    J0 = parallelRhoSearch(false,-1, angle, block_0, cui0, currGain, coderModelState_0);
+    //J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
+    return J0;
+}
 double TransformPartition::RDtestGridSearch(double angleStep, std::array<double, 2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0) {
     std::chrono::steady_clock::time_point begin;
     std::chrono::steady_clock::time_point end;
@@ -428,15 +503,13 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
     //std::cout<<"Starting Grid Search with angleStep: " << angleStep << " and angleRange: [" << angleRange[0] << ", " << angleRange[1] << "]" << std::endl;
 
     Block4D_ blockOrig = block_0.clone();
-    ProbabilityModel *initialCoderModelState;
-    mEntropyCoder.GetOptimizerProbabilisticModelState(&initialCoderModelState);
+
 
     double minAngle = angleRange[0];
     double maxAngle = angleRange[1];
     // Ensure numSteps is not negative if angleRange is invalid
     if (minAngle > maxAngle) {
         // Handle error case or return a default value
-        delete[] initialCoderModelState;
         return std::numeric_limits<double>::max();
     }
        // A small value to counteract floating point inaccuracies.
@@ -531,12 +604,7 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
     //     cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
     // }
     
-    // mEntropyCoder.SetOptimizerProbabilisticModelState(initialCoderModelState);
-     delete[] initialCoderModelState;
-    // std::cout<<"We exited it! "<< J0<<std::endl;
-        end = std::chrono::steady_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - begin;
-        //std::cout << "Grid Search Time: " << elapsed.count() << " ms" << std::endl;
+
 
     return J0;
 }
@@ -689,6 +757,7 @@ double TransformPartition :: RDrefineStructureTensor(Block4D_& block_0, double r
     }
     return J0;
 }
+
 double TransformPartition :: RDrefineCovariance(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0){
     ProbabilityModel *currentCoderModelState;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
@@ -1062,8 +1131,13 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     //std::cout<<"-0"<<std::endl;
 
     // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
-    double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
+    //double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    // double J0 = RDgridSearchAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    //double J0 = RDtestStructureTensorAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    //double J0 = RefineGridSearchAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    double J0 = RefineStructureTensorAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    
 
     //double J0 = RDrefineCovariance(block_0,1,cui0, &coderModelState_0);
     //double J0 = RDtestLogdet(block_0,cui0,totalTransformGain(),&coderModelState_0);
