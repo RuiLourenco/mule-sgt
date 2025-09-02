@@ -50,6 +50,8 @@ public:
     double getBestGridSearchAngle() const;
     double getBestGridSearchCost() const;
     double getChosenAngle() const;
+    double getChosenRhoS() const;
+    double getChosenRhoU() const;
     double getBestStructureTensorAngle() const;
     double getBestStructureTensorCost() const;  
     double getBestCovarianceAngle() const;

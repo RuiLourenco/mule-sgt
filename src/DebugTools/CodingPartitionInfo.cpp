@@ -167,40 +167,46 @@ at::Tensor CodingPartitionInfo::getTensorFromInfo(const std::vector<CodingPartit
     std::vector<std::array<int64_t,2>> visitedPositions;
     std::vector<double> visitedRates;
     std::cout<<"Total number of partitions: "<<partitionInfos.size()<<std::endl;
+    int partitionIdx = 0;
     for (auto & partitionInfo : partitionInfos){
-        bool skip = false;
-        for(int i = 0; i < visitedPositions.size(); i++){
-            std::array<int64_t,2> visitedPosition = visitedPositions[i];
-            double visitedRate = visitedRates[i];
-            // Check if the current partition position matches any visited position
-            if(partitionInfo.lightFieldPosition[2] == 0 && partitionInfo.lightFieldPosition[3] == 0)
-                std::cout<<"This is a partition at (0,0)"<<std::endl;
-            if(partitionInfo.lightFieldPosition[2] == visitedPosition[0] && partitionInfo.lightFieldPosition[3] == visitedPosition[1]){
-                //Check if the rate is larger than the visited rate
+        // bool skip = false;
+        // for(int i = 0; i < visitedPositions.size(); i++){
+        //     std::array<int64_t,2> visitedPosition = visitedPositions[i];
+        //     double visitedRate = visitedRates[i];
+        //     // Check if the current partition position matches any visited position
+        //     if(partitionInfo.lightFieldPosition[2] == 0 && partitionInfo.lightFieldPosition[3] == 0)
+        //         std::cout<<"This is a partition at (0,0)"<<std::endl;
+        //     if(partitionInfo.lightFieldPosition[2] == visitedPosition[0] && partitionInfo.lightFieldPosition[3] == visitedPosition[1]){
+        //         //Check if the rate is larger than the visited rate
                 
-                //if(partitionInfo.getTotalRate() < visitedRate){
-                    // If the rate is smaller, skip this partition
-                    if(partitionInfo.lightFieldPosition[2] == 0 && partitionInfo.lightFieldPosition[3] == 0){
-                        std::cout<<"Skipping partition at position: "<<partitionInfo.lightFieldPosition[2]<<","<<partitionInfo.lightFieldPosition[3]<<" with rate: "<<partitionInfo.getTotalRate()<<std::endl;
-                        std::cout<<visitedRate<<" > "<<partitionInfo.getTotalRate()<<std::endl;
-                    }
-                    skip = true;
-                //}
+        //         //if(partitionInfo.getTotalRate() < visitedRate){
+        //             // If the rate is smaller, skip this partition
+        //             if(partitionInfo.lightFieldPosition[2] == 0 && partitionInfo.lightFieldPosition[3] == 0){
+        //                 std::cout<<"Skipping partition at position: "<<partitionInfo.lightFieldPosition[2]<<","<<partitionInfo.lightFieldPosition[3]<<" with rate: "<<partitionInfo.getTotalRate()<<std::endl;
+        //                 std::cout<<visitedRate<<" > "<<partitionInfo.getTotalRate()<<std::endl;
+        //             }
+        //             skip = true;
+        //         //}
         
-                break;
-            }
+        //         break;
+        //     }
+        // }
+        // if (skip)
+        // {
+        //     continue;
+        // }
+        //std::cout<<"Processing partition: "<<partitionIdx<<" "<<partitionIdx%3<<std::endl;
+        if(partitionIdx % 3 != 0) {
+            partitionIdx++;
+            continue; // Keep only every third partition
         }
-        if (skip)
-        {
-            continue;
-        }
+        //std::cout<<"Processing partition: "<<partitionIdx<<std::endl;
         for(auto & cuInfo : partitionInfo.getCodingUnitInfos()){
-            
-            if(partitionInfo.lightFieldPosition[2] == 0 && partitionInfo.lightFieldPosition[3] == 0)
-                std::cout<<"Chosen Angle:"<<cuInfo.getBestGridSearchAngle()<<" "<<skip<<std::endl;
+        
 
         
             std::array<int64_t,4> position = cuInfo.getLightFieldPosition();
+            //std::cout<<"Position: "<<position[2]<<","<<position[3]<<std::endl;
             std::array<int64_t,4> size = cuInfo.getSize();
             double data = getData(cuInfo);
             for (int i = 0; i < size[2]; i++){
@@ -289,6 +295,12 @@ at::Tensor CodingPartitionInfo::getBestCovarianceCost(const std::vector<CodingPa
 }
 at::Tensor CodingPartitionInfo::getChosenAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize){
     return getTensorFromInfo(partitionInfos,totalSize,&CodingUnitInfo::getChosenAngle);
+}
+at::Tensor CodingPartitionInfo::getChosenRhoS(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize){
+    return getTensorFromInfo(partitionInfos,totalSize,&CodingUnitInfo::getChosenRhoS);
+}
+at::Tensor CodingPartitionInfo::getChosenRhoU(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize){
+    return getTensorFromInfo(partitionInfos,totalSize,&CodingUnitInfo::getChosenRhoU);
 }
 
 at::Tensor CodingPartitionInfo::getStructureTensorError(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize){

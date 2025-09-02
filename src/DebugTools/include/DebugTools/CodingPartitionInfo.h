@@ -54,6 +54,8 @@ public:
 
     static at::Tensor getAngleHeuristicUsed(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getChosenAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getChosenRhoS(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
+    static at::Tensor getChosenRhoU(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestStructureTensorAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestStructureTensorCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
     static at::Tensor getBestCovarianceAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);

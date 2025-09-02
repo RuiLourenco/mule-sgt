@@ -299,6 +299,12 @@ double CodingUnitInfo::getBestGridSearchCost() const{
 double CodingUnitInfo::getChosenAngle() const{
     return this->sgtSideInfo.getAngleH();
 }
+double CodingUnitInfo::getChosenRhoS() const{
+    return this->sgtSideInfo.getRhoS();
+}
+double CodingUnitInfo::getChosenRhoU() const{
+    return this->sgtSideInfo.getRhoU();
+}
 
 std::array<double,2> CodingUnitInfo::getLogdetHorizontal() const {
     return logdetHorizontal;
