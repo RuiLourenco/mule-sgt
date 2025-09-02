@@ -389,12 +389,15 @@ int main(int argc, char **argv) {
 
     std::array<double,3> error = {0,0,0};
     double size = 0;
+    
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            //for(int viewLine = 0; viewLine < 1*par.maxPartitionSize[2] + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 512; viewLine < 512 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 704; viewLine < 704 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
-                //for(int viewColumn = 512; viewColumn <4*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 512+64; viewColumn <512+64  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 672; viewColumn <672  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) { 
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
@@ -507,7 +510,7 @@ int main(int argc, char **argv) {
             }
         }
     }
-    std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
+   // std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
     double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
     double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
     double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));

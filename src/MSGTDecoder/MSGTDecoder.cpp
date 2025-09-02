@@ -217,9 +217,11 @@ int main(int argc, char **argv) {
     std::cout<<"LOOP WILL START"<<std::endl;
     for(int verticalView = 0; verticalView < lfSize[0]; verticalView+= maxPartitionSize[0]){
         for(int horizontalView = 0; horizontalView < lfSize[1]; horizontalView+=maxPartitionSize[1]){
-            //for(int viewLine = 512; viewLine < 512+128; viewLine+=maxPartitionSize[2]){
+            //for(int viewLine = 512+64; viewLine < 512+128; viewLine+=maxPartitionSize[2]){
+            //for(int viewLine = 704; viewLine < 704+32; viewLine+=maxPartitionSize[2]){
             for(int viewLine = 0; viewLine < lfSize[2]; viewLine+=maxPartitionSize[2]){
-                //for(int viewColumn = 384; viewColumn < 384+128; viewColumn+=maxPartitionSize[3]){
+                //for(int viewColumn = 512+64; viewColumn < 512+128; viewColumn+=maxPartitionSize[3]){
+                //for(int viewColumn = 672; viewColumn < 672+32; viewColumn+=maxPartitionSize[3]){
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
