@@ -38,6 +38,12 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
         | transformed([&](auto&& sz){return at::arange(1-sz, sz, opts);})| to_t<tensor_arr_t>{};
 
 
+        
+    auto meshes = at::meshgrid(ranges, "ij");
+    return {meshes[0], meshes[1]};
+}
+
+
 
 
 #define DEBUG 0
@@ -964,6 +970,27 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
 at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     auto [L, Q] = torch::linalg::eigh(covMat, "U");
     eigVals = L.flip({-1});
+    int ic = 0;
+    double summ = 0;
+    for(int i = 0; i < eigVals.size(0) - 1; i++){
+        double difference = (eigVals[i] - eigVals[i+1]).abs().item<double>();
+        summ += difference;
+        if (difference > 1e-8) {
+            ic++;
+            //break;
+            //exit(-2);
+        }
+    }
+    
+    // if (ic > 0){
+    //     std::cerr<<"WARNING: Eigenvalues are not unique! "<<ic<<" non-unique eigenvalues found!"<<std::endl;
+    //     std::cerr<<"Condition Number: "<<eigVals[0].item<double>()/eigVals[-1].item<double>()<<std::endl;
+    //     std::cerr<<"Eigen Condition Number: "<<eigVals[0].item<double>()-eigVals[-1].item<double>()<<std::endl;
+    //     std::cerr<<"minimum eigenvalue: "<<eigVals[-1].item<double>()<<std::endl;
+    //     std::cerr<<"maximum eigenvalue: "<<eigVals[0].item<double>()<<std::endl;
+    //     std::cerr<<"mean eigenvalue difference: "<<summ/(eigVals.size(0)-1)<<std::endl;
+    //     std::cerr<<"R_max = "<< (covMat.abs().sum(0).max().item()) << std::endl;
+    // }
     return Q.flip({-1}); // flip such that coefficients are in DESCENDING order
 }
 
@@ -977,7 +1004,7 @@ at::Tensor Block4D_::getOrderV(){
 at::Tensor Block4D_::sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV,const at::Tensor& eigValsH,const at::Tensor& eigValsV) {
     at::Tensor block = flatBlock.to(at::kDouble);
     at::Tensor transform = at::mm(at::mm(sgtMatrixV.t(), block), sgtMatrixH);
-    return transform;
+    return transform; 
 }
 
 at::Tensor Block4D_::isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) {
@@ -1086,6 +1113,7 @@ double Block4D_::varianceFromCov(const at::Tensor& cov) {
     double var = cov[k_center][m_center].item<double>(); 
     return var;
 }
+
 at::Tensor Block4D_::corrFun(bool isHorizontal) const{
     using namespace phoenix::placeholders;
     using namespace torch::fft;
