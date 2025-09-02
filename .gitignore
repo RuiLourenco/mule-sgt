@@ -9,4 +9,5 @@
 /DebugData/
 /TestResults/
 /results/
+/first_debug_tensors/
 *.png
