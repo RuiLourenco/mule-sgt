@@ -185,6 +185,7 @@ void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern,
 
 
 Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
+    
     Block4D_ block(size,position,this);
     std::array<int64_t,4> actualSize;
     for(int n = 0; n<4; n++){
@@ -202,10 +203,27 @@ Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::a
                                              at::indexing::Slice(position[2],position[2]+actualSize[2]),
                                              at::indexing::Slice(position[3],position[3]+actualSize[3]),
                                              channel});
-
-    at::Tensor validPosition_h = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
-    at::Tensor validPosition_v = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
-    block.validPositions = ValidPositions{validPosition_h,validPosition_v};
+    if (this->preSlantTan != 0) {
+        
+        at::Tensor validPosition_h = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
+        at::Tensor validPosition_v = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
+        block.validPositions = ValidPositions{validPosition_h,validPosition_v};
+        if(validPosition_h.size(0) == size[1] * size[3] && validPosition_v.size(0) == size[0] * size[2]){
+                std::cout<<"All positions are valid for subblock copy. "<<std::endl;
+                block.includesInvalidCorners = false;
+        }
+        else{
+            std::cout<<"Some positions are invalid for subblock copy. "<<std::endl;
+            std::cout<<"Valid Positions Horizontal: "<<validPosition_h.sizes()<<"/"<<size[1] * size[3]<<std::endl;
+            std::cout<<"Valid Positions Vertical: "<<validPosition_v.sizes()<<"/"<<size[0] * size[2]<<std::endl;
+            block.includesInvalidCorners = true;
+        }
+    }
+    else{
+        block.validPositions = ValidPositions{at::empty({0}),at::empty({0})};
+        block.includesInvalidCorners = false;
+    }
+    std::cout<<"Includes Invalid Corners: "<<block.includesInvalidCorners<<std::endl;
     return block;
 }
 void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position){
@@ -250,8 +268,8 @@ at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope){
     
         for(int l_ = 0; l_<size[0]; l_++){
 
-            int n_start = round(l_*true_alpha);
-            int n_end = (size[2]) + round(l_*true_alpha);
+            int n_start = floor(l_*true_alpha);
+            int n_end = (size[2]) + floor(l_*true_alpha);
 
             if(slantSlope < 0){
                 n_start -= (size[0]-1)*true_alpha;
@@ -259,8 +277,8 @@ at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope){
             }
 
             for(int k_ = 0; k_ < size[1]; k_++){
-                int m_start = round(k_*true_alpha);
-                int m_end = (size[3]) + round(k_*true_alpha);
+                int m_start = floor(k_*true_alpha);
+                int m_end = (size[3]) + floor(k_*true_alpha);
                 if(slantSlope < 0){
                     m_start -= (size[1]-1)*true_alpha;
                     m_end -= (size[1]-1)*true_alpha;

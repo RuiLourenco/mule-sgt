@@ -290,6 +290,10 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
 }
 
 void Hierarchical4DEncoder::encodeSubblockFromPool(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane, double lambda){
+    if(length[0] * length[1] * length [2] * length[3] == 0){
+        std::cout<<"Correctly skipping empty subblock encoding"<<std::endl;
+        return; // Nothing to encode
+    }
     int flagSearchIndex = 0;
     //std::cout<<"Encoding Subblock from Pool with length: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" and position: "<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]<<" and bitplane: "<<bitplane<<std::endl;
     this->mSubbandLF_.data = this->mSubbandLF_.data.contiguous();

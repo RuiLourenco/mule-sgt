@@ -106,7 +106,8 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
 }
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
     int flagCode = entropyDecoder.DecodePartitionFlag();
-    if(flagCode == INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"why?";return;}
+    if(flagCode != NOSPLITFLAGSYMBOL && flagCode != INTRAVIEWSPLITFLAGSYMBOL) {std::cout<<"why? "<<flagCode<<std::endl;exit(-55);return;}
+    
     //std::cout << "Entered Step with size: ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
     //std::cout<<"Decoding Partition Flag"<<std::endl;
     //std::cout<<"Partition Flag Decoded: "<<flagCode<<std::endl;
@@ -118,6 +119,7 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
 
     if(flagCode == NOSPLITFLAGSYMBOL) {
         //std::cout<<" Decoding SSI"<<std::endl;
+        std::cout<<" decoding subblock of length: "<<length[2]<<" "<<length[3]<<std::endl;
 
         SgtSideInfo ssi = entropyDecoder.DecodeSsi(disparityRange);
         ssi.print();
@@ -128,17 +130,20 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         for(int i = 0; i < 4; i++){
             newLFPosition[i] += position[i];
         }
+        std::cout<<"Light Field Position: "<<newLFPosition[0]<<" "<<newLFPosition[1]<<" "<<newLFPosition[2]<<" "<<newLFPosition[3]<<std::endl;
+
         entropyDecoder.mSubbandLF = Block4D_(length,newLFPosition,mPartitionData.lightField);
 
         //std::cout<<"Block Created"<<std::endl;
-        //std::cout<<"Transform Size = "<<entropyDecoder.mSubbandLF.transformSize[0]<<"x"<<entropyDecoder.mSubbandLF.transformSize[1]<<"x"<<entropyDecoder.mSubbandLF.transformSize[2]<<"x"<<entropyDecoder.mSubbandLF.transformSize[3]<<std::endl;
+        std::cout<<"Transform Size = "<<entropyDecoder.mSubbandLF.transformSize[0]<<"x"<<entropyDecoder.mSubbandLF.transformSize[1]<<"x"<<entropyDecoder.mSubbandLF.transformSize[2]<<"x"<<entropyDecoder.mSubbandLF.transformSize[3]<<std::endl;
         entropyDecoder.mSubbandLF.emptyTransform();
 
         //std::cout<<"parsing file and decoding hexadeca-tree clustering"<<std::endl;
-        entropyDecoder.DecodeBlock(0, 0, 0, 0, entropyDecoder.mSubbandLF.transformSize[0], entropyDecoder.mSubbandLF.transformSize[1], entropyDecoder.mSubbandLF.transformSize[2], entropyDecoder.mSubbandLF.transformSize[3], entropyDecoder.mSuperiorBitPlane); 
+        std::cout<<"entropyDecoderSize: "<<entropyDecoder.mSubbandLF.data.sizes()<<std::endl;
+        if(entropyDecoder.mSubbandLF.transformSize[2] * entropyDecoder.mSubbandLF.transformSize[3] > 0) entropyDecoder.DecodeBlock(0, 0, 0, 0, entropyDecoder.mSubbandLF.transformSize[0], entropyDecoder.mSubbandLF.transformSize[1], entropyDecoder.mSubbandLF.transformSize[2], entropyDecoder.mSubbandLF.transformSize[3], entropyDecoder.mSuperiorBitPlane); 
         //std::cout<<"Block Parsed"<<std::endl;
-        //std::cout<<"Parsed Block:"<<std::endl<<entropyDecoder.mSubbandLF.data.index({0,0,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-
+        std::cout<<"Parsed Block:"<<std::endl<<entropyDecoder.mSubbandLF.data.index({0,0,at::indexing::Slice(0,1),at::indexing::Slice(0,3)})<<std::endl;
+        
         //int64_t maxIndex = entropyDecoder.mSubbandLF.data.argmax().item<int64_t>();
         //int64_t minIndex = entropyDecoder.mSubbandLF.data.argmin().item<int64_t>();
         // int64_t t_min, s_min, u_min, v_min, t_max, s_max, u_max, v_max;
@@ -152,7 +157,7 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         //std::cout<<"ENTROPY = "<<entropy<<std::endl;
         //std::cout<<"ISG Transform"<<std::endl;
         double gain = transformGain(length);        
-
+        std::cout<<"size before ISGT: "<<entropyDecoder.mSubbandLF.data.sizes()<<std::endl;
         entropyDecoder.mSubbandLF.isgtTransform(gain,ssi);
         //std::cout<<"ISG Transform DONE"<<std::endl;
 
@@ -164,11 +169,12 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         //std::cout<<"Completed Transform"<< " position = (" << position[0] << " " << position[1] << " " << position[2] << " " << position[3] << ")" << std::endl;
         //std::cout<<"Partition Size: "<<mPartitionData.data.sizes()<<std::endl;
         mPartitionData.CopySubblockFrom(entropyDecoder.mSubbandLF, {0, 0, 0, 0}, position);
-        //std::cout<<" copied block"<<std::endl;
+        std::cout<<" copied decoded subblock of length: "<<length[2]<<" "<<length[3]<<std::endl<<std::endl;
         return;
     }
     
     if(flagCode == INTRAVIEWSPLITFLAGSYMBOL) {
+        std::cout<<"Intra View Split"<<std::endl;
         
         std::array<int64_t,4> new_position, new_length;
         
@@ -184,54 +190,29 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         
         //Decode four spatial subblocks 
         DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
+        std::cout<<"Decoded First Intra View Split Partition"<<std::endl;
 
         new_position[3] = position[3] + length[3]/2;
         new_length[3] = length[3] - length[3]/2;
         
         DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
+        std::cout<<"Decoded Second Intra View Split Partition"<<std::endl;
+
 
         new_position[2] = position[2] + length[2]/2;
         new_length[2] = length[2] - length[2]/2;
         
         DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
+        std::cout<<"Decoded Third Intra View Split Partition"<<std::endl;
+
         
         new_position[3] = position[3];
         new_length[3] = length[3]/2;
         
         DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
+        std::cout<<"Decoded Last Intra View Split Partition"<<std::endl;
         return;
     }
     
-    if(flagCode == INTERVIEWSPLITFLAGSYMBOL) {
-        std::array<int64_t,4> new_position, new_length;
-        
-        new_position[0] = position[0];
-        new_position[1] = position[1];
-        new_position[2] = position[2];
-        new_position[3] = position[3];
-        
-        new_length[0] = length[0]/2;
-        new_length[1] = length[1]/2;
-        new_length[2] = length[2];
-        new_length[3] = length[3];
-        
-        //Decode four view subblocks 
-        DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
-
-        new_position[1] = position[1] + length[1]/2;
-        new_length[1] = length[1] - length[1]/2;
-        
-        DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
-
-        new_position[0] = position[0] + length[0]/2;
-        new_length[0] = length[0] - length[0]/2;
-        
-        DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
-        
-        new_position[1] = position[1];
-        new_length[1] = length[1]/2;
-        
-        DecodePartitionStep(new_position, new_length, entropyDecoder,disparityRange);
-        return;
-    }
+    
 }

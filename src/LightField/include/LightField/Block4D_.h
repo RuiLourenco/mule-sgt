@@ -247,6 +247,13 @@ public:
     void Zeros(void);
     
 
+    int computePreviousInvalidNumber(double preSlantTan,int parentBlockN, int subblockN,bool isHorizontal) const;
+    void copySubblockData(Block4D_& destination, std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset) const;
+    std::vector<int64_t> copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal);
+
+
+    
+
     Block4D_ operator + (const Block4D_ &B) const;
     Block4D_ operator * (const Block4D_ &B) const;
     Block4D_ operator - (const Block4D_ &B) const;

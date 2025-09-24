@@ -338,7 +338,7 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.slantLightField(1);
+    inputLF.slantLightField(-5);
 
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
@@ -392,9 +392,9 @@ int main(int argc, char **argv) {
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            //for(int viewLine = 0; viewLine < 1*par.maxPartitionSize[2] + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 2*par.maxPartitionSize[2]; viewLine < 2*par.maxPartitionSize[2] + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
-                //for(int viewColumn = 512; viewColumn <4*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 8*par.maxPartitionSize[3]; viewColumn <8*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
@@ -449,9 +449,16 @@ int main(int argc, char **argv) {
                     }
                     if(par.colorTransformType == BT601){
                         std::cout<<" Attempting BT601 Color Transformation"<<std::endl;
-                        yBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
-                        cbBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
-                        crBlock = Block4D_(rBlock.size,rBlock.lightFieldPosition,rBlock.lightField);
+                        yBlock = rBlock.clone();
+                        cbBlock = gBlock.clone();
+                        crBlock = bBlock.clone();
+                        std::cout<<"Includes Invalid Corners: "<<yBlock.includesInvalidCorners<<std::endl;
+                        std::cout<<"ValidSize: "<< rBlock.validPositions.valid_positions_v.sizes()<<" x "<<rBlock.validPositions.valid_positions_h.sizes()<<std::endl;
+                        std::cout<<"ValidSize: "<< yBlock.validPositions.valid_positions_v.sizes()<<" x "<<yBlock.validPositions.valid_positions_h.sizes()<<std::endl;
+
+                        std::cout<<"Includes Invalid Corners: "<<cbBlock.includesInvalidCorners<<std::endl;
+                        std::cout<<"Includes Invalid Corners: "<<crBlock.includesInvalidCorners<<std::endl;
+
                         std::cout<<rBlock.data.max()<<std::endl;
                         RGB2YCbCr_BT601(yBlock, cbBlock, crBlock, rBlock, gBlock, bBlock, inputLF.mPGMScale);
                         std::cout<<" Completed BT601 Color Transformation"<<std::endl;

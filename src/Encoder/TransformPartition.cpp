@@ -79,6 +79,8 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     mEvaluateOptimumBitPlane = 1;
     //std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
     mPartitionData_ = Block4D_(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+        std::cout<<"mPartitionData_ valid position size:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
+        std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
     double scaledLambda = lambda;
     for (int i = 0; i < 4; i++){
         scaledLambda *= inputBlock.size[i];
@@ -87,6 +89,10 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     mEntropyCoder.LoadOptimizerState();
 
     Block4D_ transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+    std::cout<<"transformedBlock valid position size:"<<transformedBlock.validPositions.valid_positions_v.size(0) << std::endl;
+    std::cout<<"transformedBlock includes invalids:"<<transformedBlock.includesInvalidCorners << std::endl;
+
+
     transformedBlock.emptyTransform();
     //std::cout<<"Transformed Block Pre Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
     //std::cout<<"Transformed Block Pre Transform Size: "<<transformedBlock.transformSize[0]<<" "<<transformedBlock.transformSize[1]<<" "<<transformedBlock.transformSize[2]<<" "<<transformedBlock.transformSize[3]<<std::endl;
@@ -95,6 +101,10 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, mSsiBuffer,mCuiBuffer, &mPartitionCode);
     //std::cout<<"Lagrangian Cost: "<<mLagrangianCost<<std::endl;
     mPartitionData_ = transformedBlock;
+    std::cout<<"mPartitionData_ valid position size after transform:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
+    std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
+
+            //std::cout<<"Transformed Block Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
     //std::cout<<"Transformed Block Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
     //std::cout<<"Transformed Block Transform Size: "<<mPartitionData_.transformSize[0]<<" "<<mPartitionData_.transformSize[1]<<" "<<mPartitionData_.transformSize[2]<<" "<<mPartitionData_.transformSize[3]<<std::endl;
     mEntropyCoder.LoadOptimizerState();
@@ -1052,7 +1062,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
     //std::cout<<"-0"<<std::endl;
 
     // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
-    //double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
+    double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
 
     //double J0 = RDrefineCovariance(block_0,1,cui0, &coderModelState_0);
@@ -1064,7 +1074,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     //double J0 = RDStructureTensorOrLogdet(block_0,cui0,&coderModelState_0);
     //double J0 = RDrefineStructureTensor(block_0,1,cui0,&coderModelState_0);
-    double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
+    //double J0 = RDrefineAllAngleHeuristics(block_0,cui0,&coderModelState_0);
     //std::cout<<"STARTED TESTING"<<std::endl;
 
     //double J0 = RDtestAllAngleHeuristics(block_0,cui0,&coderModelState_0);
@@ -1280,8 +1290,9 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         delete(*partitionCode);
         *partitionCode = code;
         mEntropyCoder.SetOptimizerProbabilisticModelState(coderModelState_s);
+        
         //transformedBlock.CopySubblockFrom(transformedBlockS, {0,0,0,0},{0,0,0,0});
-        transformedBlock = transformedBlockS;
+        transformedBlock = transformedBlockS.clone();
         currSsiBuffer.insert(currSsiBuffer.end(),ssiBufferS.begin(), ssiBufferS.end());
         currCuiBuffer.insert(currCuiBuffer.end(),cuiBufferS.begin(), cuiBufferS.end());
 
@@ -1296,7 +1307,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         *partitionCode = code;
         mEntropyCoder.SetOptimizerProbabilisticModelState(coderModelState_0);
         //transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
-        transformedBlock = block_0;
+        transformedBlock = block_0.clone();
         currSsiBuffer.push_back(block_0.ssi);
         currCuiBuffer.push_back(cui0);
     }
@@ -1331,38 +1342,47 @@ void TransformPartition :: EncodePartition_(double lambda){
     mEntropyCoder.EncodeInteger(mEntropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
     //std::cout<<"Minimum Bit Plane: "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
 
-
+    std::cout<<"first few elements: "<<mPartitionData_.data.index({at::indexing::Slice(),at::indexing::Slice(),0,at::indexing::Slice(0,10)})<<std::endl;
     EncodePartitionStep_(position, length, scaledLambda);
 }
 
 void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4>length,  double lambda) {
     //std::cout<<mPartitionCode[mPartitionCodeIndex]<<" "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
     if(mPartitionCode[mPartitionCodeIndex] == NOSPLITFLAG) {
-      
+        std::cout<<"Size: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
+        std::cout<<"Position: "<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
         mPartitionCodeIndex++;
         mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-        // std::cout<< "RhoS = "<<mSsiBuffer[mSsiBufferIndex].getRhoS()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoSCode()<<std::endl;
-        // std::cout<< "RhoT = "<<mSsiBuffer[mSsiBufferIndex].getRhoT()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoTCode()<<std::endl;
-        // std::cout<< "RhoU = "<<mSsiBuffer[mSsiBufferIndex].getRhoU()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoUCode()<<std::endl;
-        // std::cout<< "RhoV = "<<mSsiBuffer[mSsiBufferIndex].getRhoV()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getRhoVCode()<<std::endl;
-        // std::cout<<"Disparity = "<<mSsiBuffer[mSsiBufferIndex].getDisparity()<<" Code: "<<mSsiBuffer[mSsiBufferIndex].getDCode()<<std::endl;
-        //std::cout<<"Ssi Buffer Size: "<<mSsiBuffer.size()<<std::endl;
-        //std::cout<<"Buffer Size: "<<mCuiBuffer.size()<<std::endl;
-        //std::cout<<"LightFieldPositionOfEncodedBlock: "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[0]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[1]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[2]<<" "<<mCuiBuffer[mCodingUnitIndex].getLightFieldPosition()[3]<<std::endl;
         
         mSsiBuffer[mCodingUnitIndex].print();
         //mCuiBuffer[mCodingUnitIndex].getSgtSideInfo().print();
-        
+        //std::cout<<"1"<<std::endl;
 
         mEntropyCoder.EncodeSSI_(mSsiBuffer[mCodingUnitIndex]);
+                //std::cout<<"2"<<std::endl;
+
         //std::cout<<"Length:"<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
         //std::cout<<"Position:"<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
-        std::array<int64_t,4> trueLength = {1,1,length[0]*length[2], length[3] * length[1]};
         //std::array<int64_t,4> positionTransform = {0,0,position[2]*length[0],position[3]*length[1]};
         
-        
+        //std::cout<<"3"<<std::endl;
+
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
-        mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
+        //if(length[3] == 32) std::cout<<mEntropyCoder.mSubbandLF_.validPositions.valid_positions_h % length[3];
+
+        std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
+        std::cout<<"first few elements block: "<<mPartitionData_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
+        //std::cout<<"first few elements subblock: "<<mEntropyCoder.mSubbandLF_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
+
+        std::cout<<"mPartitionData_.size: "<<mPartitionData_.data.size(0)<<"x"<<mPartitionData_.data.size(1)<<"x"<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;
+        std::cout<<"mEntropyCoder.mSubbandLF_.size: "<<mEntropyCoder.mSubbandLF_.data.size(0)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(1)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(2)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(3)<<std::endl;
+        std::cout<<"length: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
+        std::cout<<"trueLength: "<<trueLength[0]<<"x"<<trueLength[1]<<"x"<<trueLength[2]<<"x"<<trueLength[3]<<std::endl;
+        std::cout<<"lf position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[0]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[1]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
+        //std::cout<<"4"<<std::endl;
+        if(trueLength[2] * trueLength[3] > 0) mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
+        //std::cout<<"5"<<std::endl;
+
         //mEntropyCoder.EncodeSubblock_(lambda);
         
         

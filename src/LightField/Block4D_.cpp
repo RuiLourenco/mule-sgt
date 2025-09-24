@@ -52,7 +52,7 @@ std::pair<at::Tensor, at::Tensor> make_function_grid(at::IntArrayRef sizes, at::
 
 
 
-#define DEBUG 1
+#define DEBUG 0
 #define MATLAB_DEBUG 0
 
 void saveVectorAsMatlabScript(std::vector<double> vector,std::string name){
@@ -481,17 +481,63 @@ Block4D_::Block4D_(std::array<int64_t,4> size,std::array<int64_t,4>lightFieldPos
     : size(size), lightFieldPosition(lightFieldPosition), lightField(lightField){
     this->data = torch::zeros({size[0], size[1], size[2], size[3]}, torch::kInt);
     this->sgtDomain = false;
-#if FLAT_TRANSFORM == 1
+    int64_t fillHLow = std::abs(lightField->preSlantTan) * lightField->data.size(1);
+
+    int64_t fillHHigh = lightField->data.size(3) - fillHLow - size[3];
+    int64_t fillVLow = std::abs(lightField->preSlantTan) * lightField->data.size(0);
+    int64_t fillVHigh = lightField->data.size(2) - fillVLow - size[2];
+    std::cout<<fillHLow<<" "<<fillHHigh<<" "<<fillVLow<<" "<<fillVHigh<<std::endl;
+    std::cout<<"LightField Position: "<<lightFieldPosition[0]<<" "<<lightFieldPosition[1]<<" "<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
+    std::cout<<lightField->preSlantTan<<std::endl;
+    
+    #if FLAT_TRANSFORM == 1
     this->transformSize = {1,1,this->size[0]*this->size[2],this->size[1]*this->size[3]};
-#else 
+    #else 
     this->transformSize = {this->size[0],this->size[1],this->size[2],this->size[3]};
-#endif
+    #endif
+    
+    if( (lightFieldPosition[2] > fillHLow && lightFieldPosition[2] < fillHHigh &&
+        lightFieldPosition[3] > fillVLow && lightFieldPosition[3] < fillVHigh) || lightField->preSlantTan == 0){
+            std::cout<<"No Invalid Corners. "<<std::endl;
+            this->includesInvalidCorners = false;
+    }
+    else{
+        std::array<int64_t,4> lfSize;
+        for (int i = 0; i < 4; i++){
+            lfSize[i] = lightField->data.size(i);
+        }
+        at::Tensor validPositionH = get_valid_position(lightField->preSlantTan,lfSize,size,lightFieldPosition,true);
+        at::Tensor validPositionV = get_valid_position(lightField->preSlantTan,lfSize,size,lightFieldPosition,false);
+        this->validPositions = ValidPositions{validPositionH,validPositionV};
+        if(validPositionH.size(0) == size[1] * size[3] && validPositionV.size(0) == size[0] * size[2]){
+                std::cout<<"All positions are valid for subblock copy. "<<std::endl;
+                this->includesInvalidCorners = false;
+        }
+        else{
+
+            //std::cout<<"Some positions are invalid for subblock copy. "<<std::endl;
+            std::cout<<"Valid Positions Horizontal: "<<validPositionH.sizes()<<"/"<<size[1] * size[3]<<std::endl;
+            std::cout<<"Valid Positions Vertical: "<<validPositionV.sizes()<<"/"<<size[0] * size[2]<<std::endl;
+
+            this->includesInvalidCorners = true;
+            #if FLAT_TRANSFORM == 1
+            this->transformSize = {1,1,validPositionV.size(0),validPositionH.size(0)};
+            #else 
+            std::cerr<<"Pre-Slant Not implemented for non-flat transform!"<<std::endl;
+            #endif
+        }
+    }
+
+
     
 }
 void Block4D_::emptyTransform(){
+    
     this->data = torch::zeros({this->transformSize[0], this->transformSize[1], this->transformSize[2], this->transformSize[3]}, torch::kInt);
     this->sgtDomain = true;
 }
+
+
 
 /**
  * Constructs a Block4D_ object by concatenating the data from four equal sized Block4D_ objects in a specific pattern.
@@ -512,6 +558,7 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
     }else{
         x1 = 2; x2 = 3;
     }
+    
     //std::cout<<"B00: "<<B00.size[0]<<"x"<<B00.size[1]<<"x"<<B00.size[2]<<"x"<<B00.size[3]<<std::endl;
     //std::cout<<"B00 Transform Size: "<<B00.transformSize[0]<<"x"<<B00.transformSize[1]<<"x"<<B00.transformSize[2]<<"x"<<B00.transformSize[3]<<std::endl;
     assert(B00.data.size(x1)+B10.data.size(x1) == B01.data.size(x1)+B11.data.size(x1) && "heights don't match" );
@@ -533,6 +580,35 @@ Block4D_::Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10
     this->sgtDomain = B00.sgtDomain;
     this->lightFieldPosition = B00.lightFieldPosition;
     this->lightField = B00.lightField;
+    if( (!B00.includesInvalidCorners && !B01.includesInvalidCorners && !B10.includesInvalidCorners && !B11.includesInvalidCorners)){
+            //std::cout<<"No Invalid Corners. "<<std::endl;
+            this->includesInvalidCorners = false;
+    }
+    else{
+        std::array<int64_t,4> lfSize;
+        for (int i = 0; i < 4; i++){
+            lfSize[i] = this->lightField->data.size(i);
+        }
+        at::Tensor validPositionH = get_valid_position(lightField->preSlantTan,lfSize,this->size,this->lightFieldPosition,true);
+        at::Tensor validPositionV = get_valid_position(lightField->preSlantTan,lfSize,this->size,this->lightFieldPosition,false);
+        this->validPositions = ValidPositions{validPositionH,validPositionV};
+        if(validPositionH.size(0) == size[1] * size[3] && validPositionV.size(0) == size[0] * size[2]){
+                //std::cout<<"All positions are valid for subblock copy. "<<std::endl;
+                this->includesInvalidCorners = false;
+        }
+        else{
+            //std::cout<<"Some positions are invalid for subblock copy. "<<std::endl;
+            //std::cout<<"Valid Positions Horizontal: "<<validPositionH.sizes()<<"/"<<size[1] * size[3]<<std::endl;
+            //std::cout<<"Valid Positions Vertical: "<<validPositionV.sizes()<<"/"<<size[0] * size[2]<<std::endl;
+
+            this->includesInvalidCorners = true;
+            #if FLAT_TRANSFORM == 1
+            this->transformSize = {1,1,validPositionV.size(0),validPositionH.size(0)};
+            #else 
+            std::cerr<<"Pre-Slant Not implemented for non-flat transform!"<<std::endl;
+            #endif
+        }
+    }
 }
 std::ostream &operator<<(std::ostream &os, std::array<int64_t,4> vec) { 
     return os << "[" << vec[0] << ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
@@ -546,50 +622,182 @@ std::array<int64_t,4> Block4D_::toSGTCoords(std::array<int64_t,4> coords) const{
     return sgtCoords;
 }
 
-Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset){
-    
-    Block4D_ deepCopy = this->clone();
-    //Block4D_ deepCopy2 = this->clone();
+void Block4D_::copySubblockData(Block4D_& destination, std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset) const{
 
     for( int i = 0; i < 4; i++){
-        deepCopy.lightFieldPosition[i] = this->lightFieldPosition[i] + sourceOffset[i];
+        destination.lightFieldPosition[i] = this->lightFieldPosition[i] + sourceOffset[i];
     }
+    //std::cout<<"first few elements destination early: "<<destination.data.index({0,0,0,at::indexing::Slice(0,3)})<<std::endl;
+
+
     std::array<int64_t,4> length = {std::min(subblockLength[0], this->size[0]-sourceOffset[0]),
                                     std::min(subblockLength[1], this->size[1]-sourceOffset[1]),
                                     std::min(subblockLength[2], this->size[2]-sourceOffset[2]),
                                     std::min(subblockLength[3], this->size[3]-sourceOffset[3])};
     
-    deepCopy.size = length;
-    
-    deepCopy.transformSize = toSGTCoords(length);
-
-    //std::cout<<"sourceOffsety B4: "<<sourceOffset[0]<<" "<<sourceOffset[1]<<" "<<sourceOffset[2]<<" "<<sourceOffset[3]<<std::endl;
+    destination.size = length;
+    if(sgtDomain)std::cout<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
+    if(!destination.includesInvalidCorners){
+        destination.transformSize = toSGTCoords(length);
+        //std::cout<<"no invalids length: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
+        //std::cout<<"no invalids destination.transformSize: "<<destination.transformSize[0]<<"x"<<destination.transformSize[1]<<"x"<<destination.transformSize[2]<<"x"<<destination.transformSize[3]<<std::endl;
+    }else{
+        destination.transformSize = {1,1,destination.validPositions.valid_positions_v.size(0),destination.validPositions.valid_positions_h.size(0)};
+        
+    }
 
     if(this->sgtDomain){
-        length = deepCopy.transformSize;
+        length = destination.transformSize;
+        //std::cout<< destination.validPositions.valid_positions_v.size(0)<<"x"<<destination.validPositions.valid_positions_h.size(0)<<std::endl;
         sourceOffset = toSGTCoords(sourceOffset);
+        if(this->includesInvalidCorners){
+            
+            int offsetReductionV = computePreviousInvalidNumber(this->lightField->preSlantTan,this->lightFieldPosition[2],destination.lightFieldPosition[2],false);
+            int offsetReductionH= computePreviousInvalidNumber(this->lightField->preSlantTan,this->lightFieldPosition[3],destination.lightFieldPosition[3],true);
+            std::cout<<"originalOffset: "<<sourceOffset[2]<<"x"<<sourceOffset[3]<<std::endl;
+            sourceOffset = {0,0,sourceOffset[2] - offsetReductionV,sourceOffset[3] -offsetReductionH };
+            //length = {length[0],length[1],destination.validPositions.valid_positions_v.size(0),destination.validPositions.valid_positions_h.size(0)};
+            std::cout<<"parent LightField Position: "<<this->lightFieldPosition[2]<<"x"<<this->lightFieldPosition[3]<<std::endl;
+            std::cout<<"destination lightField Position: "<<destination.lightFieldPosition[2]<<"x"<<destination.lightFieldPosition[3]<<std::endl;
+            //std::cout<<"offsetReduction: "<<offsetReductionV<<"x"<<offsetReductionH<<std::endl;
+            std::cout<<"sourceOffset: "<<sourceOffset[2]<<"x"<<sourceOffset[3]<<std::endl;
+            std::cout<<"length: "<<length[2]<<"x"<<length[3]<<std::endl;
+            std::cout<<"destination.has invalid corners: "<<destination.includesInvalidCorners<<std::endl;
+            //std::cout<<"destination.data.size(): "<< destination.data.sizes()<<std::endl;
+            //std::cout<<"first pixel: "<<destination.data[0][0][][]
+        }
     }
-    //std::cout<<"lengthy: "<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<std::endl;
-    //std::cout<<"sourceOffsety After: "<<sourceOffset[0]<<" "<<sourceOffset[1]<<" "<<sourceOffset[2]<<" "<<sourceOffset[3]<<std::endl;
 
-    deepCopy.data  = deepCopy.data.index({at::indexing::Slice(sourceOffset[0],sourceOffset[0]+length[0]),
+    destination.data  = destination.data.index({at::indexing::Slice(sourceOffset[0],sourceOffset[0]+length[0]),
                                         at::indexing::Slice(sourceOffset[1],sourceOffset[1]+length[1]),
                                         at::indexing::Slice(sourceOffset[2],sourceOffset[2]+length[2]),
                                         at::indexing::Slice(sourceOffset[3],sourceOffset[3]+length[3])
                                         });
-
-    //std::cout<<"Actual Size After Copy: "<<deepCopy.data.sizes()<<std::endl;
-    //std::cout<<"Size After Copy: "<<deepCopy.size<<std::endl;
-    //std::cout<<"Transform Size After Copy: "<<deepCopy.transformSize<<std::endl;
-
+    //std::cout<<"first few elements destination final: "<<destination.data.index({0,0,0,at::indexing::Slice(0,3)})<<std::endl;
 
        
 
-    return deepCopy;
-
-
-    
 }
+int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, int subblockN,bool isHorizontal) const{
+    int angleVariable = isHorizontal ? 1 : 0; // 1 for horizontal, 0 for vertical
+    int spaceVariable = isHorizontal ? 3 : 2; // 3 for horizontal, 2 for vertical
+    int size_increase = (int)(abs(round(preSlantTan*(this->lightField->data.size(0)-1))));
+
+    double d = preSlantTan/abs(preSlantTan) * (double)size_increase/((double)this->lightField->data.size(0)-1);
+    double spaceSize = (double)this->lightField->data.size(spaceVariable) - size_increase;
+    double a = 1/d;
+    int maxAngle = this->lightField->data.size(angleVariable);
+    int count = 0;
+    for(int n = parentBlockN; n < subblockN; n++){
+        int upper_l_boundary;
+        int lower_l_boundary;
+        if(d < 0){
+            int offset = size_increase;
+            //int l_min = static_cast<int>(floor((n + 1.0 - offset) *a)) + 1;
+            lower_l_boundary = static_cast<int>(floor((n - offset + 1.0) * a));
+            upper_l_boundary = static_cast<int>(floor((n - offset - spaceSize) * a));
+            
+        }else{
+            //int first_invalid_l = static_cast<int>(ceil((n + 1.0) * a));
+            upper_l_boundary = static_cast<int>(ceil((n + 1.0) * a));
+            lower_l_boundary = static_cast<int>(ceil((n - spaceSize) * a));
+            //int last_invalid_l = static_cast<int>(ceil((n +  * a));
+            // if(parentBlockN == 0 && subblockN == 32){
+            //     std::cout<<n<<":"<<" "<<first_invalid_l<<" "<<maxAngle - first_invalid_l<<" "<< count<<std::endl;
+            // }
+        }
+        count += std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0);
+
+    }
+
+
+    return count;
+
+}
+
+std::vector<int64_t> Block4D_::copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal){
+    
+    
+    
+    std::vector<int64_t> validPositions;
+    int angleCoord = isHorizontal ? 1 : 0; // 1 for horizontal, 0 for vertical
+    int spatialCoord = isHorizontal ? 3 : 2; // 3 for horizontal, 2 for vertical
+    auto* data = isHorizontal ? this->validPositions.valid_positions_h.data_ptr<int64_t>() : this->validPositions.valid_positions_v.data_ptr<int64_t>();
+    auto* end = isHorizontal ? data + this->validPositions.valid_positions_h.size(0) : data + this->validPositions.valid_positions_v.size(0);
+    for(int l = sourceOffset[0]; l < sourceOffset[angleCoord] + subblockLength[angleCoord]; l++){
+        if(l< 0 || l >= this->size[angleCoord]) throw std::runtime_error("Invalid sourceOffset for Block4D_ copy");
+        for(int n = sourceOffset[spatialCoord]; n < sourceOffset[spatialCoord] + subblockLength[spatialCoord]; n++){
+            if(n< 0 || n >= this->size[spatialCoord]) throw std::runtime_error("Invalid sourceOffset for Block4D_ copy");
+            int64_t oldPosition = l * this->size[spatialCoord] + n;
+            int64_t position = l * subblockLength[spatialCoord] + n - sourceOffset[spatialCoord];
+            
+            
+            auto it = std::find(data, end, oldPosition);
+            if(it != end){
+                validPositions.push_back(position);
+            }
+        }
+    }
+    //std::cout<<sourceOffset[spatialCoord]<<" "<<sourceOffset[spatialCoord] + subblockLength[spatialCoord]<<std::endl;
+    //std::cout<<"Valid Subblock Positions: "<<validPositions.size()<< " max subblock positions:"<< subblockLength[spatialCoord] * subblockLength[angleCoord]<< std::endl;
+    //std::cout<<std::endl;
+    return validPositions;
+}
+
+Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset){
+    //std::cout<<"Copying subblock of size: "<<subblockLength[0]<<"x"<<subblockLength[1]<<"x"<<subblockLength[2]<<"x"<<subblockLength[3]<<std::endl;
+    //std::cout<<"deepCopy.data.device(): "<<this->data.device()<<std::endl;
+    if(this->data.size(0) == 1 && this->data.size(1) == 1){
+       // std::cout<<" isSGT:" << this->sgtDomain << std::endl;
+        //std::cout<<"valid position size:"<<this->validPositions.valid_positions_v.size(0) << std::endl;
+    }
+
+    Block4D_ deepCopy = this->clone();
+        //std::cout<<"deepCopy.data.device(): "<<deepCopy.data.device()<<std::endl;
+    
+    if(includesInvalidCorners){
+        std::vector<int64_t> validPositionsH = copyValidSubblockPositions(subblockLength, sourceOffset, true);
+        std::vector<int64_t> validPositionsV = copyValidSubblockPositions(subblockLength, sourceOffset, false);
+        if(deepCopy.sgtDomain){
+            std::cout<<"sourceOffset: "<<sourceOffset[0]<<"x"<<sourceOffset[1]<<"x"<<sourceOffset[2]<<"x"<<sourceOffset[3]<<std::endl;
+            std::cout<<"subblockLength: "<<subblockLength[0]<<"x"<<subblockLength[1]<<"x"<<subblockLength[2]<<"x"<<subblockLength[3]<<std::endl;
+            std::cout<<"validPositionsH.size():"<<validPositionsH.size()<<" validPositionsV.size():"<<validPositionsV.size()<<std::endl;
+            std::cout<<"this->validPositions.valid_positions_h.size(0):"<<this->validPositions.valid_positions_h.size(0)<<" this->validPositions.valid_positions_v.size(0):"<<this->validPositions.valid_positions_v.size(0)<<std::endl;
+        }
+        if(validPositionsH.size() == 0 && validPositionsV.size() == 0){
+            //std::cout<<"No valid positions found for subblock copy. Returning empty Block4D_."<<std::endl;
+        }
+        if(validPositionsH.size() == subblockLength[1] * subblockLength[3] && validPositionsV.size() == subblockLength[0] * subblockLength[2]){
+            //std::cout<<"All positions are valid for subblock copy. "<<std::endl;
+            deepCopy.includesInvalidCorners = false;
+        }else{
+            //std::cout<<"Not all positions are valid for subblock copy. "<<std::endl;
+            deepCopy.includesInvalidCorners = true;
+            at::Tensor validPositionsTensorH = torch::from_blob(validPositionsH.data(), {static_cast<int64_t>(validPositionsH.size())}, torch::kLong).clone();
+            at::Tensor validPositionsTensorV = torch::from_blob(validPositionsV.data(), {static_cast<int64_t>(validPositionsV.size())}, torch::kLong).clone();
+            deepCopy.validPositions.valid_positions_h = validPositionsTensorH;
+            deepCopy.validPositions.valid_positions_v = validPositionsTensorV;
+        }
+
+
+    }
+            
+
+    //std::cout<<"Hello!"<<std::endl;
+    if(this->data.size(0) == 1 && this->data.size(1) == 1){
+        std::cout<<" hasInvalid:" << this->includesInvalidCorners << std::endl;
+        std::cout<<"copy has invalids:"<<deepCopy.includesInvalidCorners<< std::endl;
+        std::cout<<"first few elements deepCopy: "<<deepCopy.data.index({0,0,0,at::indexing::Slice(0,3)})<<std::endl;
+
+    }
+
+    copySubblockData(deepCopy,subblockLength, sourceOffset);
+
+    //std::cout<<"Goodbye!"<<std::endl;
+
+    return deepCopy;    
+}
+
 /**
  * Copies a subblock from another Block4D_ object to the current Block4D_ object.
  *
@@ -1044,16 +1252,25 @@ void Block4D_::sgtTransform(double scale){
 
 
     // write_tensor(this->data.index({at::indexing::Slice(),4,at::indexing::Slice(),16}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/EPI-b4transform.png");
+    //std::cout<<"In Block4D_::sgtTransform"<<std::endl;
+    //std::cout<<"Valid Positions H 42: "<<this->validPositions.valid_positions_h[42].item()<<std::endl;
+
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
+    //std::cout<<"Valid Positions H 42 AFTER: "<<this->validPositions.valid_positions_h[42].item()<<std::endl;
+
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
+    //std::cout<<"Includes Invalid Corners: "<<this->includesInvalidCorners<<std::endl;
+
+    //std::cout<<"Model Covariance Matrices: "<<modelCovMatH.sizes()<<" "<<modelCovMatV.sizes()<<std::endl;
 
     
     at::Tensor eigValsH,eigValsV;
     at::Tensor flatBlock = scale * getFlatBlock();
+    //std::cout<<"Flat Block Size: "<<flatBlock.sizes()<<std::endl;
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
 
-    saveTensorAsMatlabScript(sgtMatrixH,"sgtMatrixH_n47");
+    //saveTensorAsMatlabScript(sgtMatrixH,"sgtMatrixH_n47");
     
     
     this->eigenValuesH = eigValsH;
@@ -1982,10 +2199,13 @@ at::Tensor Block4D_::flat24DAll(const at::Tensor& flatBlock) const{
     return  unflattened_block;
 }
 at::Tensor Block4D_::flat24DValid(const at::Tensor& flatBlock) const {
-    at::Tensor padded_block = torch::zeros({data.size(1)*data.size(3),data.size(0)*data.size(2)}).to(at::kDouble);
+    at::Tensor padded_block = torch::zeros({size[1]*size[3],size[0]*size[2]}).to(at::kInt);
+    std::cout<<"Padded Block Size: "<<padded_block.sizes()<<std::endl;
     auto a = at::meshgrid({validPositions.valid_positions_v, validPositions.valid_positions_h},"ij");
     padded_block = padded_block.index_put({a[0],a[1]},flatBlock);
-    std::array<int64_t,4> sizeShifted = {data.size(0),data.size(2),data.size(1),data.size(3)};
+    std::cout<<"Padded Block Size: "<<padded_block.sizes()<<std::endl;
+
+    std::array<int64_t,4> sizeShifted = {size[0],size[2],size[1],size[3]};
     c10::IntArrayRef permutedSizes(sizeShifted);
     at::Tensor unflattened_block = padded_block.t().reshape(permutedSizes);
     unflattened_block = unflattened_block.permute({2,0,3,1});
@@ -2680,8 +2900,11 @@ at::Tensor Block4D_::calcModelCovFun(SgtSideInfo ssi,bool isHorizontal) const{
     return modelCovFun;
 }
 at::Tensor Block4D_::calcModelCovMatrix(SgtSideInfo ssi,bool isHorizontal) const{
-    //std::cout<<"Calculating Model Cov Matrix"<<std::endl;
+    //std::cout<<"In calcModelCovMatrix()"<<std::endl;
+    //std::cout<<"Valid Positions H 42: "<<this->validPositions.valid_positions_h[42].item()<<std::endl;
+
     at::Tensor modelCovFun = calcModelCovFun(ssi, isHorizontal);
+
 
     //at::Tensor horizontalGrid = at::abs(u - ssi.getDisparity() * s);
     //saveTensorAsMatlabScript(horizontalGrid,"mGrid");
@@ -2969,7 +3192,6 @@ at::Tensor Block4D_::iSqrtCovMat(bool isHorizontal ) const{
 at::Tensor Block4D_::covFun2Mat(const at::Tensor& covFun,bool isHorizontal) const{
     at::Tensor covMat;
     if(includesInvalidCorners){
-        std::cerr<<"Invalid Corners?????????"<<std::endl;
         covMat = covFun2MatValid(covFun,isHorizontal);
     }else{
         //std::cout<<"Correctimundo"<<std::endl;
@@ -3006,9 +3228,23 @@ at::Tensor Block4D_::covFun2MatValid(const at::Tensor& covFun,bool isHorizontal)
     }else{
         validIndexes = this->validPositions.valid_positions_v;
     }
+    //std::cout<<validIndexes.sizes()<<std::endl;
+    //std::cout<<validIndexes.dtype()<<std::endl;
     at::Tensor covMat = covFun2MatAll(covFun);
+    //std::cout<<"CovMat Size: "<<covMat.sizes()<<std::endl;
+    //std::cout<<"Is Horizontal: "<<isHorizontal<<std::endl;
+    //std::cout<<"validIndexes 42: "<<validIndexes[42].item()<<std::endl;
+    //std::cout<<"Valid Positions H 42: "<<this->validPositions.valid_positions_h[42].item()<<std::endl;
+
+    //std::cout<<"Valid Indexes: "<<validIndexes.unsqueeze(0)<<std::endl;
+    //std::cout<<"Valid Positions H: "<<this->validPositions.valid_positions_h.unsqueeze(0)<<std::endl;
+
     covMat = covMat.index({at::indexing::Slice(), validIndexes});
+        //std::cout<<"CovMat Size: "<<covMat.sizes()<<std::endl;
+
     covMat = covMat.index({validIndexes,at::indexing::Slice()});
+        //std::cout<<"CovMat Size: "<<covMat.sizes()<<std::endl;
+
     return covMat;
   }
   at::Tensor batched_cov_fun_to_mat(const at::Tensor& cov_fun, std::int64_t batch_rank) {
@@ -3377,6 +3613,7 @@ void Block4D_::operator = (const Block4D_ &B){
     this->sgtDomain = B.sgtDomain;
     this->ssi = B.ssi;
     this->includesInvalidCorners = B.includesInvalidCorners;
+    this->validPositions = B.validPositions;
     this->orderH = B.orderH;
     this->orderV = B.orderV;
     this->lightFieldPosition = B.lightFieldPosition;
@@ -3392,6 +3629,10 @@ Block4D_ Block4D_::clone() const{
     newBlock.sgtDomain = this->sgtDomain;
     newBlock.ssi = this->ssi;
     newBlock.includesInvalidCorners = this->includesInvalidCorners;
+    if(this->includesInvalidCorners){
+        newBlock.validPositions = ValidPositions(this->validPositions.valid_positions_h.clone(), this->validPositions.valid_positions_v.clone());
+    }
+    //newBlock.validPositions = ValidPositions(this->validPositions.valid_positions_h.clone(), this->validPositions.valid_positions_v.clone());
     newBlock.orderH = this->orderH;
     newBlock.orderV = this->orderV;
     newBlock.lightFieldPosition = this->lightFieldPosition;
@@ -3404,52 +3645,69 @@ Block4D_ Block4D_::clone() const{
 
 at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal){
   
-  
-  int64_t view_coordinate = 0;
-  int64_t spatial_coordinate = 2;
-  if(is_horizontal){
-    view_coordinate = 1;
-    spatial_coordinate = 3;
-  }
-  int lf_extra_size = (int)(abs(round(adjustment_d*(lf_shape[view_coordinate]-1))));
-  double true_alpha;
-  if(adjustment_d == 0){
-    true_alpha = 0;
-  }else{
-    true_alpha = adjustment_d/abs(adjustment_d) * (double)lf_extra_size/((double)lf_shape[view_coordinate]-1);
-  }
-  //cout<<"      True alpha = "<<true_alpha<<endl;
-  std::vector<at::Tensor> padding_coordinates;
-  //cout<<"      Block Start: "<<block_start[spatial_coordinate]<<endl;
-  for(int l_ = 0; l_<lf_shape[view_coordinate]; l_++){
-    if(block_start[view_coordinate]>l_) {
-      //cout<<"Skipping! "<<block_start[view_coordinate]<<" "<<l_<<endl;
-      continue;
-    }
-    if(block_start[view_coordinate]+block_shape[view_coordinate] - 1 < l_){
-      //cout<<"Skipping! "<<block_start[view_coordinate]+block_shape[view_coordinate] - 1 <<" "<<l_<<endl;
-      continue;
-    } 
-    int n_start = round(l_*true_alpha);
-    int n_end = (lf_shape[spatial_coordinate]) + round(l_*true_alpha);
+    //std::cout<<"block_start: "<<block_start[0]<<" "<<block_start[1]<<" "<<block_start[2]<<" "<<block_start[3]<<std::endl;
+    //std::cout<<"block_shape: "<<block_shape[0]<<" "<<block_shape[1]<<" "<<block_shape[2]<<" "<<block_shape[3]<<std::endl;
+    //std::cout<<"lf_shape: "<<lf_shape[0]<<" "<<lf_shape[1]<<" "<<lf_shape[2]<<" "<<lf_shape[3]<<std::endl;
+    
+    if(block_start[2] >= lf_shape[2] || block_start[3] >= lf_shape[3]){
+        if(block_shape[0] == 1){
+            std::cerr<<"Block start is out of bounds! "<<block_start[2]<<" >= "<<lf_shape[2]<<" || "<<block_start[3]<<" >= "<<lf_shape[3]<<std::endl;
 
-    if(true_alpha < 0){
-      n_start -= (lf_shape[view_coordinate]-1)*true_alpha;
-      n_end -= (lf_shape[view_coordinate]-1)*true_alpha;
+        }
+        at::Tensor valid_positions = at::empty({0},at::kLong);
+        return valid_positions;
     }
+    int64_t view_coordinate = 0;
+    int64_t spatial_coordinate = 2;
+    if(is_horizontal){
+        view_coordinate = 1;
+        spatial_coordinate = 3;
+    }
+    int lf_extra_size = (int)(abs(round(adjustment_d*(lf_shape[view_coordinate]-1))));
+    lf_shape[2] = lf_shape[2] - lf_extra_size;
+    lf_shape[3] = lf_shape[3] - lf_extra_size;
 
-    torch::TensorOptions options = torch::TensorOptions();
-    at::Tensor indexes =  at::empty({0},options.dtype(at::kLong));
-    if(n_start-block_start[spatial_coordinate] < block_shape[spatial_coordinate]){
-      int64_t blk_n_start = std::max(n_start-block_start[spatial_coordinate],(int64_t)0);
-      int64_t blk_n_end = std::min(n_end-block_start[spatial_coordinate],block_shape[spatial_coordinate]);
-      //cout<<"      "<<l_<<": "<<blk_n_start<<" "<<blk_n_end<<endl;
-      indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*l_).to(at::kLong);
+    double true_alpha;
+    if(adjustment_d == 0){
+        true_alpha = 0;
+    }else{
+        true_alpha = adjustment_d/abs(adjustment_d) * (double)lf_extra_size/((double)lf_shape[view_coordinate]-1);
     }
-    padding_coordinates.push_back(indexes);
-  }
-  at::Tensor vectorized_padding = torch::cat(padding_coordinates);
-  return vectorized_padding;
+    //cout<<"      True alpha = "<<true_alpha<<endl;
+    std::vector<at::Tensor> padding_coordinates;
+    //cout<<"      Block Start: "<<block_start[spatial_coordinate]<<endl;
+    for(int l_ = 0; l_<lf_shape[view_coordinate]; l_++){
+        if(block_start[view_coordinate]>l_) {
+            //cout<<"Skipping! "<<block_start[view_coordinate]<<" "<<l_<<endl;
+            continue;
+        }
+        if(block_start[view_coordinate]+block_shape[view_coordinate] - 1 < l_){
+            //cout<<"Skipping! "<<block_start[view_coordinate]+block_shape[view_coordinate] - 1 <<" "<<l_<<endl;
+            continue;
+        } 
+        int n_start = floor(l_*true_alpha);
+        int n_end = (lf_shape[spatial_coordinate]) + floor(l_*true_alpha);
+
+        if(true_alpha < 0){
+            n_start -= (lf_shape[view_coordinate]-1)*true_alpha;
+            n_end -= (lf_shape[view_coordinate]-1)*true_alpha;
+        }
+        //std::cout<<l_<<": "<<n_start<<" "<<n_end<<std::endl;
+
+        torch::TensorOptions options = torch::TensorOptions();
+        at::Tensor indexes =  at::empty({0},options.dtype(at::kLong));
+        if(n_start-block_start[spatial_coordinate] < block_shape[spatial_coordinate]){
+            int64_t blk_n_start = std::max(n_start-block_start[spatial_coordinate],(int64_t)0);
+            int64_t blk_n_end = std::min(n_end-block_start[spatial_coordinate],block_shape[spatial_coordinate]);
+            
+            if (blk_n_end - blk_n_start < 1) continue;
+            indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*l_).to(at::kLong);
+        }
+        padding_coordinates.push_back(indexes);
+    }
+    at::Tensor vectorized_padding = torch::cat(padding_coordinates);
+    //std::cout<<"Initial Tenosr Type: "<<vectorized_padding.dtype()<<std::endl;
+    return vectorized_padding;
 }
 
 at::Tensor Block4D_::filter2D(const at::Tensor& input, const at::Tensor& kernel) {
