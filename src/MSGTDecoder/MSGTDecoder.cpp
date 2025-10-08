@@ -219,10 +219,14 @@ int main(int argc, char **argv) {
     for(int verticalView = 0; verticalView < lfSize[0]; verticalView+= maxPartitionSize[0]){
         for(int horizontalView = 0; horizontalView < lfSize[1]; horizontalView+=maxPartitionSize[1]){
             //for(int viewLine = 128; viewLine < 128+64; viewLine+=maxPartitionSize[2]){
-            //for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            for(int viewLine = 0; viewLine < lfSize[2]; viewLine+=maxPartitionSize[2]){
+            //for(int viewLine = 64; viewLine <64  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
+            //for(int viewLine = 10*maxPartitionSize[2]; viewLine <10*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
+            // for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
+            for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
                 //for(int viewColumn = 512; viewColumn < 512+64; viewColumn+=maxPartitionSize[3]){
-                //for(int viewColumn = 0; viewColumn <0*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
+                //for(int viewColumn = 192 ; viewColumn <192  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
+                //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn <lfSize[3]; viewColumn += maxPartitionSize[3]) {
+                // for(int viewColumn = 1 * maxPartitionSize[3] ; viewColumn <1*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
 
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
@@ -358,7 +362,7 @@ int main(int argc, char **argv) {
 
 
     hdt.DoneDecoding();
-    outputLF.slantLightField(-outputLF.preSlantTan);
+    outputLF.slantLightFieldBack();
 
     outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w',par.firstView);
     fclose(inputFileNamePointer);

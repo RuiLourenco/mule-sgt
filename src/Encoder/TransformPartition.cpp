@@ -1371,7 +1371,8 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //if(length[3] == 32) std::cout<<mEntropyCoder.mSubbandLF_.validPositions.valid_positions_h % length[3];
 
         std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
-        std::cout<<"first few elements block: "<<mPartitionData_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
+        //std::cout<<"first few elements block: "<<mPartitionData_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
+
         //std::cout<<"first few elements subblock: "<<mEntropyCoder.mSubbandLF_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
 
         std::cout<<"mPartitionData_.size: "<<mPartitionData_.data.size(0)<<"x"<<mPartitionData_.data.size(1)<<"x"<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;

@@ -255,6 +255,52 @@ void LightField::slantLightField(double slope){
     std::cout<<"Slanted Light Field with slope: "<<slope<<std::endl;
     this->preSlantTan = slope;
 }
+
+void LightField::slantLightFieldBack(){
+    if (this->data.dim() != 5) {
+        throw std::runtime_error("LightField data must be 5D");
+    }
+
+    this->data = unslantData(this->data, this->preSlantTan);
+    std::cout<<"sloped back size:"<<this->data.sizes()<<std::endl;
+
+}
+
+at::Tensor LightField::unslantData(const at::Tensor& block, double slantSlope){
+    if(slantSlope == 0) return block;
+    auto oldSize = block.sizes();
+    torch::TensorOptions options = torch::TensorOptions().dtype(torch::kDouble);
+    int size_decrease = (int)(abs(round(slantSlope*(oldSize[0]-1))));
+   
+    at::Tensor new_block = torch::zeros({(int)oldSize[0],(int)oldSize[1],(int)oldSize[2]-size_decrease,(int)oldSize[3]-size_decrease,oldSize[4]},options);
+    auto size = new_block.sizes();
+    double true_alpha = slantSlope/abs(slantSlope) * (double)size_decrease/((double)size[0]-1);
+    for (int c = 0; c < size[4]; c++){
+
+    
+        for(int l_ = 0; l_<size[0]; l_++){
+
+            int n_start = floor(l_*true_alpha);
+            int n_end = (size[2]) + floor(l_*true_alpha);
+
+            if(slantSlope < 0){
+                n_start -= (size[0]-1)*true_alpha;
+                n_end -= (size[0]-1)*true_alpha;
+            }
+
+            for(int k_ = 0; k_ < size[1]; k_++){
+                int m_start = floor(k_*true_alpha);
+                int m_end = (size[3]) + floor(k_*true_alpha);
+                if(slantSlope < 0){
+                    m_start -= (size[1]-1)*true_alpha;
+                    m_end -= (size[1]-1)*true_alpha;
+                }
+                new_block.index({l_,k_,torch::indexing::Slice(),torch::indexing::Slice(),c}) = block.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(m_start,m_end),c});              
+            }
+        }
+    }
+    return new_block;
+}
  
 at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope){
     if(slantSlope == 0) return block;

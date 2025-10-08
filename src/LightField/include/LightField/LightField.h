@@ -24,6 +24,8 @@ public:
     void WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position);
     void slantLightField(double slope);
     static at::Tensor slantData(const at::Tensor& block, double slantSlope);
+    void slantLightFieldBack();
+    static at::Tensor unslantData(const at::Tensor& block, double slantSlope);
 
 
 };
