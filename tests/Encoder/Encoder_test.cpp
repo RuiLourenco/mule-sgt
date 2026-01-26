@@ -792,14 +792,14 @@ std::map<std::pair<int, int>, double> computeVariancesForCPIs(
 
 // }
 
-TEST(DebugInfoTests,CoarseToFineFeasabilityTest){
-    string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearch1/Tarot/";
-    string inputInfo = inputDirectory + "tarot_0.75_info.json";
-    string outputGraphs = inputDirectory + "CoarseToFineGraphs075_good/";
-    std::cout<<"Input Info: "<<inputInfo<<std::endl;
-    std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
-    CodingPartitionInfo::countUnitsWithin10Degrees(5,codingPartitionInfos,outputGraphs);
-}
+// TEST(DebugInfoTests,CoarseToFineFeasabilityTest){
+//     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearch1/Tarot/";
+//     string inputInfo = inputDirectory + "tarot_0.75_info.json";
+//     string outputGraphs = inputDirectory + "CoarseToFineGraphs075_good/";
+//     std::cout<<"Input Info: "<<inputInfo<<std::endl;
+//     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+//     CodingPartitionInfo::countUnitsWithin10Degrees(5,codingPartitionInfos,outputGraphs);
+// }
 // TEST(DebugInfoTests,CostGraphPrinting){
 //     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
 //     string inputInfo = inputDirectory + "fountain_0.02_info.json";
@@ -808,99 +808,99 @@ TEST(DebugInfoTests,CoarseToFineFeasabilityTest){
 //     CodingPartitionInfo cpi = CodingPartitionInfo::findPartitionInfoByPosition(codingPartitionInfos,position);
 //     cpi.generatePythonScriptsForPartition(inputDirectory + "CostGraph/");
 // }
-// TEST(DebugInfoTests,LoadAndPrint){
+TEST(DebugInfoTests,LoadAndPrint){
     
-//     string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
-//     string inputDirectory =  "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/TestResults/gridSearchShort/Fountain/";
-//     string inputInfo = inputDirectory + "fountain_0.02_info.json";
-//     string inputInfo1 = inputDirectory1 + "fountain_0.02_info.json";
-//     std::array<int64_t,2> size = {512,640};
-//     cout<<inputInfo<<endl;
-//     //string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekNew/info.json";
-//     std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
-//     std::vector<CodingPartitionInfo> codingPartitionInfos1 = CodingPartitionInfo::fromJsonFile(inputInfo1);
-//     //at::Tensor ang = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
-//     //at::Tensor psnr = CodingPartitionInfo::getPSNR(codingPartitionInfos,size);
-//     //at::Tensor mse = CodingPartitionInfo::getMSE(codingPartitionInfos,size);
-//     //double psnrValue = 10 * torch::log10((1024*1024)/mse.mean()).item<double>();
-//     //std::cout<<"PSNR: "<<psnrValue<<std::endl;
-//     //at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,size);
-//     // at::Tensor stH = CodingPartitionInfo::getStructureTensorHorizontal(codingPartitionInfos,size);
-//     // at::Tensor stV = CodingPartitionInfo::getStructureTensorVertical(codingPartitionInfos,size);
-//     // at::Tensor stA = CodingPartitionInfo::getStructureTensorAverage(codingPartitionInfos,size);
-//     //at::Tensor st = CodingPartitionInfo::getBestStructureTensorAngle(codingPartitionInfos,size);
-//     // at::Tensor cH = CodingPartitionInfo::getCovarianceHorizontal(codingPartitionInfos,size);
-//     // at::Tensor cV = CodingPartitionInfo::getCovarianceVertical(codingPartitionInfos,size);
-//     // at::Tensor cA = CodingPartitionInfo::getCovarianceAverage(codingPartitionInfos,size);
-//     // at::Tensor c = CodingPartitionInfo::getBestCovarianceAngle(codingPartitionInfos,size);
-//     // // at::Tensor ldH = CodingPartitionInfo::getLogdetHorizontal(codingPartitionInfos,{512,512});
-//     // at::Tensor ldV = CodingPartitionInfo::getLogdetVertical(codingPartitionInfos,{512,512});
-//     // at::Tensor ldA = CodingPartitionInfo::getLogdetAverage(codingPartitionInfos,{512,512});
-//     // at::Tensor ld = CodingPartitionInfo::getBestLogdetAngle(codingPartitionInfos,{512,512});
-//     at::Tensor gs = CodingPartitionInfo::getBestGridSearchAngle(codingPartitionInfos1,size);
-//     std::cout<<"gs 00 ="<< gs[0][0].item<double>()<<std::endl;
-//     // at::Tensor gsCost = CodingPartitionInfo::getBestGridSearchCost(codingPartitionInfos1,size);
-//     // at::Tensor chosenAngle = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
-//     // // at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,{512,512});
-//     // at::Tensor distortion = CodingPartitionInfo::getPSNR(codingPartitionInfos,{512,512});
-//     //at::Tensor heuristic = CodingPartitionInfo::getAngleHeuristicUsed(codingPartitionInfos,{512,512});
-//     //at::Tensor stCost = CodingPartitionInfo::getBestStructureTensorCost(codingPartitionInfos,size);
-//     // at::Tensor angleErrorST = CodingPartitionInfo::getStructureTensorError(codingPartitionInfos,{512,512});
-//     //at::Tensor costDiffST = CodingPartitionInfo::getStructureTensorCostDiff(codingPartitionInfos,{512,512});
-//     // at::Tensor angleErrorLd = CodingPartitionInfo::getLogdetError(codingPartitionInfos,{512,512});
-//     // at::Tensor costDiffLd = CodingPartitionInfo::getLogdetCostDiff(codingPartitionInfos,{512,512});
+    string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/";
+    string inputDirectory =  "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/";
+    string inputInfo = inputDirectory + "greek_0.75_sg_info.json";
+    string inputInfo1 = inputDirectory1 + "greek_0.75_sg_info.json";
+    std::array<int64_t,2> size = {600,600};
+    cout<<inputInfo<<endl;
+    //string inputDirectory1 = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekNew/info.json";
+    std::vector<CodingPartitionInfo> codingPartitionInfos = CodingPartitionInfo::fromJsonFile(inputInfo);
+    std::vector<CodingPartitionInfo> codingPartitionInfos1 = CodingPartitionInfo::fromJsonFile(inputInfo1);
+    //at::Tensor ang = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
+    //at::Tensor psnr = CodingPartitionInfo::getPSNR(codingPartitionInfos,size);
+    //at::Tensor mse = CodingPartitionInfo::getMSE(codingPartitionInfos,size);
+    //double psnrValue = 10 * torch::log10((1024*1024)/mse.mean()).item<double>();
+    //std::cout<<"PSNR: "<<psnrValue<<std::endl;
+    //at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,size);
+    // at::Tensor stH = CodingPartitionInfo::getStructureTensorHorizontal(codingPartitionInfos,size);
+    // at::Tensor stV = CodingPartitionInfo::getStructureTensorVertical(codingPartitionInfos,size);
+    // at::Tensor stA = CodingPartitionInfo::getStructureTensorAverage(codingPartitionInfos,size);
+    at::Tensor st = CodingPartitionInfo::getBestStructureTensorAngle(codingPartitionInfos,size);
+    // at::Tensor cH = CodingPartitionInfo::getCovarianceHorizontal(codingPartitionInfos,size);
+    // at::Tensor cV = CodingPartitionInfo::getCovarianceVertical(codingPartitionInfos,size);
+    // at::Tensor cA = CodingPartitionInfo::getCovarianceAverage(codingPartitionInfos,size);
+    // at::Tensor c = CodingPartitionInfo::getBestCovarianceAngle(codingPartitionInfos,size);
+    // // at::Tensor ldH = CodingPartitionInfo::getLogdetHorizontal(codingPartitionInfos,{512,512});
+    // at::Tensor ldV = CodingPartitionInfo::getLogdetVertical(codingPartitionInfos,{512,512});
+    // at::Tensor ldA = CodingPartitionInfo::getLogdetAverage(codingPartitionInfos,{512,512});
+    // at::Tensor ld = CodingPartitionInfo::getBestLogdetAngle(codingPartitionInfos,{512,512});
+    //at::Tensor gs = CodingPartitionInfo::getBestGridSearchAngle(codingPartitionInfos1,size);
+    //std::cout<<"gs 00 ="<< gs[0][0].item<double>()<<std::endl;
+    // at::Tensor gsCost = CodingPartitionInfo::getBestGridSearchCost(codingPartitionInfos1,size);
+    // at::Tensor chosenAngle = CodingPartitionInfo::getChosenAngle(codingPartitionInfos,size);
+    // // at::Tensor rate = CodingPartitionInfo::getRate(codingPartitionInfos,{512,512});
+    // at::Tensor distortion = CodingPartitionInfo::getPSNR(codingPartitionInfos,{512,512});
+    //at::Tensor heuristic = CodingPartitionInfo::getAngleHeuristicUsed(codingPartitionInfos,{512,512});
+    //at::Tensor stCost = CodingPartitionInfo::getBestStructureTensorCost(codingPartitionInfos,size);
+    // at::Tensor angleErrorST = CodingPartitionInfo::getStructureTensorError(codingPartitionInfos,{512,512});
+    //at::Tensor costDiffST = CodingPartitionInfo::getStructureTensorCostDiff(codingPartitionInfos,{512,512});
+    // at::Tensor angleErrorLd = CodingPartitionInfo::getLogdetError(codingPartitionInfos,{512,512});
+    // at::Tensor costDiffLd = CodingPartitionInfo::getLogdetCostDiff(codingPartitionInfos,{512,512});
     
-//     //at::Tensor stConfidence = CodingPartitionInfo::getStructureTensorConfidence(codingPartitionInfos,{512,512});
-//     // at::Tensor angleErrorST = (gs - st).abs();
-//     // // angleErrorST = angleErrorST.clamp(0, angleErrorST.quantile(0.9).item<double>());
-//     // // angleErrorLd = angleErrorLd.clamp(0, angleErrorLd.quantile(0.9).item<double>());
-//     // at::Tensor costDiff = (stCost - gsCost)/gsCost;
-//     // // std::cout<<"stCost: "<<stCost.min().item()<<" "<<stCost.max().item()<<std::endl;
-//     // std::cout<<"cost diff: "<<costDiff.min().item()<<" "<<costDiff.max().item()<<std::endl;
-//     //
-//     // std::cout<<"gs: "<<gs.min().item()<<" "<<gs.max().item()<<std::endl;
-//     // std::cout<<"angleErrorST: "<<angleErrorST.min().item()<<" "<<angleErrorST.max().item()<<std::endl;
-//     // std::cout<<"angleErrorLd: "<<angleErrorLd.min().item()<<" "<<angleErrorLd.max().item()<<std::endl;
-//     double gsMin = -10;
-//     double gsMax = 10;
-//     // double gsMin = gs.min().item<double>();
-//     // double gsMax = gs.max().item<double>();
-//     //std::cout<<"stConfidence: "<<stConfidence.min().item()<<" "<<stConfidence.max().item()<<std::endl;
-//     // std::cout<<"angle chosen: "<< stV[64*2][64*3].item()<<" "<< stH[64*2][64*3].item()<<" "<<gs[64*2][64*3].item()<<std::endl;
-//     // std::cout<<"costDiff: "<< costDiff[64*2][64*3].item()<<std::endl;
-//     // write_tensor(stH,inputDirectory + "sth.png",{gsMin,gsMax});
-//     // write_tensor(stV,inputDirectory + "stv.png",{gsMin,gsMax});
-//     // write_tensor(stA,inputDirectory + "sta.png",{gsMin,gsMax});
-//     //write_tensor(st,inputDirectory + "st.png",{gsMin,gsMax});
-//     //write_tensor(ang,inputDirectory + "ang.png",{gsMin,gsMax});
-//     //write_tensor(psnr,inputDirectory + "psnr.png");
-//     //write_tensor(rate,inputDirectory + "rate.png");
-//     // write_tensor(cH,inputDirectory + "cth.png",{gsMin,gsMax});
-//     // write_tensor(cV,inputDirectory + "ctv.png",{gsMin,gsMax});
-//     // write_tensor(cA,inputDirectory + "cta.png",{gsMin,gsMax});
-//     // write_tensor(c,inputDirectory + "c.png",{gsMin,gsMax});
-//     // write_tensor(gsCost,inputDirectory + "gsCost.png");
-//     // //write_tensor(stCost,inputDirectory + "stCost.png");
-//     //cout<<"written ST" <<std::endl;
-//     //write_tensor(error,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekST-3/error.png",{0,15.0});
-//     //write_tensor(stConfidence,inputDirectory + "Confidence1.png",{0,15});
-//     //write_tensor(costDiff,inputDirectory + "CostDiffST.png",{0,1});
+    //at::Tensor stConfidence = CodingPartitionInfo::getStructureTensorConfidence(codingPartitionInfos,{512,512});
+    // at::Tensor angleErrorST = (gs - st).abs();
+    // // angleErrorST = angleErrorST.clamp(0, angleErrorST.quantile(0.9).item<double>());
+    // // angleErrorLd = angleErrorLd.clamp(0, angleErrorLd.quantile(0.9).item<double>());
+    // at::Tensor costDiff = (stCost - gsCost)/gsCost;
+    // // std::cout<<"stCost: "<<stCost.min().item()<<" "<<stCost.max().item()<<std::endl;
+    // std::cout<<"cost diff: "<<costDiff.min().item()<<" "<<costDiff.max().item()<<std::endl;
+    //
+    // std::cout<<"gs: "<<gs.min().item()<<" "<<gs.max().item()<<std::endl;
+    // std::cout<<"angleErrorST: "<<angleErrorST.min().item()<<" "<<angleErrorST.max().item()<<std::endl;
+    // std::cout<<"angleErrorLd: "<<angleErrorLd.min().item()<<" "<<angleErrorLd.max().item()<<std::endl;
+    double gsMin = -3;
+    double gsMax = 3;
+    // double gsMin = gs.min().item<double>();
+    // double gsMax = gs.max().item<double>();
+    //std::cout<<"stConfidence: "<<stConfidence.min().item()<<" "<<stConfidence.max().item()<<std::endl;
+    // std::cout<<"angle chosen: "<< stV[64*2][64*3].item()<<" "<< stH[64*2][64*3].item()<<" "<<gs[64*2][64*3].item()<<std::endl;
+    // std::cout<<"costDiff: "<< costDiff[64*2][64*3].item()<<std::endl;
+    // write_tensor(stH,inputDirectory + "sth.png",{gsMin,gsMax});
+    // write_tensor(stV,inputDirectory + "stv.png",{gsMin,gsMax});
+    // write_tensor(stA,inputDirectory + "sta.png",{gsMin,gsMax});
+    write_tensor(st,inputDirectory + "st.png");
+    //write_tensor(ang,inputDirectory + "ang.png",{gsMin,gsMax});
+    //write_tensor(psnr,inputDirectory + "psnr.png");
+    //write_tensor(rate,inputDirectory + "rate.png");
+    // write_tensor(cH,inputDirectory + "cth.png",{gsMin,gsMax});
+    // write_tensor(cV,inputDirectory + "ctv.png",{gsMin,gsMax});
+    // write_tensor(cA,inputDirectory + "cta.png",{gsMin,gsMax});
+    // write_tensor(c,inputDirectory + "c.png",{gsMin,gsMax});
+    // write_tensor(gsCost,inputDirectory + "gsCost.png");
+    // //write_tensor(stCost,inputDirectory + "stCost.png");
+    //cout<<"written ST" <<std::endl;
+    //write_tensor(error,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/DebugData/GreekST-3/error.png",{0,15.0});
+    //write_tensor(stConfidence,inputDirectory + "Confidence1.png",{0,15});
+    //write_tensor(costDiff,inputDirectory + "CostDiffST.png",{0,1});
 
-//     // write_tensor(ldH,inputDirectory + "ldh.png",{gsMin,gsMax});
-//     // write_tensor(ldV,inputDirectory + "ldv.png",{gsMin,gsMax});
-//     // write_tensor(ldA,inputDirectory + "lda.png",{gsMin,gsMax});
-//     // write_tensor(ld,inputDirectory + "ld.png",{gsMin,gsMax});
-//     // write_tensor(rate,inputDirectory + "rate.png",{});
-//     // write_tensor(distortion,inputDirectory + "distortion.png");
-//     // write_tensor(heuristic,inputDirectory + "heuristic.png");
-//     //write_tensor(angleErrorST,inputDirectory + "AngleErrorST.png",{0,25});
-//     // write_tensor(costDiffST,inputDirectory + "CostDiffST.png",{0,0.5});
-//     // write_tensor(angleErrorLd,inputDirectory + "AngleErrorLd.png",{0,5});
-//     // write_tensor(costDiffLd,inputDirectory + "CostDiffLd.png",{0,0.5});
-//     write_tensor(gs,inputDirectory + "gs.png",{gsMin,gsMax});
-//     //write_tensor(chosenAngle,inputDirectory + "chosenAngle.png",{gsMin,gsMax});
-//     //std::cout<<c.min().item()<< " "<<c.max().item()<<std::endl;
-// }
+    // write_tensor(ldH,inputDirectory + "ldh.png",{gsMin,gsMax});
+    // write_tensor(ldV,inputDirectory + "ldv.png",{gsMin,gsMax});
+    // write_tensor(ldA,inputDirectory + "lda.png",{gsMin,gsMax});
+    // write_tensor(ld,inputDirectory + "ld.png",{gsMin,gsMax});
+    // write_tensor(rate,inputDirectory + "rate.png",{});
+    // write_tensor(distortion,inputDirectory + "distortion.png");
+    // write_tensor(heuristic,inputDirectory + "heuristic.png");
+    //write_tensor(angleErrorST,inputDirectory + "AngleErrorST.png",{0,25});
+    // write_tensor(costDiffST,inputDirectory + "CostDiffST.png",{0,0.5});
+    // write_tensor(angleErrorLd,inputDirectory + "AngleErrorLd.png",{0,5});
+    // write_tensor(costDiffLd,inputDirectory + "CostDiffLd.png",{0,0.5});
+    //write_tensor(gs,inputDirectory + "gs.png",{gsMin,gsMax});
+    //write_tensor(chosenAngle,inputDirectory + "chosenAngle.png",{gsMin,gsMax});
+    //std::cout<<c.min().item()<< " "<<c.max().item()<<std::endl;
+}
 // TEST(EncoderTests,GreekSTPoor){
 //     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
 //     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/sideboard/";

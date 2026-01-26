@@ -135,7 +135,7 @@ double TransformPartition :: EvaluatePartitionArbitraryRho(Hierarchical4DEncoder
     block_0.ssi = SgtSideInfo(angle,angle,mDisparityRange);
     block_0.ssi.setAngularRhos(rhoAngle,rhoAngle);
     block_0.ssi.setSpatialRhos(rhoSpace,rhoSpace);
-    //std::cout<<"Evaluating Partition Fixed Rho: "<<angleV<<" "<<angleH<<" "<<block_0.ssi.getAngleH()<<" "<<block_0.ssi.getAngleV()<<std::endl;
+    //std::cout<<"Evaluating Partition Fixed Rho: "<<angle<<" "<<angle<<" "<<block_0.ssi.getAngleH()<<" "<<block_0.ssi.getAngleV()<<std::endl;
     return EvaluatePartition_(encoder,block_0, currGain, angle, angle);
 }
 double TransformPartition :: EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angleV, double angleH){
@@ -268,10 +268,21 @@ double TransformPartition :: RDtestStructureTensorAndRhos(Block4D_& block_0, Cod
     J0 = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
     delete[] tempModelState;
     double angle = blockTemp.ssi.getAngleH();
+    if (blockTemp.ssi.getAngleH() != blockTemp.ssi.getAngleV()){
+        std::cerr << "ERROR: THINGS ARE NOT AS THEY SEEM! COMPUTATIONS HAVE BEEN MADE I DID NOT IMPLEMENT! ZOMBIES ABOUND!" <<std::endl;
+        std::exit(3);
+    }
     blockTemp = block_0.clone();
     //double angle = 45;
-    J0 = parallelRhoSearch(false,-1, angle, blockTemp, cui0, currGain, &tempModelState);
-    J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
+    J0 = parallelRhoSearch(false,-1, angle, block_0, cui0, currGain, coderModelState_0);
+    
+    if (block_0.ssi.getAngleH() != block_0.ssi.getAngleV()){
+        std::cerr << "ERROR:  ZOMBIES ABOUND! THINGS ARE NOT AS THEY SEEM! COMPUTATIONS HAVE BEEN MADE I DID NOT IMPLEMENT!" <<std::endl;
+        std::cerr << block_0.ssi.getAngleH()<<" != "<<block_0.ssi.getAngleV() << " Both should be -> "<<angle<<std::endl;
+        std::exit(3); 
+    }
+
+    //J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
     return J0;
 }
 double TransformPartition :: RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0){
@@ -482,9 +493,9 @@ double TransformPartition::RefineStructureTensorAndRhos(Block4D_& block_0, Codin
     J0 = RDtestStructureTensor(blockTemp,cui0,currGain,&tempModelState);
     delete[] tempModelState;
     double angle = blockTemp.ssi.getAngleH();
-    std::array<double,2> refinementAngleRange = {angle-5,angle+5};
+    std::array<double,2> refinementAngleRange = {angle-1,angle+1};
     blockTemp = block_0.clone();
-    double J = RDtestGridSearch(1,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);  
+    double J = RDtestGridSearch(0.1,refinementAngleRange,blockTemp,cui0,currGain,&tempModelState);  
     angle = blockTemp.ssi.getAngleH();
     delete[] tempModelState;
 
@@ -1132,7 +1143,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
 
     // double J0 = RDtestCovariance(block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestAngle(1,block_0,cui0,totalTransformGain(),&coderModelState_0);
-    //double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
+    // double J0 = RDtestStructureTensor(block_0,cui0,totalTransformGain(),&coderModelState_0);
     // double J0 = RDgridSearchAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RDtestStructureTensorAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);
     //double J0 = RefineGridSearchAndRhos(block_0,cui0,totalTransformGain(),&coderModelState_0);

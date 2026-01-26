@@ -50,7 +50,7 @@ namespace io{
   at::Tensor read_ppm(std::istream& file);
 
   void write_ppm(const at::Tensor& value, std::ostream& os);
-  void write_collection(std::string data_root, at::Tensor data,std::array<int64_t,2> bias);
+  void write_collection(std::string data_root, at::Tensor data, std::array<int64_t,2> bias = {0,0}, std::array<int64_t,2> stride = {1,1});
 
 }
 

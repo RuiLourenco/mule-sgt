@@ -1,4 +1,3 @@
-
 /*!
  *    @file  ppm_reader.cpp
  *   @brief implementation of read_ppm
@@ -59,7 +58,7 @@ namespace {
       using namespace qi::labels;
 
       // concatenate multiple-byte data into single value
-      auto byte_depth = [](int64_t max_value){ return ceil(log2(max_value) / 8); };
+      auto byte_depth = [](int64_t max_value){ return 2; };
       channel = repeat(bind(byte_depth, _r1))[byte_[_val = _val*256 + _1]];
 
       // convert vector to int tensor: hwc to whc
@@ -160,12 +159,12 @@ namespace io {
 
   }
 
-  void write_collection(string data_root, at::Tensor data, std::array<int64_t,2> bias = {0,0}) {
+  void write_collection(string data_root, at::Tensor data, std::array<int64_t,2> bias = {0,0}, std::array<int64_t,2> stride = {1,1}) {
 
     for (int l = 0; l < data.size(0); l++) {
       for (int k = 0; k < data.size(1); k++) {
         std::stringstream filename;
-        filename <<data_root<< "/"<<std::setw(3) << std::setfill('0') << k+bias[1]<<"_"<<std::setw(3) << std::setfill('0') << l +bias[0]<<".ppm";
+        filename <<data_root<< "/"<<std::setw(3) << std::setfill('0') << k*stride[1]+bias[1]<<"_"<<std::setw(3) << std::setfill('0') << l*stride[0]+bias[0]<<".ppm";
         fs::ofstream os;
         os.open(filename.str(), std::ios::out | std::ios::binary);
         //cout<<"written to ("<<l<<","<<k<<") = "<<data[l][k][0][0][0].item()<<endl;
@@ -205,14 +204,26 @@ namespace io {
 
     }
 
-    // compute number of views
-    int max_v = 0, max_u = 0;
-    for (auto&& [v, u] : view_list | adp::map_keys) {
-      max_u = max(max_u, u);
-      max_v = max(max_v, v);
-    }
+    if(view_list.empty()) throw runtime_error{"No views found matching pattern"};
 
-    // get shape of individual view
+    // build sorted unique lists of original coords and a mapping to compact indices
+    std::vector<int> uniq_v, uniq_u;
+    uniq_v.reserve(view_list.size());
+    uniq_u.reserve(view_list.size());
+    for (auto&& kv : view_list) {
+      uniq_v.push_back(kv.first.first);
+      uniq_u.push_back(kv.first.second);
+    }
+    sort(uniq_v.begin(), uniq_v.end());
+    uniq_v.erase(std::unique(uniq_v.begin(), uniq_v.end()), uniq_v.end());
+    sort(uniq_u.begin(), uniq_u.end());
+    uniq_u.erase(std::unique(uniq_u.begin(), uniq_u.end()), uniq_u.end());
+
+    std::map<int,int> v_map, u_map;
+    for (size_t i = 0; i < uniq_v.size(); ++i) v_map[uniq_v[i]] = static_cast<int>(i);
+    for (size_t i = 0; i < uniq_u.size(); ++i) u_map[uniq_u[i]] = static_cast<int>(i);
+
+    // get shape of individual view (use first entry)
     auto first_entry = view_list.cbegin()->second;
     fs::ifstream first_file{first_entry, ios::in | ios::binary};
     std::string magic_number;
@@ -223,27 +234,21 @@ namespace io {
     auto first_view = read_ppm(first_file);
     const auto view_shape = first_view.sizes();
     const auto view_dtype = first_view.dtype();
-    // cout<<"LF VIEW SHAPE = "<<view_shape<<std::endl;
-    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),0})<<endl<<endl;
-    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),1})<<endl<<endl;
-    // cout<<first_view.index({at::indexing::Slice(0,4),at::indexing::Slice(0,4),2})<<endl<<endl;
 
-    vector<int64_t> lightfield_shape = {max_v + 1, max_u + 1};
+    // build compact lightfield shape (no gaps)
+    vector<int64_t> lightfield_shape = { static_cast<int64_t>(uniq_v.size()), static_cast<int64_t>(uniq_u.size()) };
     boost::push_back(lightfield_shape, view_shape); // insert view shape as trailing dimension
 
     auto lightfield = at::empty(lightfield_shape, view_dtype);
 
-    // populate lightfield from read files
+    // populate lightfield from read files, remapping original coords -> compact indices
     for (auto&& [coord, path] : view_list) {
-      auto [v, u] = coord;
-      //fs::ifstream file{path, ios::in | ios::binary};
+      auto [v_orig, u_orig] = coord;
+      int v = v_map[v_orig];
+      int u = u_map[u_orig];
       bio::stream<bio::mapped_file_source> is{path}; // use memory-mapped file for faster transversal
       lightfield.index_put_({v, u}, read_ppm(is));
-      //cout<<"read_from ("<<v<<","<<u<<") = "<<lightfield[v][u][0][0][0].item()<<endl;
-
-      //std::cout<<u<<" "<<v<<std::endl;
     }
-
 
     return lightfield;
   }

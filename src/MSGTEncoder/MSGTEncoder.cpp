@@ -281,9 +281,13 @@ int main(int argc, char **argv) {
     if(par.configFile.compare("") != 0){
         par.ReadConfigurationFile(par.configFile);
     } 
+
+
     if(par.verbosity > 0){
         par.DisplayConfiguration();
     }
+
+    par.Lambda *= par.transformGain*par.transformGain;
 
 
     
@@ -338,8 +342,11 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.slantLightField(-5);
-
+    inputLF.slantLightField(-16);
+    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
+    inputLF.computeTopHalfGradients();
+    //inputLF.computeBottomHalfGradients();
+    //inputLF.computeGradients();
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
@@ -379,26 +386,35 @@ int main(int argc, char **argv) {
     }
     std::cout<<"Disparity Range: "<<par.disparityRange[0]<<" "<<par.disparityRange[1]<<std::endl;
 
-
+  
 
     //writes the bit precision of each component of the pixels of the views
     BigEndianUnsignedIntegerWrite(inputLF.mPGMScale, 2, outputFileNamePointer);
+
+
     //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
     std::vector<CodingPartitionInfo> codingPartitionInfos;
     TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
 
     std::array<double,3> error = {0,0,0};
+    bool second_half = false;
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
             //for(int viewLine = 64; viewLine < 64 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-            //for(int viewLine = 10*par.maxPartitionSize[2]; viewLine < 10*par.maxPartitionSize[2] + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 0*par.maxPartitionSize[2]; viewLine < 0*par.maxPartitionSize[2] + 2*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
                 //for(int viewColumn = 192; viewColumn <192  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                // for(int viewColumn = 1*par.maxPartitionSize[3]; viewColumn <1*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
+                    if(viewLine >= inputLF.secondHalfBias){
+                        if(!inputLF.secondHalfGradientsComputed){
+                            std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
+                            inputLF.computeBottomHalfGradients();
+                        }
+                    }
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};

@@ -27,6 +27,7 @@ class DecoderParameters {
 public:
     array<int64_t, 2> viewSize;
     array<int64_t,2> firstView;
+    array<int64_t,2> stride = {1,1};
     array<double,2> disparityRange;
     string outputDirectory;
     string inputFileName;
@@ -53,6 +54,8 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
             parametersFile >> viewSize[0] >> viewSize[1];
         } else if(command == "-off") {
             parametersFile >> firstView[0] >> firstView[1];
+        } else if(command == "-stride") {
+            parametersFile >> stride[0] >> stride[1];
         } else if(command == "-lf") {
             parametersFile >> outputDirectory;
         } else if(command == "-i") {
@@ -75,6 +78,7 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
 void DecoderParameters :: DisplayConfiguration() {
     cout << "viewSize = " << viewSize[0] << " " << viewSize[1] << endl;
     cout << "firstView = " << firstView[0] << " " << firstView[1] << endl;
+    cout << "stride = " << stride[0] << " " << stride[1] << endl;
     cout << "outputDirectory = " << outputDirectory << endl;
     cout << "inputFileName = " << inputFileName << endl;
     cout << "isLenslet13x13 = " << isLenslet13x13 << endl;
@@ -102,6 +106,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("config-file,c", po::value<string>(&par.configFile), "configuration file")
     ("num-views,v", po::value<vector<int64_t>>()->multitoken(), "view size")
     ("view-offset,b", po::value<vector<int64_t>>()->multitoken(), "first view")
+    ("view-stride,s", po::value<vector<int64_t>>()->multitoken(), "view stride")
     ("output-dir,o", po::value<string>(&par.outputDirectory), "output directory")
     ("input-file,i", po::value<string>(&par.inputFileName), "input file")
     ("lenslet13x13", po::bool_switch()->default_value(false), "lenslet 13x13")
@@ -143,6 +148,11 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
         std::vector<int64_t> data = vm["view-offset"].as<std::vector<int64_t>>();
         if (data.size() != 2) throw std::invalid_argument("view-offset must have 2 elements");
         std::copy(data.begin(), data.end(), par.firstView.begin());
+    }
+    if(vm.count("view-stride")){
+        std::vector<int64_t> data = vm["view-stride"].as<std::vector<int64_t>>();
+        if (data.size() != 2) throw std::invalid_argument("view-stride must have 2 elements");
+        std::copy(data.begin(), data.end(), par.stride.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
     return 0;
@@ -196,7 +206,7 @@ int main(int argc, char **argv) {
     std::cout<<"PGMScale: "<<PGMScale<<std::endl;
     hdt.StartDecoder(inputFileNamePointer);
     LightField outputLF(lfSize);
-    outputLF.preSlantTan = -5;
+    outputLF.preSlantTan = -16;
     outputLF.mPGMScale = PGMScale;
     Block4D_ lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
 
@@ -220,13 +230,13 @@ int main(int argc, char **argv) {
         for(int horizontalView = 0; horizontalView < lfSize[1]; horizontalView+=maxPartitionSize[1]){
             //for(int viewLine = 128; viewLine < 128+64; viewLine+=maxPartitionSize[2]){
             //for(int viewLine = 64; viewLine <64  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            //for(int viewLine = 10*maxPartitionSize[2]; viewLine <10*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
+            //for(int viewLine = 0*maxPartitionSize[2]; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
             // for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
                 //for(int viewColumn = 512; viewColumn < 512+64; viewColumn+=maxPartitionSize[3]){
                 //for(int viewColumn = 192 ; viewColumn <192  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn <lfSize[3]; viewColumn += maxPartitionSize[3]) {
-                // for(int viewColumn = 1 * maxPartitionSize[3] ; viewColumn <1*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
+                //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn <0*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
 
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
@@ -343,19 +353,7 @@ int main(int argc, char **argv) {
             }
         }
     }
-    std::ofstream entropy;
-    entropy.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/entropy.m");
-    entropy<<"energy_cpp = zeros("<<lfEntropy.size(2)<<","<<lfEntropy.size(3)<<","<<lfEntropy.size(4)<<");"<<std::endl;
-    for(int n = 0; n < lfEntropy.size(2); n++) {
-        for(int m = 0; m < lfEntropy.size(3); m++) {
-            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEntropy[0][0][n][m][0].item()<<";";
-            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEntropy[0][0][n][m][1].item()<<";";
-            entropy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEntropy[0][0][n][m][2].item()<<";";
-            
-        }
-        entropy<<std::endl;
-    }
-    entropy.close();
+
 
 
 
@@ -363,8 +361,14 @@ int main(int argc, char **argv) {
 
     hdt.DoneDecoding();
     outputLF.slantLightFieldBack();
-
-    outputLF.OpenLightFieldPPM_(par.outputDirectory,"",'w',par.firstView);
+    std::cout << "Creating output directory path: " << par.outputDirectory << std::endl;
+    std::error_code ec;
+    if (std::filesystem::create_directories(par.outputDirectory, ec)) {
+        std::cout << "Created new directory(ies) in path" << std::endl;
+    } else if (ec) {
+        std::cerr << "Error creating directories: " << ec.message() << std::endl;
+    }
+    outputLF.OpenLightFieldPPM_(par.outputDirectory, "", 'w', par.firstView, par.stride);
     fclose(inputFileNamePointer);
 }
 

@@ -9,7 +9,7 @@
 #include <array>
 #include <nlohmann/json.hpp>
 
-#define ADAPTIVE_RHO_CALC 0
+#define ADAPTIVE_RHO_CALC 1
 #define FLAT_TRANSFORM 1
 
 class Block4D_;
@@ -43,9 +43,9 @@ class SgtSideInfo{
         static constexpr double FIXED_SPATIAL_RHO = 0.99;
         static constexpr double VARIANCE_THRESHOLD = 3000;
         static constexpr double PRECISION_RHO = 1e-5; 
-        static constexpr double MIN_RHO = 0.2;
+        static constexpr double MIN_RHO = 0.1;
         static constexpr double MAX_RHO = 1-1e-5;
-        static constexpr double PRECISION_ANGLE = 1;  
+        static constexpr double PRECISION_ANGLE = 0.1;  
         void print();
         nlohmann::json toJson() const;
         static SgtSideInfo fromJson(const nlohmann::json& j);
