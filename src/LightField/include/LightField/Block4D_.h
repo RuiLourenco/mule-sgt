@@ -128,68 +128,22 @@ private:
     at::Tensor flat24DAll(const at::Tensor& flatBlock) const;
     at::Tensor flat24DValid(const at::Tensor& flatBlock) const;
     static at::Tensor klt(at::Tensor covMat, at::Tensor& eigVals);
-    at::Tensor sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV, const at::Tensor& eigValsH, const at::Tensor& eigValsV) ;
-    static at::Tensor isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) ;
-    at::Tensor covFun2MatValid(const at::Tensor& covFun, bool isHorizontal) const;
-    at::Tensor covFun2MatAll(const at::Tensor& covFun) const;
-    static void splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions);
+    at::Tensor matrixTransform(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV, const at::Tensor& eigValsH, const at::Tensor& eigValsV) ;
+    static at::Tensor iMatrixTransform(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) ;
 public: 
-    static at::Tensor filter2D(const at::Tensor& input, const at::Tensor& kernel);
-    double getOrientationFromCovariance(double precision, std::array<double,2> dispRange, bool isHorizontal) const;
-    double epiStDisparity(double jAng, double jSpc, double jSpcAng) const;
-    std::array<double,2> stAngleSeperable() const;
-    double logDetCost(double angle, bool isHorizontal, std::array<double,2> dispRange) const;
-    std::array<double,2> logDetAngleEstimation(double precision,std::array<double,2> dispRange) const;
-    void saveBlockGradient(int64_t dimension) const;
-    double computeGradientSum(int64_t dimension1, int64_t dimension2) const;
-    at::Tensor structureTensor() const;
-    std::array<double,2> computeAnglesFromStructureTensor(std::array<double,2> disparityRange) const;
-    at::Tensor fetchBlockGradient(int64_t dimension) const;
+
     LightField* lightField = nullptr;
     at::Tensor autoCorr(bool isHorizontal);
-    at::Tensor corrFun(bool isHorizontal) const;
     at::Tensor eigenValuesH = at::empty({0});
     at::Tensor eigenValuesV = at::empty({0});
-    at::Tensor orderH = at::empty({0});
-    at::Tensor orderV = at::empty({0});
-    at::Tensor getOrderH();
-    at::Tensor getOrderV();
+
     void kltTransform(double scale);
     at::Tensor ikltTransformData(double scale, at::Tensor covH, at::Tensor covV);
     void ikltTransform(double scale,at::Tensor covH, at::Tensor covV);
+    at::Tensor getTransformMatrix(const at::Tensor& cov, bool isHorizontal,at::Tensor& eigVals) const;
 
-    at::Tensor getSgtTransformMatrix(const at::Tensor& cov, bool isHorizontal,at::Tensor& eigVals) const;
-    static at::Tensor orderSGTByMonotony( at::Tensor epiTransform,at::Tensor sgtTransform,at::Tensor& order);
 
-    static std::vector<std::array<int64_t,4>> treeOrderedCoefficientPositions(std::array<int64_t,4> size);
-    at::Tensor iSqrtCovMat(at::Tensor covMat, bool isHorizontal ) const;
 
-    static at::Tensor squareTransform(at::Tensor transform, at::Tensor eigenValuesH, at::Tensor eigenValuesV);
-    void reOrderSGTMatrices(at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV, SgtSideInfo secondModel);
-    void reReOrderSGTMatrices(at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV, SgtSideInfo secondModel);
-    at::Tensor triangleSorting(std::array<int64_t,4> size, at::Tensor coefficients);
-    at::Tensor get2DBasis(at::Tensor sgtMatrix, int n) const;
-    std::array<double,2> getMainFrequency(at::Tensor basisFunction,double angle,int index) const;
-    at::Tensor frequencyOrderedSgt(at::Tensor flatBlock, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV);
-    void view4DFrequencies(at::Tensor fullOrdinalFrequencies, at::Tensor frequencies) const;
-    at::Tensor getFrequencyOrdering(at::Tensor basisFrequenciesH, at::Tensor basisFrequenciesV);
-    at::Tensor reOrderCoefficients(const at::Tensor& coefficients, at::Tensor ordering);
-    at::Tensor getBasisFrequencies(const at:: Tensor sgtMatrix, double angle) const;
-    at::Tensor squareSorting(std::array<int64_t,4> size, at::Tensor coefficients);
-    at::Tensor quadTreeSorting(std::array<int64_t,4> size, at::Tensor sortedTransformCoefficients);
-    void quadTreeUnsorting(at::Tensor treeSortedTransform, at::Tensor& sortedTransformCoefficients);
-    at::Tensor getFullOrder(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const;
-    at::Tensor orderCoefficientsByFrequency(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH,const at::Tensor& sgtMatrixV) const;
-    at::Tensor recoverOrder(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const;
-    at::Tensor recoverCoefficientOrder(const at::Tensor& reOrderedCoefficientBlock, const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) const;
-    at::Tensor getOrdinalFrequencies(const at::Tensor& basisFrequencies) const;
-    at::Tensor to4DTransform(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients) const;
-    at::Tensor from4DTransform(const at::Tensor& fullOrdinalFrequencies, const at::Tensor& coefficients4D) const;
-    at::Tensor reverseOrderCoefficientsByFrequency(const at::Tensor& coefficientBlock,const at::Tensor& sgtMatrixH,const at::Tensor& sgtMatrixV) const;
-
-    at::Tensor secondModelOrderedBlock2SGT(at::Tensor flatTransform, SgtSideInfo secondModel, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV);
-    at::Tensor blockAsSecondModelOrderedVector(at::Tensor flatBlock, SgtSideInfo secondModel, at::Tensor sgtMatrixH, at::Tensor sgtMatrixV);
-    at::Tensor blockAsEigenOrderedVector(at::Tensor flatBlock, at::Tensor eigenValuesH, at::Tensor eigenValuesV);
     std::array<int64_t,4> size;
     std::array<int64_t,4> transformSize;
     std::array<int64_t,4> lightFieldPosition;
@@ -203,29 +157,10 @@ public:
     static void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale);
     static void RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale);
     static at::Tensor normalizeCov(at::Tensor cov);
-    at::Tensor calcModelCovMatrix(SgtSideInfo ssi,bool isHorizontal) const;
-    at::Tensor calcModelCovFun(SgtSideInfo ssi,bool isHorizontal) const;
-    static double varianceFromCov(const at::Tensor& cov);
-    at::Tensor covFun2Mat(const at::Tensor& covFun,bool isHorizontal) const;
-    at::Tensor iSqrtCovMat(bool isHorizontal) const;
-    double epiStDisparityAvg() const;
     static at::Tensor get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal);
-    void sgtTransform(double scale);
-    at::Tensor isgtTransformData(double scale, SgtSideInfo ssi) ;
-    void isgtTransform(double scale, SgtSideInfo ssi);
-    void sgtTransform(double scale,std::array<double,2> dispRange);
-    at::Tensor covFun(bool isHorizontal) const;
     at::Tensor getFlatBlock();
     at::Tensor flat24D(const at::Tensor& flatBlock) const;
-    at::Tensor zigZagTransformMatrix(at::Tensor transform,bool isHorizontal);
-    at::Tensor triangleTransformMatrix(at::Tensor transform,bool isHorizontal);
-    at::Tensor sgtFrom2DCoefficients(at::Tensor coefficients);
-    at::Tensor diagonalOrder4DSampling(at::Tensor coefficients);
-    at::Tensor diagonalOrder4DBlock(at::Tensor coefficients);
-    at::Tensor getZigZagIndexes(std::array<int64_t,2> size);
-    at::Tensor getReverseZigZagIndexes(std::array<int64_t,2> size);
-    at::Tensor getOrdered2DFromZigZagCoeffs(at::Tensor coeffs);
-    at::Tensor getTriangleIndexes(std::array<int64_t,2> size);
+    
     at::Tensor flatBlockFrom4DTensor(at::Tensor coefficients);
     void emptyTransform();
     at::Tensor batchedCovMatrix(bool isHorizontal) const;

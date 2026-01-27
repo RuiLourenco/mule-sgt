@@ -515,8 +515,8 @@ int main(int argc, char **argv) {
                                                                                               
 
                         tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
-                        tp.RDoptimizeTransform_(lfBlock, par.Lambda);
-                        tp.EncodePartition_(par.Lambda);
+                        tp.RDoptimizeTransform(lfBlock, par.Lambda);
+                        tp.EncodePartition(par.Lambda);
                         error[spectralComponent] += tp.mCodingPartitionInfo.getTotalDistortion();
                         size += tp.mCodingPartitionInfo.getTotalSize();
                         //std::cout<<"Size Channel "<<spectralComponent<<": "<<tp.mCodingPartitionInfo.getTotalSize()<<std::endl;
