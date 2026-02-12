@@ -291,7 +291,7 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
 
 void Hierarchical4DEncoder::encodeSubblockFromPool(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane, double lambda){
     if(length[0] * length[1] * length [2] * length[3] == 0){
-        std::cout<<"Correctly skipping empty subblock encoding"<<std::endl;
+        //std::cout<<"Correctly skipping empty subblock encoding"<<std::endl;
         return; // Nothing to encode
     }
     int flagSearchIndex = 0;
@@ -299,8 +299,8 @@ void Hierarchical4DEncoder::encodeSubblockFromPool(std::array<int64_t,4> length,
     this->mSubbandLF_.data = this->mSubbandLF_.data.contiguous();
     this->currCost = build_optimal_tree_from_pool(length,position, bitplane, lambda);
     iterateEncoding(0, length, position, bitplane);
-    std::cout<<"Next Available Index: "<<mProcessingContext.next_available_idx<<std::endl;
-    std::cout<<std::endl;
+    //std::cout<<"Next Available Index: "<<mProcessingContext.next_available_idx<<std::endl;
+    //std::cout<<std::endl;
 
     return;
 }
@@ -474,7 +474,7 @@ void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
 }
 
 void Hierarchical4DEncoder :: DoneEncoding(void) {
-    std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<" Ignore Efficiency = "<<mIgnoreEfficiency<<" "<<mIgnored<<std::endl;
+    //std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<" Ignore Efficiency = "<<mIgnoreEfficiency<<" "<<mIgnored<<std::endl;
     mEntropyCoder.Flush();      //flushes entropy encoder
     
 }

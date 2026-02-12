@@ -143,6 +143,7 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         if(entropyDecoder.mSubbandLF.transformSize[2] * entropyDecoder.mSubbandLF.transformSize[3] > 0) entropyDecoder.DecodeBlock(0, 0, 0, 0, entropyDecoder.mSubbandLF.transformSize[0], entropyDecoder.mSubbandLF.transformSize[1], entropyDecoder.mSubbandLF.transformSize[2], entropyDecoder.mSubbandLF.transformSize[3], entropyDecoder.mSuperiorBitPlane); 
         //std::cout<<"Block Parsed"<<std::endl;
         std::cout<<"Parsed Block:"<<std::endl<<entropyDecoder.mSubbandLF.data.index({0,0,at::indexing::Slice(0,1),at::indexing::Slice(0,3)})<<std::endl;
+        std::cout<<"Parsed Block:"<<std::endl<<entropyDecoder.mSubbandLF.data.index({0,0,at::indexing::Slice(0,3),at::indexing::Slice(0,1)})<<std::endl;
         
         //int64_t maxIndex = entropyDecoder.mSubbandLF.data.argmax().item<int64_t>();
         //int64_t minIndex = entropyDecoder.mSubbandLF.data.argmin().item<int64_t>();

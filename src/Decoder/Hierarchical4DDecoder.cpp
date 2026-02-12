@@ -197,7 +197,7 @@ SgtSideInfo Hierarchical4DDecoder :: DecodeSsi(std::array<double,2> dispRange) {
     //std::cout<<precisionRho<<" "<<precisionAngle<<std::endl;
     ssi.setAngleVCode(DecodeInteger(precisionAngle));
     ssi.setAngleHCode(DecodeInteger(precisionAngle));
-    std::cout<<ADAPTIVE_RHO_CALC<<std::endl;
+    //std::cout<<ADAPTIVE_RHO_CALC<<std::endl;
     #if ADAPTIVE_RHO_CALC == 1
     ssi.setRhoSCode(DecodeInteger(precisionRho));
     ssi.setRhoTCode(DecodeInteger(precisionRho));

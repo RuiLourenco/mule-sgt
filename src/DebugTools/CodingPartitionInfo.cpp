@@ -44,7 +44,7 @@ int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<
         if(partitionIdx % 3 != 2) {
             continue; // Keep only every third partition
         }
-        std::cout<<partitionIdx<<std::endl;
+        //std::cout<<partitionIdx<<std::endl;
         const auto& partitionInfo = partitionInfos[partitionIdx];
         const auto& cuInfos = partitionInfo.getCodingUnitInfos();
         for (size_t cuIdx = 0; cuIdx < cuInfos.size(); ++cuIdx) {
@@ -76,8 +76,8 @@ int CodingPartitionInfo::countUnitsWithin10Degrees(int delta, const std::vector<
             }
         }
     }
-    std::cout << "Checked " << totalChecked << " CodingUnitInfos, " << within10Count << " were within 10 degrees." << std::endl;
-    std::cout << within10Count << " Python scripts generated for passing units in: " << outputDirectory << std::endl;
+    //std::cout << "Checked " << totalChecked << " CodingUnitInfos, " << within10Count << " were within 10 degrees." << std::endl;
+    //std::cout << within10Count << " Python scripts generated for passing units in: " << outputDirectory << std::endl;
 
     auto printStats = [](const std::vector<double>& diffs, const std::string& label) {
         if (diffs.empty()) {

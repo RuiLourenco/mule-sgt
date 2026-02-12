@@ -643,7 +643,7 @@ void Block4D_::copySubblockData(Block4D_& destination, std::array<int64_t,4> sub
         //std::cout<<"no invalids destination.transformSize: "<<destination.transformSize[0]<<"x"<<destination.transformSize[1]<<"x"<<destination.transformSize[2]<<"x"<<destination.transformSize[3]<<std::endl;
     }else{
         destination.transformSize = {1,1,destination.validPositions.valid_positions_v.size(0),destination.validPositions.valid_positions_h.size(0)};
-        
+        //std::cout<<"destination.transformSize: "<<destination.transformSize[0]<<"x"<<destination.transformSize[1]<<"x"<<destination.transformSize[2]<<"x"<<destination.transformSize[3]<<std::endl;
     }
 
     if(this->sgtDomain){
@@ -660,8 +660,8 @@ void Block4D_::copySubblockData(Block4D_& destination, std::array<int64_t,4> sub
             //     std::cout<<"originalOffset: "<<sourceOffset[2]+offsetReductionV<<"x"<<sourceOffset[3]+offsetReductionH<<std::endl;
             //     std::cout<<"parent LightField Position: "<<this->lightFieldPosition[2]<<"x"<<this->lightFieldPosition[3]<<std::endl;
             //     std::cout<<"destination lightField Position: "<<destination.lightFieldPosition[2]<<"x"<<destination.lightFieldPosition[3]<<std::endl;
-            //     std::cout<<"offsetReduction: "<<offsetReductionV<<"x"<<offsetReductionH<<std::endl;
-            //     std::cout<<"sourceOffset: "<<sourceOffset[2]<<"x"<<sourceOffset[3]<<std::endl;
+            //std::cout<<"offsetReduction: "<<offsetReductionV<<"x"<<offsetReductionH<<std::endl;
+            //std::cout<<"sourceOffset: "<<sourceOffset[2]<<"x"<<sourceOffset[3]<<std::endl;
             //     std::cout<<"length: "<<length[2]<<"x"<<length[3]<<std::endl; 
             //     std::cout<<"destination.has invalid corners: "<<destination.includesInvalidCorners<<std::endl;
             // }
@@ -669,26 +669,34 @@ void Block4D_::copySubblockData(Block4D_& destination, std::array<int64_t,4> sub
             //std::cout<<"first pixel: "<<destination.data[0][0][][]
         }
     }
+    //std::cout<<"destination.data.size() BEFORE: "<< destination.data.sizes()<<std::endl;
 
     destination.data  = destination.data.index({at::indexing::Slice(sourceOffset[0],sourceOffset[0]+length[0]),
                                         at::indexing::Slice(sourceOffset[1],sourceOffset[1]+length[1]),
                                         at::indexing::Slice(sourceOffset[2],sourceOffset[2]+length[2]),
                                         at::indexing::Slice(sourceOffset[3],sourceOffset[3]+length[3])
                                         });
+    
+    //std::cout<<"end position"<<sourceOffset[2]+length[2]<<"x"<<sourceOffset[3]+length[3]<<std::endl;                                    
     //std::cout<<"first few elements destination final: "<<destination.data.index({0,0,0,at::indexing::Slice(0,3)})<<std::endl;
 
        
 
 }
 int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, int subblockN,bool isHorizontal) const{
+    std::cout<<"Computing previous invalid number for "<<(isHorizontal ? "horizontal" : "vertical")<<" direction."<<std::endl;
+    std::cout<<"preSlantTan: "<<preSlantTan<<" parentBlockN: "<<parentBlockN<<" subblockN: "<<subblockN<<std::endl;
     int angleVariable = isHorizontal ? 1 : 0; // 1 for horizontal, 0 for vertical
     int spaceVariable = isHorizontal ? 3 : 2; // 3 for horizontal, 2 for vertical
     int size_increase = (int)(abs(round(preSlantTan*(this->lightField->data.size(angleVariable)-1))));
+    std::cout<<"size_increase: "<<size_increase<<std::endl;
 
     double d = preSlantTan/abs(preSlantTan) * (double)size_increase/((double)this->lightField->data.size(angleVariable)-1);
     double spaceSize = (double)this->lightField->data.size(spaceVariable) - size_increase;
     double a = 1/d;
     int maxAngle = this->lightField->data.size(angleVariable);
+    std::cout<<"d: "<<d<<" spaceSize: "<<spaceSize<<" a: "<<a<<" maxAngle: "<<maxAngle<<std::endl;
+    std::cout<<lightField->data.size(0)<<"x"<<lightField->data.size(1)<<"x"<<lightField->data.size(2)<<"x"<<lightField->data.size(3)<<std::endl;
     int count_upper = 0;
     int count_lower = 0;
     int count = 0;
@@ -713,9 +721,9 @@ int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, 
         count_upper += std::max(0, maxAngle - upper_l_boundary);
         count_lower += std::max(lower_l_boundary + 1, 0);
         count += std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0);
-        if(parentBlockN >=512&& subblockN < 512 + 17){
-            std::cout<<n<<":"<<" upper_l_boundary: "<<upper_l_boundary<<" lower_l_boundary: "<<lower_l_boundary<<" count_upper: "<<std::max(0, maxAngle - upper_l_boundary)<<" count_lower: "<<std::max(lower_l_boundary + 1, 0)<<" total count: "<<std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0)<<std::endl;
-        }
+        //if(parentBlockN >=512&& subblockN < 512 + 17){
+            //std::cout<<n<<":"<<" upper_l_boundary: "<<upper_l_boundary<<" lower_l_boundary: "<<lower_l_boundary<<" count_upper: "<<std::max(0, maxAngle - upper_l_boundary)<<" count_lower: "<<std::max(lower_l_boundary + 1, 0)<<" total count: "<<std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0)<<std::endl;
+        //}
 
     }
     if(parentBlockN >=512&& subblockN < 512 + 17){
@@ -3738,7 +3746,6 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
     }
     int lf_extra_size = (int)(abs(round(adjustment_d*(lf_shape[view_coordinate]-1))));
     lf_shape[spatial_coordinate] = lf_shape[spatial_coordinate] - lf_extra_size;
-    lf_shape[3] = lf_shape[3] - lf_extra_size;
 
     double true_alpha;
     if(adjustment_d == 0){

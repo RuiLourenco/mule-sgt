@@ -20,7 +20,7 @@ TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierar
     : mEntropyCoder(entropyCoder), mDisparityRange(disparityRange), mGain(transformGain) {
     
     create_encoder_pool(omp_get_max_threads(),mEntropyCoder.mProcessingContext.image_height ,mEntropyCoder.mProcessingContext.image_width);
-    std::cout<<"Using "<<m_encoder_pool.size()<<" threads for encoding."<<std::endl;
+    //std::cout<<"Using "<<m_encoder_pool.size()<<" threads for encoding."<<std::endl;
     //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
 
     mPartitionCode = NULL;
@@ -29,7 +29,7 @@ TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierar
     mlength_v_min = minLength[2];
     mlength_u_min = minLength[3];
 
-    std::cout<<"We gucci"<<std::endl;
+    //std::cout<<"We gucci"<<std::endl;
     
 }
 void TransformPartition::create_encoder_pool(size_t num_threads, size_t height, size_t width) {
@@ -60,13 +60,13 @@ double TransformPartition :: totalTransformGain(void){
 
 }
 void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lambda){
-    std::cout<<"Starting RDoptimizeTransform with lambda: " << lambda << std::endl;
+    //std::cout<<"Starting RDoptimizeTransform with lambda: " << lambda << std::endl;
     mEntropyCoder.RestartProbabilisticModel();
     for(int i = 0; i < m_encoder_pool.size(); i++) {
         m_encoder_pool[i]->RestartProbabilisticModel();
     }
 
-    std::cout<<"I have a feeling we've double freed something"<<std::endl;
+    //std::cout<<"I have a feeling we've double freed something"<<std::endl;
     inputBlock.data = inputBlock.data.contiguous();
     if(!mSsiBuffer.empty()) mSsiBuffer.clear();
     if(!mCuiBuffer.empty()) mCuiBuffer.clear();
@@ -79,8 +79,8 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     mEvaluateOptimumBitPlane = 1;
     //std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
     mPartitionData_ = Block4D_(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
-        std::cout<<"mPartitionData_ valid position size:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
-        std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
+        //std::cout<<"mPartitionData_ valid position size:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
+        //std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
     double scaledLambda = lambda;
     for (int i = 0; i < 4; i++){
         scaledLambda *= inputBlock.size[i];
@@ -101,8 +101,8 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     mLagrangianCost = RDoptimizeTransformStep_(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, mSsiBuffer,mCuiBuffer, &mPartitionCode);
     //std::cout<<"Lagrangian Cost: "<<mLagrangianCost<<std::endl;
     mPartitionData_ = transformedBlock;
-    std::cout<<"mPartitionData_ valid position size after transform:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
-    std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
+    //std::cout<<"mPartitionData_ valid position size after transform:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
+    //std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
 
             //std::cout<<"Transformed Block Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
     //std::cout<<"Transformed Block Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
@@ -1427,7 +1427,7 @@ void TransformPartition :: EncodePartition_(double lambda){
     mEntropyCoder.EncodeInteger(mEntropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
     //std::cout<<"Minimum Bit Plane: "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
 
-    std::cout<<"first few elements: "<<mPartitionData_.data.index({at::indexing::Slice(),at::indexing::Slice(),0,at::indexing::Slice(0,10)})<<std::endl;
+    //std::cout<<"first few elements: "<<mPartitionData_.data.index({at::indexing::Slice(),at::indexing::Slice(),0,at::indexing::Slice(0,10)})<<std::endl;
     EncodePartitionStep_(position, length, scaledLambda);
 }
 
