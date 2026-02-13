@@ -326,13 +326,12 @@ int main(int argc, char **argv) {
         while (exists(path)) {
             path = originalPath + "-" + std::to_string(counter)+"/";
             counter++;
-        }
+        } 
     
         std::cout<<filesystem::absolute(path)<<std::endl;
         std::cout<<filesystem::absolute(path+filename)<<std::endl;
-        create_directories(path);
+        create_directories(path); 
         par.outputFileName = path + filename;
-        infoPath =  path + "info.json";
     }
    
 
