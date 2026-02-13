@@ -221,7 +221,6 @@ int main(int argc, char **argv) {
     std::cout<<"PGMScale: "<<PGMScale<<std::endl;
     hdt.StartDecoder(inputFileNamePointer);
     LightField outputLF(lfSize);
-    outputLF.preSlantTan = -16;
     outputLF.mPGMScale = PGMScale;
     Block4D lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
 
@@ -386,7 +385,6 @@ int main(int argc, char **argv) {
 
 
     hdt.DoneDecoding();
-    outputLF.slantLightFieldBack();
     std::cout << "Creating output directory path: " << par.outputDirectory << std::endl;
     std::error_code ec;
     if (std::filesystem::create_directories(par.outputDirectory, ec)) {
