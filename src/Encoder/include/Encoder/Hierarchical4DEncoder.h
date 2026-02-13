@@ -5,7 +5,6 @@
  * Created on December 28, 2017, 11:41 AM
  */
 #include "LightField/Block4D.h"
-#include "LightField/Block4D_.h"
 #include "Encoder/ABACoder.h"
 #include "ProbabilityModel/ProbabilityModel.h"
 
@@ -219,7 +218,7 @@ public:
     double mRate  = 0;
     double mDistortion = 0;
     std::array<uint64_t,4> size;
-    Block4D_ mSubbandLF_;   
+    Block4D mSubbandLF_;   
     at::Tensor ignored;
     double currCost;
     ABACoder mEntropyCoder;
@@ -255,7 +254,6 @@ public:
     void EncodeCoefficient(int coefficient, int bitplane);
     void EncodeSegmentationFlag(int flag, int bitplane);
     void EncodePartitionFlag(int flag);
-    void EncodeSSI_(SgtSideInfo ssi);
     void EncodeInteger(int integerValue, int precision);
     void DoneEncoding(void);
     void LoadOptimizerState(void);

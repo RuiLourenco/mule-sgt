@@ -59,7 +59,7 @@ double TransformPartition :: totalTransformGain(void){
     return mGain*sqrt(mPartitionData_.size[0]*mPartitionData_.size[1]*mPartitionData_.size[2]*mPartitionData_.size[3]);
 
 }
-void TransformPartition :: RDoptimizeTransform(Block4D_ &inputBlock, double lambda){
+void TransformPartition :: RDoptimizeTransform(Block4D &inputBlock, double lambda){
     std::cout<<"Starting RDoptimizeTransform with lambda: " << lambda << std::endl;
     mEntropyCoder.RestartProbabilisticModel();
     for(int i = 0; i < m_encoder_pool.size(); i++) {
@@ -67,8 +67,7 @@ void TransformPartition :: RDoptimizeTransform(Block4D_ &inputBlock, double lamb
     }
 
     inputBlock.data = inputBlock.data.contiguous();
-    if(!mSsiBuffer.empty()) mSsiBuffer.clear();
-    if(!mCuiBuffer.empty()) mCuiBuffer.clear();
+
 
     mCodingUnitIndex = 0;
     if(mPartitionCode != NULL)
@@ -76,10 +75,8 @@ void TransformPartition :: RDoptimizeTransform(Block4D_ &inputBlock, double lamb
     mPartitionCode = new char [1];
     mPartitionCode[0] = 0;          //initializes the partition code string as the null string
     mEvaluateOptimumBitPlane = 1;
-    //std::array<int64_t,4> length = {inputBlock.data.size(0),inputBlock.data.size(1),inputBlock.data.size(2),inputBlock.data.size(3)};
-    mPartitionData_ = Block4D_(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
-        std::cout<<"mPartitionData_ valid position size:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
-        std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
+    mPartitionData_ = Block4D(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+
     double scaledLambda = lambda;
     for (int i = 0; i < 4; i++){
         scaledLambda *= inputBlock.size[i];
@@ -87,7 +84,7 @@ void TransformPartition :: RDoptimizeTransform(Block4D_ &inputBlock, double lamb
     mLambda = scaledLambda;
     mEntropyCoder.LoadOptimizerState();
 
-    Block4D_ transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+    Block4D transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
     std::cout<<"transformedBlock valid position size:"<<transformedBlock.validPositions.valid_positions_v.size(0) << std::endl;
     std::cout<<"transformedBlock includes invalids:"<<transformedBlock.includesInvalidCorners << std::endl;
 
@@ -100,24 +97,15 @@ void TransformPartition :: RDoptimizeTransform(Block4D_ &inputBlock, double lamb
     mLagrangianCost = RDoptimizeTransformStep(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, &mPartitionCode);
     //std::cout<<"Lagrangian Cost: "<<mLagrangianCost<<std::endl;
     mPartitionData_ = transformedBlock;
-    std::cout<<"mPartitionData_ valid position size after transform:"<<mPartitionData_.validPositions.valid_positions_v.size(0) << std::endl;
-    std::cout<<"mPartitionData_ includes invalids:"<<mPartitionData_.includesInvalidCorners << std::endl;
 
-            //std::cout<<"Transformed Block Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
-    //std::cout<<"Transformed Block Size: "<<mPartitionData_.size[0]<<" "<<mPartitionData_.size[1]<<" "<<mPartitionData_.size[2]<<" "<<mPartitionData_.size[3]<<std::endl;
-    //std::cout<<"Transformed Block Transform Size: "<<mPartitionData_.transformSize[0]<<" "<<mPartitionData_.transformSize[1]<<" "<<mPartitionData_.transformSize[2]<<" "<<mPartitionData_.transformSize[3]<<std::endl;
     mEntropyCoder.LoadOptimizerState();
-    printf(" Full PartitionCode = %s\n", mPartitionCode);    
-    //printf("mInferiorBitPlane = %d\n", mEntropyCoder.mInferiorBitPlane);
-    //std::cout<<"Full Number of Compressed Blocks"<<mSsiBuffer.size()<<std::endl;
 
 }
 
-void TransformPartition :: getOptimalMinimumBitPlane(Block4D_& inputBlock){
+void TransformPartition :: getOptimalMinimumBitPlane(Block4D& inputBlock){
     // This function is used to find the optimal minimum bit plane for the input block.
     // It sets the mInferiorBitPlane of the encoder to the optimal value.
-    Block4D_ block_0 = inputBlock.clone();
-    block_0.ssi = SgtSideInfo(0,0,mDisparityRange);
+    Block4D block_0 = inputBlock.clone();
     block_0.kltTransform(this->totalTransformGain());
 
     mEntropyCoder.mSubbandLF_ = block_0;
@@ -131,7 +119,7 @@ void TransformPartition :: getOptimalMinimumBitPlane(Block4D_& inputBlock){
 
 
 
-double TransformPartition :: EvaluatePartition(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain){
+double TransformPartition :: EvaluatePartition(Hierarchical4DEncoder& encoder, Block4D &block_0, double currGain){
     
     std::chrono::steady_clock::time_point begin;
     std::chrono::steady_clock::time_point end;
@@ -142,7 +130,6 @@ double TransformPartition :: EvaluatePartition(Hierarchical4DEncoder& encoder, B
     
     
     
-    SgtSideInfo ssi0 = block_0.ssi; 
 
     encoder.mSubbandLF_ = block_0;
 
@@ -166,8 +153,7 @@ double TransformPartition :: EvaluatePartition(Hierarchical4DEncoder& encoder, B
 }
 
 
-double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length,char **partitionCode) {
-    //std::cout<<"-3"<<std::endl;
+double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4D &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length,char **partitionCode) {
 
     ProbabilityModel *currentCoderModelState;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&currentCoderModelState);
@@ -177,24 +163,21 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
     
     //partitionCodeS handles splitting in the spatial dimension, partitionCodeV handles splitting in the view dimension.
     char *partitionCodeS=NULL;
-    //std::cout<<"-3"<<std::endl;
-
     std::array<int64_t,4> lightFieldPosition = inputBlock.lightFieldPosition;
     for(int i = 0; i < 4; i++){
         lightFieldPosition[i] += position[i]; 
     }
 
 
-    Block4D_ block_0 = inputBlock.copySubblock(length,position);
+    Block4D block_0 = inputBlock.copySubblock(length,position);
 
-    Block4D_ blockOrig = block_0;
-    Block4D_ temp_block_0 = block_0;
+    Block4D blockOrig = block_0;
+    Block4D temp_block_0 = block_0;
 
     ProbabilityModel *coderModelState_0;
     ProbabilityModel *coderModelStateInitial;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelStateInitial);
     double currGain = totalTransformGain();
-    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
 
    
     double J0 = EvaluatePartition(mEntropyCoder,temp_block_0,currGain);
@@ -207,7 +190,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
     
 
     double JS = -1.0;
-    Block4D_ transformedBlockS(length,lightFieldPosition,inputBlock.lightField);
+    Block4D transformedBlockS(length,lightFieldPosition,inputBlock.lightField);
     //Trivial transformation to 2D of an empty block in the basic case. 
     //Some complexity is needed if the block includes invalid corners.
     transformedBlockS.emptyTransform();
@@ -216,8 +199,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
     if((length[3] >= 2*mlength_u_min)&&(length[2] >= 2*mlength_v_min)) {
         mDepth++;
         JS = 0.0;
-        std::vector<SgtSideInfo> ssiBufferS00, ssiBufferS01, ssiBufferS10, ssiBufferS11;
-        std::vector<CodingUnitInfo> cuiBufferS00, cuiBufferS01, cuiBufferS10, cuiBufferS11;
+
         //Create partition codes for each subblock
         char *partitionCodeS00 = new char[1];
         char *partitionCodeS01 = new char[1];
@@ -243,7 +225,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
         new_length[3] = length[3]/2;
           
         //optimize partition for Block_S returning JS, the transformed Block_S, partitionCode_S and arithmetic_model_S
-        Block4D_ transformedBlockS00(new_length,new_lightField_position,inputBlock.lightField);
+        Block4D transformedBlockS00(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS00.emptyTransform();
 
         
@@ -255,7 +237,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
         //new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
         new_length[3] = length[3] - length[3]/2; 
                  
-        Block4D_ transformedBlockS01(new_length,new_lightField_position,inputBlock.lightField);
+        Block4D transformedBlockS01(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS01.emptyTransform();
         
         JS += RDoptimizeTransformStep(inputBlock, transformedBlockS01, new_position, new_length, &partitionCodeS01);
@@ -264,7 +246,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
 
         new_length[2] = length[2] - length[2]/2;
         
-        Block4D_ transformedBlockS11(new_length,new_lightField_position,inputBlock.lightField);
+        Block4D transformedBlockS11(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS11.emptyTransform();
         
         JS += RDoptimizeTransformStep(inputBlock, transformedBlockS11, new_position, new_length, &partitionCodeS11);
@@ -274,7 +256,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
         
         new_length[3] = length[3]/2;
         
-        Block4D_ transformedBlockS10(new_length,new_lightField_position,inputBlock.lightField);
+        Block4D transformedBlockS10(new_length,new_lightField_position,inputBlock.lightField);
         transformedBlockS10.emptyTransform();
         
         
@@ -297,7 +279,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D_ &inputBlock, Block
         strcat(partitionCodeS, partitionCodeS10);
         
 
-        transformedBlockS = Block4D_(transformedBlockS00,transformedBlockS01,transformedBlockS10,transformedBlockS11,false);
+        transformedBlockS = Block4D(transformedBlockS00,transformedBlockS01,transformedBlockS10,transformedBlockS11,false);
 
         transformedBlockS.sgtDomain = true;
         
@@ -415,30 +397,9 @@ void TransformPartition :: EncodePartitionStep(std::array<int64_t,4> position, s
 
         mPartitionCodeIndex++;
         mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-        
-        mSsiBuffer[mCodingUnitIndex].print();
-
-
-        mEntropyCoder.EncodeSSI_(mSsiBuffer[mCodingUnitIndex]);
-
-
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
-
         std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
-        
         if(trueLength[2] * trueLength[3] > 0) mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
-        
-        
-        double weight = totalTransformGain();
-        double distortion = (double) mEntropyCoder.mDistortion/(weight*weight);
-        mCodingPartitionInfo.incrementTotalDistortion(distortion);
-        double mse = distortion/(length[0]*length[1]*length[2]*length[3]);
-        mCodingPartitionInfo.incrementTotalSize(mEntropyCoder.mRate * (length[0]*length[1]*length[2]*length[3]));
-        double psnr = 10 * log10((1024*1024)/mse);
-        mCuiBuffer[mCodingUnitIndex].setPSNR(psnr);
-        mCuiBuffer[mCodingUnitIndex].setRate(mEntropyCoder.mRate);
-        mCodingPartitionInfo.appendCodingUnitInfo(mCuiBuffer[mCodingUnitIndex]);
-        mCodingUnitIndex++;
         return;
     }
     if(mPartitionCode[mPartitionCodeIndex] == INTRAVIEWSPLITFLAG) {

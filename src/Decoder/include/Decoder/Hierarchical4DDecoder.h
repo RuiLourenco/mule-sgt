@@ -4,7 +4,7 @@
  *
  * Created on December 28, 2017, 11:41 AM
  */
-#include "LightField/Block4D_.h"
+#include "LightField/Block4D.h"
 #include "Decoder/ABADecoder.h"
 #include "ProbabilityModel/ProbabilityModel.h"
 #include <stdlib.h>
@@ -21,7 +21,7 @@
 
 class Hierarchical4DDecoder {
 public:
-    Block4D_ mSubbandLF;
+    Block4D mSubbandLF;
     ABADecoder mEntropyDecoder;
     ProbabilityModel *mPmodel;
     int mSuperiorBitPlane, mInferiorBitPlane;
@@ -38,7 +38,6 @@ public:
     int mSkipCount = 0;
     at::Tensor mSkipMatrix;
     int DecodePartitionFlag(void);
-    SgtSideInfo DecodeSsi(std::array<double,2> disparityRange);
     int DecodeInteger(int precision);
     void DoneDecoding(void);
 };

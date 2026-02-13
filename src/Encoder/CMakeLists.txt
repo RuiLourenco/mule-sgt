@@ -6,8 +6,6 @@ find_package(OpenMP REQUIRED)
 target_link_libraries(Encoder 
 PUBLIC 
     torch 
-    DebugTools 
-    ProbabilityModel  
-    OldDCT 
+    ProbabilityModel   
     OpenMP::OpenMP_CXX
     LightField)  

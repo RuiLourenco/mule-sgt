@@ -1,0 +1,46 @@
+name: slantKLT
+channels:
+  - conda-forge
+dependencies:
+  - boost-cpp=1.80
+  - ca-certificates
+  - cmake=3.24.2
+  - cxx-compiler=1.5.0
+  - doxygen=1.9.5
+  - elfutils
+  - gmock
+  - gtest
+  - imageio
+  - ipykernel
+  - lapack=3.9.0
+  - libglu
+  - libglvnd
+  - libglvnd-devel
+  - liblapack=3.9.0
+  - libopenblas=0.3.21
+  - libunwind
+  - mesa
+  - ninja=1.11.0
+  - numpy
+  - openblas=0.3.21
+  - openssl
+  - osqp
+  - pandas
+  - pillow
+  - plotly
+  - python-kaleido
+  - pytorch-cpu=1.12
+  - qt
+  - qt-main
+  - scikit-image
+  - tqdm
+  - zstd
+  - pip:
+    - bjontegaard==1.2.0
+    - deflate==0.8.0
+    - matplotlib==3.10.0
+    - pandas==2.2.3
+    - sewar==0.4.6
+    - sympy==1.13.3
+
+prefix: "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT"

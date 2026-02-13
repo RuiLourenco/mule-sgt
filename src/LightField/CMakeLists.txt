@@ -1,4 +1,4 @@
-add_library(LightField LightField.cpp Matrix.cpp View.cpp Block4D.cpp Block4D_.cpp)
+add_library(LightField LightField.cpp Block4D.cpp)
 set(OpenCV_DIR /usr/lib/x86_64-linux-gnu/cmake/opencv4/)
 find_package(OpenCV REQUIRED)
 find_package(osqp REQUIRED)

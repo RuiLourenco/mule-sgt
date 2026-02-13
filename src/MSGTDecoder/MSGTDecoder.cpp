@@ -1,5 +1,5 @@
 #include "LightField/LightField.h"
-#include "LightField/Block4D_.h"
+#include "LightField/Block4D.h"
 #include "Decoder/Hierarchical4DDecoder.h"
 #include "Decoder/PartitionDecoder.h"
 #include <boost/program_options.hpp>
@@ -17,9 +17,11 @@ using namespace std;
 class DecoderParameters;
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
-void ExtendBlock4D(Block4D_ &extendedblock, ExtensionType extensionMethod, int extensionLength, char direction);
-void YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale);
-void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale);
+void ExtendBlock4D(Block4D &extendedblock, ExtensionType extensionMethod, int extensionLength, char direction);
+void YCbCr2RGB_BT601(Block4D &R, Block4D &G, Block4D &B, Block4D const &Y, Block4D const &Cb, Block4D const &Cr, int Scale);
+void YCoCg2RGB(Block4D &R, Block4D &G, Block4D &B, Block4D const &Y, Block4D const &Co, Block4D const &Cg, int Scale);
+void RGB2YCbCr_BT601(Block4D &Y, Block4D &Cb, Block4D &Cr, Block4D const &R, Block4D const &G, Block4D const &B, int Scale);
+void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale);
 unsigned long int BigEndianUnsignedIntegerRead(int precision, FILE *inputFilePointer);
 long int BigEndianSignedIntegerRead(int precision, FILE *inputFilePointer) ;
 
@@ -31,6 +33,7 @@ public:
     array<double,2> disparityRange;
     string outputDirectory;
     string inputFileName;
+    string inputLightFieldDirectory;
     string configFile;
     bool isLenslet13x13;
     ExtensionType extensionMethod;
@@ -60,6 +63,8 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
             parametersFile >> outputDirectory;
         } else if(command == "-i") {
             parametersFile >> inputFileName;
+        } else if(command == "-d") {
+            parametersFile >> inputLightFieldDirectory;
         } else if(command == "-lenslet13x13") {
             isLenslet13x13 = true;
         } else if(command == "-extension-repeat") {
@@ -81,6 +86,7 @@ void DecoderParameters :: DisplayConfiguration() {
     cout << "stride = " << stride[0] << " " << stride[1] << endl;
     cout << "outputDirectory = " << outputDirectory << endl;
     cout << "inputFileName = " << inputFileName << endl;
+    cout << "inputLightFieldDirectory = " << inputLightFieldDirectory << endl;
     cout << "isLenslet13x13 = " << isLenslet13x13 << endl;
     cout << "extensionMethod = " << extensionMethod << endl;
     cout << "transformGain = " << transformGain << endl;
@@ -109,6 +115,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("view-stride,s", po::value<vector<int64_t>>()->multitoken(), "view stride")
     ("output-dir,o", po::value<string>(&par.outputDirectory), "output directory")
     ("input-file,i", po::value<string>(&par.inputFileName), "input file")
+    ("light-field-dir,d", po::value<string>(&par.inputLightFieldDirectory), "Path to Input Light Field Collection Directory")
     ("lenslet13x13", po::bool_switch()->default_value(false), "lenslet 13x13")
     ("extension-repeat", po::bool_switch()->default_value(false), "extension repeat")
     ("extension-cyclic", po::bool_switch()->default_value(false), "extension cyclic")
@@ -172,6 +179,14 @@ int main(int argc, char **argv) {
         par.DisplayConfiguration();
     }
     par.DisplayConfiguration();
+    
+    // Load LightField from inputLightFieldDirectory if provided
+    LightField reconstructedLF;
+    if(!par.inputLightFieldDirectory.empty()) {
+        string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
+        reconstructedLF.OpenLightFieldPPM_(par.inputLightFieldDirectory, pattern, par.firstView, par.viewSize);
+    }
+    
     Hierarchical4DDecoder hdt;
     FILE *inputFileNamePointer;
     if((inputFileNamePointer = fopen(par.inputFileName.c_str(), "rb")) == NULL) {
@@ -208,7 +223,7 @@ int main(int argc, char **argv) {
     LightField outputLF(lfSize);
     outputLF.preSlantTan = -16;
     outputLF.mPGMScale = PGMScale;
-    Block4D_ lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
+    Block4D lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
 
 
 
@@ -228,29 +243,52 @@ int main(int argc, char **argv) {
     std::cout<<"LOOP WILL START"<<std::endl;
     for(int verticalView = 0; verticalView < lfSize[0]; verticalView+= maxPartitionSize[0]){
         for(int horizontalView = 0; horizontalView < lfSize[1]; horizontalView+=maxPartitionSize[1]){
-            //for(int viewLine = 128; viewLine < 128+64; viewLine+=maxPartitionSize[2]){
-            //for(int viewLine = 64; viewLine <64  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            //for(int viewLine = 0*maxPartitionSize[2]; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            // for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
-                //for(int viewColumn = 512; viewColumn < 512+64; viewColumn+=maxPartitionSize[3]){
-                //for(int viewColumn = 192 ; viewColumn <192  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
-                //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn <lfSize[3]; viewColumn += maxPartitionSize[3]) {
-                //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn <0*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
-
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
-
+                    
+                    // Load reconstructed blocks from input light field if available
+                    Block4D rReconstructedBlock, gReconstructedBlock, bReconstructedBlock;
+                    Block4D yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock;
+                    
+                    if(!par.inputLightFieldDirectory.empty()) {
+                        rReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 0);
+                        gReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 1);
+                        bReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 2);
+                        
+                        // Convert RGB to YCbCr or YCoCg
+                        if(par.colorTransformType == BT601) {
+                            yReconstructedBlock = rReconstructedBlock.clone();
+                            cbReconstructedBlock = gReconstructedBlock.clone();
+                            crReconstructedBlock = bReconstructedBlock.clone();
+                            RGB2YCbCr_BT601(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
+                        } else if(par.colorTransformType == YCOCG) {
+                            RGB2YCoCg(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
+                        }
+                    }
+                    
                     for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++){
                         if(par.verbosity > 0) cout<<"decoding spectral component "<<spectralComponent<<endl;
                         std::array<int64_t,5> currLfPosition = {verticalView,horizontalView,viewLine,viewColumn,spectralComponent};
 
                         if(par.verbosity > 0) 
                             printf("Decoding 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
-                        pd.mPartitionData = Block4D_(maxPartitionSize,blockPosition,&outputLF);
+                        pd.mPartitionData = Block4D(maxPartitionSize,blockPosition,&outputLF);
+
+                        // Get the appropriate reconstructed block for this spectral component
+                        Block4D reconstructedBlock;
+                        if(!par.inputLightFieldDirectory.empty()) {
+                            if(spectralComponent == 0) {
+                                reconstructedBlock = yReconstructedBlock;
+                            } else if(spectralComponent == 1) {
+                                reconstructedBlock = cbReconstructedBlock;
+                            } else if(spectralComponent == 2) {
+                                reconstructedBlock = crReconstructedBlock;
+                            }
+                        }
 
                         hdt.RestartProbabilisticModel();
-                        pd.DecodePartition(hdt,par.disparityRange);
+                        pd.DecodePartition(reconstructedBlock,hdt,par.disparityRange);
                                       
                 
         
@@ -282,26 +320,14 @@ int main(int argc, char **argv) {
                     }
 
                     if(par.colorTransformType == BT601){
-                        rBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
-                        gBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
-                        bBlock = Block4D_(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
+                        rBlock = Block4D(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
+                        gBlock = Block4D(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
+                        bBlock = Block4D(yBlock.size,yBlock.lightFieldPosition,yBlock.lightField);
                         YCbCr2RGB_BT601( rBlock, gBlock, bBlock,yBlock, cbBlock, crBlock, outputLF.mPGMScale);
                     }
                     if(par.colorTransformType == YCOCG){
                         YCoCg2RGB(rBlock, gBlock, bBlock, yBlock, cbBlock, crBlock, outputLF.mPGMScale);
                     }
-                    //if(par.verbosity > 0) std::cout<<"Completed Color Transformation"<<std::endl;
-                    // if(par.verbosity > 0) {
-                    //     std::cout<<"R"<<std::endl;
-                    //     std::cout<<rBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                    //     std::cout<<"G"<<std::endl;
-                    //     std::cout<<gBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                    //     std::cout<<"B"<<std::endl;
-                    //     std::cout<<bBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                    // }
-                    //std::cout<<"Y BLOCK: "<<yBlock.data.min().item()<<" "<<yBlock.data.max().item()<<std::endl;
-                    //std::cout<<"CO BLOCK: "<<cbBlock.data.min().item()<<" "<<cbBlock.data.max().item()<<std::endl;
-                    //std::cout<<"CG BLOCK: "<<crBlock.data.min().item()<<" "<<crBlock.data.max().item()<<std::endl;
                     
                     if(par.isLenslet13x13 == 1) {
                     //Correcting the values of the edge views of the light field by multiplying them by 4.
@@ -372,7 +398,7 @@ int main(int argc, char **argv) {
     fclose(inputFileNamePointer);
 }
 
-void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {
+void ExtendBlock4D(Block4D &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {
     
     if(extensionMethod == REPEAT_LAST) {
         
@@ -402,15 +428,15 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
     }
 }
 
-// void YCbCr2RGB_BT601_old(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
-//     Block4D_ CbTemp = Cb - ((Scale+1)/2);
-//     Block4D_ CrTemp = Cr - ((Scale+1)/2);
+// void YCbCr2RGB_BT601_old(Block4D &R, Block4D &G, Block4D &B, Block4D const &Y, Block4D const &Cb, Block4D const &Cr, int Scale) {
+//     Block4D CbTemp = Cb - ((Scale+1)/2);
+//     Block4D CrTemp = Cr - ((Scale+1)/2);
 //     R = Y - CbTemp * 0.0000071525  +CrTemp * 1.4020 ;
 //     G = Y -CbTemp * 0.34413  - CrTemp * 0.71414;
 //     B = Y + 1.7720 * CbTemp - 0.000040249 * CrTemp;
 // }
 
-void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale) {
+void YCoCg2RGB(Block4D &R, Block4D &G, Block4D &B, Block4D const &Y, Block4D const &Co, Block4D const &Cg, int Scale) {
     auto CoTemp = Co- (Scale+1)/2;
     auto CgTemp = Cg - (Scale+1)/2;
     auto t = Y - (CgTemp.data.bitwise_right_shift(1));
@@ -419,7 +445,7 @@ void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D
     R.data = B.data + CoTemp;          
 }
 
-void YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale) {
+void YCbCr2RGB_BT601(Block4D &R, Block4D &G, Block4D &B, Block4D const &Y, Block4D const &Cb, Block4D const &Cr, int Scale) {
     int* Y_data = Y.data.data_ptr<int>();
     int* Cb_data = Cb.data.data_ptr<int>();
     int* Cr_data = Cr.data.data_ptr<int>();
@@ -475,4 +501,35 @@ long int BigEndianSignedIntegerRead(int precision, FILE *inputFilePointer) {
         value += input_byte;
     }
     return (value*sign);
+}
+
+void RGB2YCbCr_BT601(Block4D &Y, Block4D &Cb, Block4D &Cr, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
+    int* Y_data = Y.data.data_ptr<int>();
+    int* Cb_data = Cb.data.data_ptr<int>();
+    int* Cr_data = Cr.data.data_ptr<int>();
+    int* R_data = R.data.data_ptr<int>();
+    int* G_data = G.data.data_ptr<int>();
+    int* B_data = B.data.data_ptr<int>();
+    for(int n = 0; n < R.size[0]*R.size[1]*R.size[2]*R.size[3]; n++) {
+        double pixel =  0.299 * R_data[n] + 0.587 * G_data[n] + 0.114 * B_data[n];
+        Y_data[n] = (int) round(pixel);
+        pixel = -0.16875 *(double) R_data[n] -0.33126 *(double) G_data[n] + 0.5 * (double)B_data[n];
+        Cb_data[n] = (int) round(pixel) + (Scale + 1)/2;
+        pixel = 0.5 *(double) R_data[n] -0.41869 * (double) G_data[n] -0.08131  * (double)B_data[n];
+        Cr_data[n] = (int) round(pixel) + (Scale + 1)/2;
+    }
+}
+
+
+
+void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
+    Co = R - B;
+    auto temp = B + Co.data.bitwise_right_shift(1);
+    Cg = G - temp;
+    Y = temp + Cg.data.bitwise_right_shift(1);
+    Co.data+= (Scale + 1)/2;
+    Cg.data+= (Scale + 1)/2;
+    Y.validPositions = R.validPositions;
+    Co.validPositions = R.validPositions;
+    Cg.validPositions = R.validPositions;        
 }

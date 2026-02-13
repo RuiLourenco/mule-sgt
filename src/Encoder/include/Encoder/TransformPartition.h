@@ -1,11 +1,9 @@
-#include "OldDCT/MultiscaleTransform.h"
 #include "Encoder/Hierarchical4DEncoder.h"
 #include <math.h>
 #include <string.h>
 #include <vector>
-#include "LightField/Block4D_.h"
-#include "DebugTools/CodingUnitInfo.h"
-#include "DebugTools/CodingPartitionInfo.h"
+#include "LightField/Block4D.h"
+
 
 
 #ifndef TRANSFORMPARTITION_H
@@ -26,7 +24,7 @@ class TransformPartition {
                                                                   size_t height, 
                                                                   size_t width);
     std::vector<std::unique_ptr<Hierarchical4DEncoder>> m_encoder_pool;
-    void getOptimalMinimumBitPlane(Block4D_& inputBlock);
+    void getOptimalMinimumBitPlane(Block4D& inputBlock);
 public:  
     // --- THE FIX: MAKE THE MANAGER CLASS NON-COPYABLE/MOVABLE ---
     // Because this class owns a pool of non-copyable encoders,
@@ -36,9 +34,6 @@ public:
     TransformPartition(TransformPartition&&) = delete;
     TransformPartition& operator=(TransformPartition&&) = delete;
     std::array<double,2> mDisparityRange;
-    std::vector<SgtSideInfo> mSsiBuffer;
-    std::vector<CodingUnitInfo> mCuiBuffer;
-    CodingPartitionInfo mCodingPartitionInfo;
     Hierarchical4DEncoder& mEntropyCoder;
     int mDepth = 0;           /*!< Current depth in the partition tree */
 
@@ -53,17 +48,17 @@ public:
     int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
-    Block4D_ mPartitionData_;
+    Block4D mPartitionData_;
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);
     TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain);
     ~TransformPartition(void);
-    void RDoptimizeTransform(Block4D_ &inputBlock, double lambda);
-    double RDoptimizeTransformStep(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length ,char **partitionCode);
+    void RDoptimizeTransform(Block4D &inputBlock, double lambda);
+    double RDoptimizeTransformStep(Block4D &inputBlock, Block4D &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length ,char **partitionCode);
     void EncodePartition( double lambda);
     void EncodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
-    double EvaluatePartition(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain);
+    double EvaluatePartition(Hierarchical4DEncoder& encoder,Block4D &block_0, double currGain);
    
 
 

@@ -1,5 +1,5 @@
 #include "LightField/LightField.h"
-#include "LightField/Block4D_.h"
+#include "LightField/Block4D.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -654,9 +654,9 @@ void LightField :: OpenLightFieldPPM_(std::string rootPath, std::string pattern,
 
 
 
-Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
+Block4D LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::array<int64_t,4>position, int64_t channel){
     
-    Block4D_ block(size,position,this);
+    Block4D block(size,position,this);
     std::array<int64_t,4> actualSize;
     for(int n = 0; n<4; n++){
         actualSize[n] = std::min(data.size(n) - position[n],size[n]);
@@ -675,8 +675,8 @@ Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::a
                                              channel});
     if (this->preSlantTan != 0) {
         
-        at::Tensor validPosition_h = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
-        at::Tensor validPosition_v = Block4D_::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
+        at::Tensor validPosition_h = Block4D::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, true);
+        at::Tensor validPosition_v = Block4D::get_valid_position(this->preSlantTan,{this->data.size(0),this->data.size(1),this->data.size(2),this->data.size(3)},size,{position[0],position[1],position[2],position[3]}, false);
         block.validPositions = ValidPositions{validPosition_h,validPosition_v};
         if(validPosition_h.size(0) == size[1] * size[3] && validPosition_v.size(0) == size[0] * size[2]){
                 std::cout<<"All positions are valid for subblock copy. "<<std::endl;
@@ -696,7 +696,7 @@ Block4D_ LightField::ReadBlock4DfromLightField_(std::array<int64_t,4>size,std::a
     std::cout<<"Includes Invalid Corners: "<<block.includesInvalidCorners<<std::endl;
     return block;
 }
-void LightField :: WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position){
+void LightField :: WriteBlock4DtoLightField_(Block4D sourceBlock, std::array<int64_t,5> position){
     std::array<int64_t,4> length = {std::min(this->data.size(0) - position[0],sourceBlock.data.size(0)),
                                     std::min(this->data.size(1) - position[1],sourceBlock.data.size(1)),
                                     std::min(this->data.size(2) - position[2],sourceBlock.data.size(2)),

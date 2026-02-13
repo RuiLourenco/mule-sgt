@@ -1,5 +1,5 @@
 #include "LightField/LightField.h"
-#include "LightField/Block4D_.h"
+#include "LightField/Block4D.h"
 #include "Encoder/Hierarchical4DEncoder.h"
 #include "Encoder/TransformPartition.h"
 #include <boost/program_options.hpp>
@@ -26,10 +26,9 @@ bool is_all_whitespace(const std::string& str) {
 class EncoderParameters;
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
-void ExtendDCT(Matrix &extendedDCT, ExtensionType extensionMethod, int transformLength, int extensionLength);
-void ExtendBlock4D(Block4D_ &extendedblock, ExtensionType extensionMethod, int extensionLength, char direction);
-void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale);
-void RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale);
+void ExtendBlock4D(Block4D &extendedblock, ExtensionType extensionMethod, int extensionLength, char direction);
+void RGB2YCbCr_BT601(Block4D &Y, Block4D &Cb, Block4D &Cr, Block4D const &R, Block4D const &G, Block4D const &B, int Scale);
+void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale);
 int readProgramOptions(int argc, char **argv, EncoderParameters &par);
 void conflicting_options(const boost::program_options::variables_map & vm,
                          const std::string & opt1, const std::string & opt2);
@@ -292,7 +291,7 @@ int main(int argc, char **argv) {
 
     
 
-    Block4D_ yBlock,cbBlock,crBlock; 
+    Block4D yBlock,cbBlock,crBlock; 
 
     
 
@@ -341,16 +340,7 @@ int main(int argc, char **argv) {
     LightField inputLF;
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
-    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.slantLightField(-16);
-    std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.computeTopHalfGradients();
-    //inputLF.computeBottomHalfGradients();
-    //inputLF.computeGradients();
-    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
-    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
-    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
-    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
+
 
     for(int n = 0; n < 4; n++) {
         extensionLength[n] = inputLF.data.size(n) % par.maxPartitionSize[n];
@@ -393,7 +383,6 @@ int main(int argc, char **argv) {
 
 
     //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
-    std::vector<CodingPartitionInfo> codingPartitionInfos;
     TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
 
@@ -409,20 +398,13 @@ int main(int argc, char **argv) {
                 //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
-                    if(viewLine >= inputLF.secondHalfBias){
-                        if(!inputLF.secondHalfGradientsComputed){
-                            std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
-                            inputLF.computeBottomHalfGradients();
-                        }
-                    }
-                    if(true)
-                        printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
+                    printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
 
-                    Block4D_ rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
-                    Block4D_ gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
-                    Block4D_ bBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,2);
+                    Block4D rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
+                    Block4D gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
+                    Block4D bBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,2);
                     std::cout<<" Read Block 4D"<<std::endl;
         
                     if(par.isLenslet13x13 == 1) {
@@ -458,14 +440,6 @@ int main(int argc, char **argv) {
                             }
                         }
                     }
-                    if(par.verbosity > 0) {
-                        // std::cout<<"R"<<std::endl;
-                        // std::cout<<rBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                        // std::cout<<"G"<<std::endl;
-                        // std::cout<<gBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                        // std::cout<<"B"<<std::endl;
-                        // std::cout<<bBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
-                    }
                     if(par.colorTransformType == BT601){
                         std::cout<<" Attempting BT601 Color Transformation"<<std::endl;
                         yBlock = rBlock.clone();
@@ -491,7 +465,7 @@ int main(int argc, char **argv) {
 
                     for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++) {
                         if(par.verbosity > 0) printf("\nProcessing spectral component %d\n", spectralComponent);
-                        Block4D_ lfBlock;
+                        Block4D lfBlock;
                         if(spectralComponent == 0){
                             lfBlock = yBlock;
                         }
@@ -513,12 +487,8 @@ int main(int argc, char **argv) {
                             //std::cout<<lfBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<std::endl;
                         }
                                                                                               
-
-                        tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
                         tp.RDoptimizeTransform(lfBlock, par.Lambda);
                         tp.EncodePartition(par.Lambda);
-                        error[spectralComponent] += tp.mCodingPartitionInfo.getTotalDistortion();
-                        size += tp.mCodingPartitionInfo.getTotalSize();
                         //std::cout<<"Size Channel "<<spectralComponent<<": "<<tp.mCodingPartitionInfo.getTotalSize()<<std::endl;
                         
                         std::cout<<"Encoding Successful!"<<std::endl;
@@ -528,7 +498,6 @@ int main(int argc, char **argv) {
                         
                         std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
                         
-                        codingPartitionInfos.push_back(tp.mCodingPartitionInfo);
                     }
                 }
             }
@@ -546,86 +515,6 @@ int main(int argc, char **argv) {
     std::cout<<"Predicted PSNR-YUV:"<<(6*PSNR_Y+PSNR_Cb+PSNR_Cr)/8<<std::endl;
     std::cout<<"Total Rate: "<<size<<std::endl;
 
-    CodingPartitionInfo::printVectorToJsonFile(codingPartitionInfos,infoPath);           
-
-    //write_tensor(hdt.ignored[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/ignored.png");
-    // std::ofstream energy;
-    // std::ofstream rhoS;
-    // std::ofstream rhoT;
-    // std::ofstream rhoU;
-    // std::ofstream rhoV;
-    // std::ofstream angleH;
-    // std::ofstream angleV;
-    // std::ofstream rate;
-    // std::ofstream distortion;
-
-    // energy.open(path + "energy.m");
-    // rhoS.open(path + "rhoS.m");
-    // rhoT.open(path + "rhoT.m");
-    // rhoU.open(path + "rhoU.m");
-    // rhoV.open(path + "rhoV.m");
-    // angleH.open(path + "angleH.m");
-    // angleV.open(path + "angleV.m");
-    // rate.open(path + "rate.m");
-    // distortion.open(path + "distortion.m");
-    // std::cout<<"Printing Images"<<endl;
-    // energy<<"energy_cpp = zeros("<<lfEnergy.size(0)<<","<<lfEnergy.size(1)<<","<<lfEnergy.size(2)<<");"<<std::endl;
-    // rhoS<<"rhoS_cpp = zeros("<< lfRhoS.size(0)<<","<< lfRhoS.size(1)<<","<< lfRhoS.size(2)<<");"<<std::endl;
-    // rhoT<<"rhoT_cpp = zeros("<<lfRhoT.size(0)<<","<<lfRhoT.size(1)<<","<<lfRhoT.size(2)<<");"<<std::endl;
-    // rhoU<<"rhoU_cpp = zeros("<<lfRhoU.size(0)<<","<<lfRhoU.size(1)<<","<<lfRhoU.size(2)<<");"<<std::endl;
-    // rhoV<<"rhoV_cpp = zeros("<<lfRhoV.size(0)<<","<<lfRhoV.size(1)<<","<<lfRhoV.size(2)<<");"<<std::endl;
-    // angleH<<"angleH_cpp = zeros("<<lfAngleH.size(0)<<","<<lfAngleH.size(1)<<","<<lfAngleH.size(2)<<");"<<std::endl;
-    // angleV<<"angleV_cpp = zeros("<<lfAngleV.size(0)<<","<<lfAngleV.size(1)<<","<<lfAngleV.size(2)<<");"<<std::endl;
-    // rate<<"rate_cpp = zeros("<<lfRate.size(0)<<","<<lfRate.size(1)<<","<<lfRate.size(2)<<");"<<std::endl;
-    // distortion<<"distortion_cpp = zeros("<<lfDistortion.size(0)<<","<<lfDistortion.size(1)<<","<<lfDistortion.size(2)<<");"<<std::endl;
-    // for(int n = 0; n < lfEnergy.size(0); n++){
-    //     for(int m = 0; m < lfEnergy.size(1); m++){
-    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",1) = "<<lfEnergy[n][m][0].item()<<";";
-    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",2) = "<<lfEnergy[n][m][1].item()<<";";
-    //         energy<<"energy_cpp("<<n+1<<","<<m+1<<",3) = "<<lfEnergy[n][m][2].item()<<";";
-            
-    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoS[n][m][0].item()<<";";
-    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoS[n][m][1].item()<<";";
-    //         rhoS<<"rhoS_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoS[n][m][2].item()<<";";
-            
-    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoT[n][m][0].item()<<";";
-    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoT[n][m][1].item()<<";";
-    //         rhoT<<"rhoT_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoT[n][m][2].item()<<";";
-            
-    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoU[n][m][0].item()<<";";
-    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoU[n][m][1].item()<<";";
-    //         rhoU<<"rhoU_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoU[n][m][2].item()<<";";
-           
-    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRhoV[n][m][0].item()<<";";
-    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRhoV[n][m][1].item()<<";";
-    //         rhoV<<"rhoV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRhoV[n][m][2].item()<<";";
-           
-    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleH[n][m][0].item()<<";";
-    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleH[n][m][1].item()<<";";
-    //         angleH<<"angleH_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleH[n][m][2].item()<<";";
-           
-    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",1) = "<<lfAngleV[n][m][0].item()<<";";
-    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",2) = "<<lfAngleV[n][m][1].item()<<";";
-    //         angleV<<"angleV_cpp("<<n+1<<","<<m+1<<",3) = "<<lfAngleV[n][m][2].item()<<";";
-           
-    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",1) = "<<lfRate[n][m][0].item()<<";";
-    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",2) = "<<lfRate[n][m][1].item()<<";";
-    //         rate<<"rate_cpp("<<n+1<<","<<m+1<<",3) = "<<lfRate[n][m][2].item()<<";";
-           
-    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",1) = "<<lfDistortion[n][m][0].item()<<";";
-    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",2) = "<<lfDistortion[n][m][1].item()<<";";
-    //         distortion<<"distortion_cpp("<<n+1<<","<<m+1<<",3) = "<<lfDistortion[n][m][2].item()<<";";
-    //     }
-    //     energy<<std::endl;
-    //     rhoS<<std::endl;
-    //     rhoT<<std::endl;
-    //     rhoU<<std::endl;
-    //     rhoV<<std::endl;
-    //     angleH<<std::endl;
-    //     angleV<<std::endl;
-    //     rate<<std::endl;
-    //     distortion<<std::endl;
-    // }
     
     tp.mEntropyCoder.DoneEncoding();
     
@@ -633,7 +522,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {
+void ExtendBlock4D(Block4D &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {
     
     if(extensionMethod == REPEAT_LAST) {
         
@@ -663,13 +552,7 @@ void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int e
     }
 }
 
-void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-    std::cout << "Y data type: " << Y.data.dtype() << std::endl;
-    std::cout << "Cb data type: " << Cb.data.dtype() << std::endl;
-    std::cout << "Cr data type: " << Cr.data.dtype() << std::endl;
-    std::cout << "R data type: " << R.data.dtype() << std::endl;
-    std::cout << "G data type: " << G.data.dtype() << std::endl;
-    std::cout << "B data type: " << B.data.dtype() << std::endl;
+void RGB2YCbCr_BT601(Block4D &Y, Block4D &Cb, Block4D &Cr, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
     int* Y_data = Y.data.data_ptr<int>();
     int* Cb_data = Cb.data.data_ptr<int>();
     int* Cr_data = Cr.data.data_ptr<int>();
@@ -686,29 +569,9 @@ void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R,
     }
 }
 
-// void RGB2YCbCr_BT601_old(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
-//     static const std::array<double,3> Y_weights = {0.299, 0.587, 0.114});  
-//     static const auto Cb_weights = at::tensor({-0.16875, -0.33126, 0.5}, at::kDouble).reshape({3, 1}); 
-//     static const auto Cr_weights = at::tensor({0.5, -0.41869, -0.08131}, at::kDouble).reshape({3, 1}); 
-//     static const int D = 1<<((int)log2(Scale+1)-8);
-//     static const int Y8bitBias = 0;
-//     static const int CbCr8bitBias = (1<<7);
-//     R.data.to(at::kDouble);
-//     G.data.to(at::kDouble);
-//     B.data.to(at::kDouble);
 
-//     auto Ey = R/Scale * Y_weights[0] + G.data.to(at::kDouble)/Scale * Y_weights[1] + B.data.to(at::kDouble)/Scale * Y_weights[2];
-//     Y = ((255 * Ey + Y8bitBias) * D).round().to(at::kInt)/D;
-//     auto Ecb = R.data.to(at::kDouble)/Scale * Cb_weights[0] + G.data.to(at::kDouble)/Scale * Cb_weights[1] + Cb.data.to(at::kDouble)/Scale * Y_weights[2];
-//     Cb = ((255 * Ecb + CbCr8bitBias)*D).round().to(at::kInt)/D;
-//     auto Ecr = R.data.to(at::kDouble)/Scale * Cr_weights[0] + G.data.to(at::kDouble)/Scale * Cr_weights[1] + Cr.data.to(at::kDouble)/Scale * Y_weights[2];
-//     Cr = ((255 * Ecr + CbCr8bitBias)*D).round().to(at::kInt)/D; 
-//     Y.validPositions = R.validPositions;
-//     Cb.validPositions = R.validPositions;
-//     Cr.validPositions = R.validPositions;
-// }
 
-void RGB2YCoCg(Block4D_ &Y, Block4D_ &Co, Block4D_ &Cg, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale) {
+void RGB2YCoCg(Block4D &Y, Block4D &Co, Block4D &Cg, Block4D const &R, Block4D const &G, Block4D const &B, int Scale) {
     Co = R - B;
     auto temp = B + Co.data.bitwise_right_shift(1);
     Cg = G - temp;

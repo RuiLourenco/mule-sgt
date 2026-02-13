@@ -443,25 +443,7 @@ void Hierarchical4DEncoder :: EncodePartitionFlag(int symbol) {
         mEntropyCoder.EncodeBit(0, mPmodel[0]);
     }
 }
-void Hierarchical4DEncoder :: EncodeSSI_(SgtSideInfo ssi){
-    //std::cout<<"Encode SSI: ";
-    //
-    int precisionRho = ssi.getRhoPrecision();
-    int precisionD = ssi.getAnglePrecision();
-    //std::cout<<"precision: "<<precisionD<<" "<<precisionRho<<std::endl;
-    //ssi.print();
-    //EncodeInteger(5,1);
-    
-    EncodeInteger(ssi.getAngleVCode(),precisionD);
-    EncodeInteger(ssi.getAngleHCode(),precisionD);
-    //std::cout<<ADAPTIVE_RHO_CALC<<std::endl;
-    #if ADAPTIVE_RHO_CALC == 1
-    EncodeInteger(ssi.getRhoSCode(),precisionRho);
-    EncodeInteger(ssi.getRhoTCode(),precisionRho);
-    EncodeInteger(ssi.getRhoUCode(),precisionRho);
-    EncodeInteger(ssi.getRhoVCode(),precisionRho);
-    #endif
-}
+
 
 
 void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {

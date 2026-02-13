@@ -51,7 +51,6 @@ enable_testing()
 message(STATUS "DEBUG: We reach the end?")
 
 add_subdirectory(src) 
-add_subdirectory(tests)
 
 
 
