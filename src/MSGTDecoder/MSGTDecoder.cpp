@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
                                 reconstructedBlock = crReconstructedBlock;
                             }
                         }
-
+                        reconstructedBlock = reconstructedBlock - (outputLF.mPGMScale+1)/2;
                         hdt.RestartProbabilisticModel();
                         pd.DecodePartition(reconstructedBlock,hdt,par.disparityRange);
                                       
