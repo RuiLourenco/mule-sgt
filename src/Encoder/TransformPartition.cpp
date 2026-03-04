@@ -48,13 +48,6 @@ TransformPartition :: ~TransformPartition(void) {
         delete [] mPartitionCode;
 }
 double TransformPartition :: totalTransformGain(void){
-    //length must be the length of the block in the spatial domain
-    // double transformGain = 1;
-    // for(int i = 0; i < 4; i++){
-    //     transformGain*=length[i]/sqrt(length[i]);
-    //     transformGain  *= sqrt(mPartitionData_.size[i]/length[i]);
-    //     std::cout<<transformGain<<" "<< length[i]/sqrt(length[i]) << " "<< sqrt(mPartitionData_.size[i]/length[i])<<std::endl;
-    // } 
 
     return mGain*sqrt(mPartitionData_.size[0]*mPartitionData_.size[1]*mPartitionData_.size[2]*mPartitionData_.size[3]);
 
@@ -85,17 +78,13 @@ void TransformPartition :: RDoptimizeTransform(Block4D &inputBlock, double lambd
     mEntropyCoder.LoadOptimizerState();
 
     Block4D transformedBlock(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
-    std::cout<<"transformedBlock valid position size:"<<transformedBlock.validPositions.valid_positions_v.size(0) << std::endl;
-    std::cout<<"transformedBlock includes invalids:"<<transformedBlock.includesInvalidCorners << std::endl;
 
 
     transformedBlock.emptyTransform();
-    //std::cout<<"Transformed Block Pre Size: "<<transformedBlock.size[0]<<" "<<transformedBlock.size[1]<<" "<<transformedBlock.size[2]<<" "<<transformedBlock.size[3]<<std::endl;
-    //std::cout<<"Transformed Block Pre Transform Size: "<<transformedBlock.transformSize[0]<<" "<<transformedBlock.transformSize[1]<<" "<<transformedBlock.transformSize[2]<<" "<<transformedBlock.transformSize[3]<<std::endl;
     mDepth = 0;
     getOptimalMinimumBitPlane(inputBlock);
     mLagrangianCost = RDoptimizeTransformStep(inputBlock, transformedBlock, {0,0,0,0}, inputBlock.size, &mPartitionCode);
-    //std::cout<<"Lagrangian Cost: "<<mLagrangianCost<<std::endl;
+    std::cout<<"TRANSFORMED BLOCK SIZE: "<<transformedBlock.data.sizes()<<std::endl;
     mPartitionData_ = transformedBlock;
 
     mEntropyCoder.LoadOptimizerState();
@@ -121,15 +110,10 @@ void TransformPartition :: getOptimalMinimumBitPlane(Block4D& inputBlock){
 
 double TransformPartition :: EvaluatePartition(Hierarchical4DEncoder& encoder, Block4D &block_0, double currGain){
     
-    std::chrono::steady_clock::time_point begin;
-    std::chrono::steady_clock::time_point end;
-    std::chrono::steady_clock::time_point sTranform = std::chrono::steady_clock::now();
 
-    std::chrono::steady_clock::time_point fTransform = std::chrono::steady_clock::now();
-    std::chrono::duration<double, std::milli> eTransform = fTransform - sTranform;
     
     
-    
+    block_0.kltTransform(currGain);
 
     encoder.mSubbandLF_ = block_0;
 
@@ -180,8 +164,8 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
     double currGain = totalTransformGain();
 
    
-    double J0 = EvaluatePartition(mEntropyCoder,temp_block_0,currGain);
-    block_0 = temp_block_0;
+    double J0 = EvaluatePartition(mEntropyCoder,block_0,currGain);
+    //block_0 = temp_block_0;
     //We save the state of the entropy coder after encoding block_0 without further partitioning
     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_0);
     //We reset the state of the entropy coder to the initial state
@@ -231,7 +215,6 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
         
         //Need to see what this is actually doing...
         JS += RDoptimizeTransformStep(inputBlock, transformedBlockS00, new_position, new_length, &partitionCodeS00);
-        //std::cout<<"A"<<std::endl;
 
         new_position[3] = position[3] + length[3]/2;
         //new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
@@ -288,7 +271,6 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
         delete [] partitionCodeS10;
         delete [] partitionCodeS11; 
     }
-    //std::cout<<"2"<<std::endl;
 
     ProbabilityModel *coderModelState_s=NULL;
     mEntropyCoder.GetOptimizerProbabilisticModelState(&coderModelState_s);
@@ -358,6 +340,7 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
         mEntropyCoder.SetOptimizerProbabilisticModelState(coderModelState_0);
         //transformedBlock.CopySubblockFrom(block_0, {0,0,0,0},{0,0,0,0});
         transformedBlock = block_0.clone();
+
     }
 
     if(partitionCodeS != NULL) {
@@ -367,7 +350,6 @@ double TransformPartition :: RDoptimizeTransformStep(Block4D &inputBlock, Block4
     mEntropyCoder.DeleteProbabilisticModelState(currentCoderModelState);
     mEntropyCoder.DeleteProbabilisticModelState(coderModelState_0);
     mEntropyCoder.DeleteProbabilisticModelState(coderModelState_s);
-    //std::cout<<"3"<<std::endl;
 
     return(optimumJ);     
 }
@@ -399,6 +381,9 @@ void TransformPartition :: EncodePartitionStep(std::array<int64_t,4> position, s
         mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
         std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
+        std::cout<<"Encoding subblock at position: "<<position[0]<<","<<position[1]<<","<<position[2]<<","<<position[3]<<" with length: "<<trueLength[0]<<","<<trueLength[1]<<","<<trueLength[2]<<","<<trueLength[3]<<std::endl;
+        std::cout<<"first few elements subblock: "<<mEntropyCoder.mSubbandLF_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
+
         if(trueLength[2] * trueLength[3] > 0) mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
         return;
     }
@@ -436,7 +421,7 @@ void TransformPartition :: EncodePartitionStep(std::array<int64_t,4> position, s
         new_position[3] = position[3];
         new_length[3] = length[3]/2;
         
-        (new_position, new_length, lambda);
+        EncodePartitionStep(new_position, new_length, lambda);
         return;
     }
 }

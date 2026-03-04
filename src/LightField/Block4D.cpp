@@ -441,7 +441,7 @@ void Block4D::kltTransform(double scale){
     at::Tensor flatBlock = getFlatBlock().to(at::kDouble);
     at::Tensor currCovH = autoCorr(true);
     at::Tensor currCovV = autoCorr(false);
-    
+
     flatBlock*=scale;
     at::Tensor eigValsH, eigValsV;
     at::Tensor sgtMatrixH   = getTransformMatrix(currCovH,true,eigValsH);
@@ -452,7 +452,6 @@ void Block4D::kltTransform(double scale){
     flatTransform = flatTransform.unsqueeze(0).unsqueeze(0);
     this->data = flatTransform.round().to(at::kInt).contiguous();
     this->sgtDomain = true;
-    std::cout<<"KLT Compressed!"<<std::endl;
 }
 
    
