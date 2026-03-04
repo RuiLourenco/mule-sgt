@@ -250,21 +250,57 @@ int main(int argc, char **argv) {
                     Block4D rReconstructedBlock, gReconstructedBlock, bReconstructedBlock;
                     Block4D yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock;
                     
-                    if(!par.inputLightFieldDirectory.empty()) {
-                        rReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 0);
-                        gReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 1);
-                        bReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 2);
-                        
-                        // Convert RGB to YCbCr or YCoCg
-                        if(par.colorTransformType == BT601) {
-                            yReconstructedBlock = rReconstructedBlock.clone();
-                            cbReconstructedBlock = gReconstructedBlock.clone();
-                            crReconstructedBlock = bReconstructedBlock.clone();
-                            RGB2YCbCr_BT601(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
-                        } else if(par.colorTransformType == YCOCG) {
-                            RGB2YCoCg(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
+                    
+                    rReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 0);
+                    gReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 1);
+                    bReconstructedBlock = reconstructedLF.ReadBlock4DfromLightField_(maxPartitionSize, blockPosition, 2);
+                    std::cout<<rReconstructedBlock.data.index({0,0,at::indexing::Slice(0,10),at::indexing::Slice(0,10)})<<std::endl;
+                    if(par.isLenslet13x13 == 1) {
+                        //Correcting the values of the edge views of the light field by multiplying them by 4.
+                        if(verticalView == 0) {
+                            if(horizontalView == 0) {
+                                rReconstructedBlock.Shift_UVPlane(2, 0, 0);
+                                gReconstructedBlock.Shift_UVPlane(2, 0, 0);
+                                bReconstructedBlock.Shift_UVPlane(2, 0, 0);
+                            }
+
+                            if((horizontalView + maxPartitionSize[1] >= reconstructedLF.data.size(1))&&(horizontalView <= reconstructedLF.data.size(1))) {
+                                int lastViewH = reconstructedLF.data.size(1)-horizontalView-1;
+                                rReconstructedBlock.Shift_UVPlane(2, 0, lastViewH);
+                                gReconstructedBlock.Shift_UVPlane(2, 0, lastViewH);
+                                bReconstructedBlock.Shift_UVPlane(2, 0, lastViewH);
+                            }
+                        }
+
+                        if((verticalView + maxPartitionSize[0] >= reconstructedLF.data.size(0))&&(verticalView <= reconstructedLF.data.size(0))) {
+
+                            int lastViewV = reconstructedLF.data.size(0)-verticalView-1;
+                            if(horizontalView == 0) {
+                                rReconstructedBlock.Shift_UVPlane(2, lastViewV, 0);
+                                gReconstructedBlock.Shift_UVPlane(2, lastViewV, 0);
+                                bReconstructedBlock.Shift_UVPlane(2, lastViewV, 0);
+                            }
+                            if((horizontalView + maxPartitionSize[1] >= reconstructedLF.data.size(1))&&(horizontalView <= reconstructedLF.data.size(1))) {
+                                int lastViewH = reconstructedLF.data.size(1)-horizontalView-1;
+                                rReconstructedBlock.Shift_UVPlane(2, lastViewV, lastViewH);
+                                gReconstructedBlock.Shift_UVPlane(2, lastViewV, lastViewH);
+                                bReconstructedBlock.Shift_UVPlane(2, lastViewV, lastViewH);
+                            }
                         }
                     }
+                    if(par.colorTransformType == BT601){
+                        yReconstructedBlock = rReconstructedBlock.clone();
+                        cbReconstructedBlock = gReconstructedBlock.clone();
+                        crReconstructedBlock = bReconstructedBlock.clone(); 
+                        RGB2YCbCr_BT601(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
+
+                    }
+                    if(par.colorTransformType == YCOCG){
+                        RGB2YCoCg(yReconstructedBlock, cbReconstructedBlock, crReconstructedBlock, rReconstructedBlock, gReconstructedBlock, bReconstructedBlock, reconstructedLF.mPGMScale);
+                        std::cout<<" Completed YCOCG Color Transformation"<<std::endl;
+
+                    }
+                    
                     
                     for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++){
                         if(par.verbosity > 0) cout<<"decoding spectral component "<<spectralComponent<<endl;
@@ -292,16 +328,11 @@ int main(int argc, char **argv) {
                 
         
                         lfBlock = pd.mPartitionData;
-                        cout<<"lfBlock is copied!!"<<endl;
-                        //if(par.verbosity > 0) cout<<lfBlock.data.index({4,4,at::indexing::Slice(0,4),at::indexing::Slice(0,4)})<<endl;
 
-                        //cout<<"Extend Block?"<<endl;
                         for(int n = 0; n < 4; n++) {
                             if(blockPosition[n] + maxPartitionSize[n] > lfSize[n]) {
-                                std::cout<<"Before Extension: "<<lfBlock.data.sizes()<<endl;
 
                                 ExtendBlock4D(lfBlock,par.extensionMethod,extensionLength[n],n); 
-                                std::cout<<"After Extension: "<<lfBlock.data.sizes()<<endl;
 
                                 cout<<"Block Extended!"<<endl;
                             } 
@@ -369,11 +400,9 @@ int main(int argc, char **argv) {
                     //std::cout<<"RED BLOCK: "<<rBlock.data.min().item()<<" "<<rBlock.data.max().item()<<std::endl;
                     //std::cout<<"GREEN BLOCK: "<<gBlock.data.min().item()<<" "<<gBlock.data.max().item()<<std::endl;
                     //std::cout<<"BLUE BLOCK: "<<bBlock.data.min().item()<<" "<<bBlock.data.max().item()<<std::endl;
-                    std::cout<<"Are we Getting Here?"<<std::endl;
                     outputLF.WriteBlock4DtoLightField_(rBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],0});
                     outputLF.WriteBlock4DtoLightField_(gBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],1});
                     outputLF.WriteBlock4DtoLightField_(bBlock,{blockPosition[0],blockPosition[1],blockPosition[2],blockPosition[3],2});
-                    std::cout<<"Completed writing block to light field"<<std::endl;
                 }
             }
         }
@@ -385,7 +414,6 @@ int main(int argc, char **argv) {
 
 
     hdt.DoneDecoding();
-    std::cout << "Creating output directory path: " << par.outputDirectory << std::endl;
     std::error_code ec;
     if (std::filesystem::create_directories(par.outputDirectory, ec)) {
         std::cout << "Created new directory(ies) in path" << std::endl;

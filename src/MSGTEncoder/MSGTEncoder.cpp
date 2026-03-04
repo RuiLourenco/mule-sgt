@@ -390,12 +390,7 @@ int main(int argc, char **argv) {
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            //for(int viewLine = 64; viewLine < 64 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-            //for(int viewLine = 0*par.maxPartitionSize[2]; viewLine < 0*par.maxPartitionSize[2] + 2*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
-                //for(int viewColumn = 192; viewColumn <192  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
@@ -404,6 +399,8 @@ int main(int argc, char **argv) {
                     Block4D rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
                     Block4D gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
                     Block4D bBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,2);
+                    std::cout<<rBlock.data.index({0,0,at::indexing::Slice(0,10),at::indexing::Slice(0,10)})<<std::endl;
+
                     std::cout<<" Read Block 4D"<<std::endl;
         
                     if(par.isLenslet13x13 == 1) {
@@ -440,17 +437,9 @@ int main(int argc, char **argv) {
                         }
                     }
                     if(par.colorTransformType == BT601){
-                        std::cout<<" Attempting BT601 Color Transformation"<<std::endl;
                         yBlock = rBlock.clone();
                         cbBlock = gBlock.clone();
                         crBlock = bBlock.clone();
-                        std::cout<<"Includes Invalid Corners: "<<yBlock.includesInvalidCorners<<std::endl;
-                        std::cout<<"ValidSize: "<< rBlock.validPositions.valid_positions_v.sizes()<<" x "<<rBlock.validPositions.valid_positions_h.sizes()<<std::endl;
-                        std::cout<<"ValidSize: "<< yBlock.validPositions.valid_positions_v.sizes()<<" x "<<yBlock.validPositions.valid_positions_h.sizes()<<std::endl;
-
-                        std::cout<<"Includes Invalid Corners: "<<cbBlock.includesInvalidCorners<<std::endl;
-                        std::cout<<"Includes Invalid Corners: "<<crBlock.includesInvalidCorners<<std::endl;
-
                         std::cout<<rBlock.data.max()<<std::endl;
                         RGB2YCbCr_BT601(yBlock, cbBlock, crBlock, rBlock, gBlock, bBlock, inputLF.mPGMScale);
                         std::cout<<" Completed BT601 Color Transformation"<<std::endl;
@@ -502,19 +491,6 @@ int main(int argc, char **argv) {
             }
         }
     }
-    std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
-    double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-    double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-    double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-
-    double PSNR_Y = 10*log10((1024*1024)/mseY);
-    double PSNR_Cb = 10*log10((1024*1024)/mseCb);
-    double PSNR_Cr = 10*log10((1024*1024)/mseCr);
-    std::cout<<"Predicted PSNR-Y: "<<PSNR_Y<<std::endl;
-    std::cout<<"Predicted PSNR-YUV:"<<(6*PSNR_Y+PSNR_Cb+PSNR_Cr)/8<<std::endl;
-    std::cout<<"Total Rate: "<<size<<std::endl;
-
-    
     tp.mEntropyCoder.DoneEncoding();
     
     fclose(outputFileNamePointer);
