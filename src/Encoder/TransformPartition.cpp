@@ -1235,7 +1235,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         //std::cout<<"A"<<std::endl;
 
         new_position[3] = position[3] + length[3]/2;
-        //new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
+        new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
         new_length[3] = length[3] - length[3]/2; 
                  
         Block4D_ transformedBlockS01(new_length,new_lightField_position,inputBlock.lightField);
@@ -1245,7 +1245,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         //std::cout<<"B"<<std::endl;
 
         new_position[2] = position[2] + length[2]/2;
-        //new_lightField_position[2] = lightFieldPosition[2] + new_position[2];
+        new_lightField_position[2] = lightFieldPosition[2] + new_position[2];
 
         new_length[2] = length[2] - length[2]/2;
         
@@ -1256,7 +1256,7 @@ double TransformPartition :: RDoptimizeTransformStep_(Block4D_ &inputBlock, Bloc
         //std::cout<<"C"<<std::endl;
 
         new_position[3] = position[3];
-        new_lightField_position[3] = lightFieldPosition[2] + new_position[3];
+        new_lightField_position[3] = lightFieldPosition[3] + new_position[3];
         
         new_length[3] = length[3]/2;
         

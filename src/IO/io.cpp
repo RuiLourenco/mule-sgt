@@ -169,6 +169,7 @@ namespace io {
         os.open(filename.str(), std::ios::out | std::ios::binary);
         //cout<<"written to ("<<l<<","<<k<<") = "<<data[l][k][0][0][0].item()<<endl;
         write_ppm(data[l][k], os);
+        
       }
     }
   }

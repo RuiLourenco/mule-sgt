@@ -342,12 +342,12 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.slantLightField(-16);
+    inputLF.slantLightField(16);
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
     inputLF.computeTopHalfGradients();
     //inputLF.computeBottomHalfGradients();
     //inputLF.computeGradients();
-    // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),3}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/u.png");
+    //write_tensor(inputLF.data.index({4,at::indexing::Slice(),200,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
@@ -403,11 +403,11 @@ int main(int argc, char **argv) {
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
             //for(int viewLine = 64; viewLine < 64 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-            //for(int viewLine = 0*par.maxPartitionSize[2]; viewLine < 0*par.maxPartitionSize[2] + 1*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 1024; viewLine < 1024 + 1*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
             for(int viewLine = 0; viewLine <  inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
                 //for(int viewColumn = 192; viewColumn <192  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 11*par.maxPartitionSize[3]; viewColumn <11*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 2*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 1*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 1024; viewColumn < 1024 +  par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(viewLine >= inputLF.secondHalfBias){

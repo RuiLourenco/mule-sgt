@@ -498,7 +498,7 @@ Block4D_::Block4D_(std::array<int64_t,4> size,std::array<int64_t,4>lightFieldPos
     
     if( (lightFieldPosition[3] > fillHLow && lightFieldPosition[3] < fillHHigh &&
         lightFieldPosition[2] > fillVLow && lightFieldPosition[2] < fillVHigh) || lightField->preSlantTan == 0){
-            //std::cout<<"No Invalid Corners. "<<std::endl;
+            //std::cout<<"No Invalid Corners. "<< lightField->preSlantTan<<std::endl;
             this->includesInvalidCorners = false;
     }
     else{
@@ -684,19 +684,20 @@ void Block4D_::copySubblockData(Block4D_& destination, std::array<int64_t,4> sub
 
 }
 int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, int subblockN,bool isHorizontal) const{
-    std::cout<<"Computing previous invalid number for "<<(isHorizontal ? "horizontal" : "vertical")<<" direction."<<std::endl;
-    std::cout<<"preSlantTan: "<<preSlantTan<<" parentBlockN: "<<parentBlockN<<" subblockN: "<<subblockN<<std::endl;
+    //std::cout<<"Computing previous invalid number for "<<(isHorizontal ? "horizontal" : "vertical")<<" direction."<<std::endl;
+    //std::cout<<"preSlantTan: "<<preSlantTan<<" parentBlockN: "<<parentBlockN<<" subblockN: "<<subblockN<<std::endl;
+    if (preSlantTan == 0) return 0; // No invalid positions if there is no slant
     int angleVariable = isHorizontal ? 1 : 0; // 1 for horizontal, 0 for vertical
     int spaceVariable = isHorizontal ? 3 : 2; // 3 for horizontal, 2 for vertical
     int size_increase = (int)(abs(round(preSlantTan*(this->lightField->data.size(angleVariable)-1))));
-    std::cout<<"size_increase: "<<size_increase<<std::endl;
+    //std::cout<<"size_increase: "<<size_increase<<std::endl;
 
     double d = preSlantTan/abs(preSlantTan) * (double)size_increase/((double)this->lightField->data.size(angleVariable)-1);
     double spaceSize = (double)this->lightField->data.size(spaceVariable) - size_increase;
     double a = 1/d;
     int maxAngle = this->lightField->data.size(angleVariable);
-    std::cout<<"d: "<<d<<" spaceSize: "<<spaceSize<<" a: "<<a<<" maxAngle: "<<maxAngle<<std::endl;
-    std::cout<<lightField->data.size(0)<<"x"<<lightField->data.size(1)<<"x"<<lightField->data.size(2)<<"x"<<lightField->data.size(3)<<std::endl;
+    //std::cout<<"d: "<<d<<" spaceSize: "<<spaceSize<<" a: "<<a<<" maxAngle: "<<maxAngle<<std::endl;
+    //std::cout<<lightField->data.size(0)<<"x"<<lightField->data.size(1)<<"x"<<lightField->data.size(2)<<"x"<<lightField->data.size(3)<<std::endl;
     int count_upper = 0;
     int count_lower = 0;
     int count = 0;
@@ -712,20 +713,22 @@ int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, 
         }else{
             //int first_invalid_l = static_cast<int>(ceil((n + 1.0) * a));
             upper_l_boundary = static_cast<int>(ceil((n + 1.0) * a));
-            lower_l_boundary = static_cast<int>(ceil((n - spaceSize) * a));
+            lower_l_boundary = static_cast<int>(floor((n - spaceSize) * a));
             //int last_invalid_l = static_cast<int>(ceil((n +  * a));
             // if(parentBlockN == 0 && subblockN == 32){
             //     std::cout<<n<<":"<<" "<<first_invalid_l<<" "<<maxAngle - first_invalid_l<<" "<< count<<std::endl;
             // }
         }
-        count_upper += std::max(0, maxAngle - upper_l_boundary);
-        count_lower += std::max(lower_l_boundary + 1, 0);
-        count += std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0);
+
+        count_upper = std::min(std::max(0, maxAngle - upper_l_boundary), maxAngle);
+        count_lower = std::min(std::max(lower_l_boundary + 1, 0), maxAngle);
+        count += count_upper + count_lower;
         //if(parentBlockN >=512&& subblockN < 512 + 17){
-            //std::cout<<n<<":"<<" upper_l_boundary: "<<upper_l_boundary<<" lower_l_boundary: "<<lower_l_boundary<<" count_upper: "<<std::max(0, maxAngle - upper_l_boundary)<<" count_lower: "<<std::max(lower_l_boundary + 1, 0)<<" total count: "<<std::max(0, maxAngle - upper_l_boundary) + std::max(lower_l_boundary + 1, 0)<<std::endl;
+        //std::cout<<n<<":"<<" upper_l_boundary: "<<upper_l_boundary<<" lower_l_boundary: "<<lower_l_boundary<<" count_upper: "<<count_upper<<" count_lower: "<<count_lower<<" total count: "<<count<<std::endl;
         //}
 
     }
+    //std::cout<<"count_upper: "<<count_upper<<" count_lower: "<<count_lower<<" total count: "<<count<<std::endl;
     if(parentBlockN >=512&& subblockN < 512 + 17){
         std::cout<<"preSlantTan: "<<preSlantTan<<std::endl;
         std::cout<<"parentBlockN: "<<parentBlockN<<" subblockN: "<<subblockN<<std::endl;
@@ -980,7 +983,7 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
                                                             at::indexing::Slice({gradientPosition[3],gradientPosition[3]+trueSize[3]}),
                                                            dimension});
 
-                                                           write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
+                                                           //write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
     // std::cout<<"size: "<<size[0]<<" "<<size[1]<<" "<<size[2]<<" "<<size[3]<<std::endl;
     //std::cout<<"lightFieldPosition: "<<lightFieldPosition[0]<<" "<<lightFieldPosition[1]<<" "<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
     //std::cout<<"gradientPosition: "<<gradientPosition[0]<<" "<<gradientPosition[1]<<" "<<gradientPosition[2]<<" "<<gradientPosition[3]<<std::endl;
@@ -1037,7 +1040,15 @@ double Block4D_::epiStDisparity(double jAng, double jSpc, double jSpcAng) const{
     st[1][1] = jSpc;
     st[0][1] = jSpcAng;
     st[1][0] = jSpcAng;
+    try{
+        std::cout<<"Computing eigen decomposition for st: "<<std::endl<<st<<std::endl;
     auto [L, Q] = torch::linalg::eigh(st, "U");
+    }catch(const std::exception& e){
+        std::cout<<"Error in eigen decomposition: "<<e.what()<<std::endl;
+        std::cout<<"jAng: "<<jAng<<" jSpc: "<<jSpc<<" jSpcAng: "<<jSpcAng<<std::endl;
+        std::cout<<"st: "<<st<<std::endl;
+        return 0.0;
+    }
     //std::cout<<Q<<std::endl;
 
     double dx = (tmp + sqrt(tmp*tmp + 4 * jSpcAng*jSpcAng));
@@ -1085,39 +1096,62 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     if(structureTensor.sum().item<double>() == 0){
         return {0.0,0.0};
     }
-    auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
     std::array<double,2> angles, reciprocalAngles;
+    try{
+        auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+        angles[1] = - 180/PI * (atan(Q[0][3].item<double>()/Q[2][3].item<double>()));
+        angles[0] = - 180/PI * (atan(Q[1][3].item<double>()/Q[3][3].item<double>()));
+
+        reciprocalAngles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
+        reciprocalAngles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
+    }catch(const std::exception& e){
+        std::cout<<"Error in eigen decomposition: "<<e.what()<<std::endl;
+        std::cout<<"st: "<<structureTensor<<std::endl;
+        return {0.0,0.0};
+    }
+
     
     
-    angles[1] = - 180/PI * (atan(Q[0][3].item<double>()/Q[2][3].item<double>()));
-    angles[0] = - 180/PI * (atan(Q[1][3].item<double>()/Q[3][3].item<double>()));
-
-    reciprocalAngles[1] = - 180/PI * (atan(Q[2][3].item<double>()/Q[0][3].item<double>()));
-    reciprocalAngles[0] = - 180/PI * (atan(Q[3][3].item<double>()/Q[1][3].item<double>()));
-    double costV  = logDetCost(angles[1], false, disparityRange);
-    double costV2 = logDetCost(reciprocalAngles[1], false, disparityRange);
-
-
-    double costU = logDetCost(angles[0], true, disparityRange);
-    double costU2 = logDetCost(reciprocalAngles[0], true, disparityRange);
+    double costV = std::numeric_limits<double>::max();
+    try{
+        costV = logDetCost(angles[1], false, disparityRange);
+    }catch(const std::exception& e){
+        std::cout<<"Error in logDetCost (V): "<<e.what()<<std::endl;
+        costV = std::numeric_limits<double>::max();
+    }
     
-    // if(size[2] == 128){
-    //     std::cout<<L<<std::endl;
-    //     std::cout<<Q<<std::endl;
-    //     std::cout<<angles[0]<< ": "<<costU<<std::endl;
-    //     std::cout<<angles[1]<< ": "<<costV<<std::endl;
-    //     std::cout<<reciprocalAngles[0]<< ": "<<costU2<<std::endl;
-    //     std::cout<<reciprocalAngles[1]<< ": "<<costV2<<std::endl<<std::endl;
-    // }
+    double costV2 = std::numeric_limits<double>::max();
+    try{
+        costV2 = logDetCost(reciprocalAngles[1], false, disparityRange);
+    }catch(const std::exception& e){
+        std::cout<<"Error in logDetCost (V2): "<<e.what()<<std::endl;
+        costV2 = std::numeric_limits<double>::max();
+    }
+
+    double costU = std::numeric_limits<double>::max();
+    try{
+        costU = logDetCost(angles[0], true, disparityRange);
+    }catch(const std::exception& e){
+        std::cout<<"Error in logDetCost (U): "<<e.what()<<std::endl;
+        costU = std::numeric_limits<double>::max();
+    }
+    
+    double costU2 = std::numeric_limits<double>::max();
+    try{
+        costU2 = logDetCost(reciprocalAngles[0], true, disparityRange);
+    }catch(const std::exception& e){
+        std::cout<<"Error in logDetCost (U2): "<<e.what()<<std::endl;
+        costU2 = std::numeric_limits<double>::max();
+    }
+    
+
     if (costV2 < costV) {
         angles[1] = reciprocalAngles[1];
     }
     if (costU2 < costU) {
         angles[0] = reciprocalAngles[0];
     }
-    // std::array<double,2> angles2 = stAngleSeperable();
-    // std::cout<<"SepAngles: "<<angles2[0]<<" "<<angles2[1]<<std::endl;
-    // std::cout<<"real disp avg: " <<- 180/PI *atan(epiStDisparityAvg())<<std::endl;
+
     return angles;
 }
 
@@ -3240,27 +3274,35 @@ at::Tensor Block4D_::iSqrtCovMat(at::Tensor covMat, bool isHorizontal ) const{
         return at::empty({0}, covMat.dtype());
     }
     
-    auto [L, Q] = torch::linalg::eigh(covMat, "U");
-    //std::cout<<"Cov Mat Size:"<<covMat.sizes()<<std::endl;
-    //std::cout<<"L Size:"<<L.sizes()<<std::endl;
-    //std::cout<<"Q Size:"<<Q.sizes()<<std::endl;
-    // get largest eigenvalue of each matrix
-    auto&& [Lmax, Lloc] = L.max(-1, /*keepdims*/true);
-    auto Lrel = L / Lmax; // 'relative' eigenvalues
-    // take worst case across batches for condition number
-    auto&& [Lmin, min_where]  = L.view({-1, L.size(-1)}).min(0);
-    //std::cout<<Lmin<<std::endl;
-    // indices of eigenpairs to keep
-    auto Lkeep = Lmin > 1e-4;
-    // take
-    auto Lselect = L.index({"...", Lkeep});
-    auto Qselect = Q.index({"...", Lkeep});
-    //std::cout<<"LSelect = "<<Lselect.sizes()<<std::endl;
-    // safely take the inverse sqrt
-    auto Lrsqrt = Lselect.rsqrt_();
+    try{
+        auto [L, Q] = torch::linalg::eigh(covMat, "U");
+        //std::cout<<"Cov Mat Size:"<<covMat.sizes()<<std::endl;
+        //std::cout<<"L Size:"<<L.sizes()<<std::endl;
+        //std::cout<<"Q Size:"<<Q.sizes()<<std::endl;
+        // get largest eigenvalue of each matrix
+        auto&& [Lmax, Lloc] = L.max(-1, /*keepdims*/true);
+        auto Lrel = L / Lmax; // 'relative' eigenvalues
+        // take worst case across batches for condition number
+        auto&& [Lmin, min_where]  = L.view({-1, L.size(-1)}).min(0);
+        //std::cout<<Lmin<<std::endl;
+        // indices of eigenpairs to keep
+        auto Lkeep = Lmin > 1e-4;
+        // take
+        auto Lselect = L.index({"...", Lkeep});
+        auto Qselect = Q.index({"...", Lkeep});
+        //std::cout<<"LSelect = "<<Lselect.sizes()<<std::endl;
+        // safely take the inverse sqrt
+        auto Lrsqrt = Lselect.rsqrt_();
 
-    auto result = at::einsum("...x,...x->...x", {Qselect, Lrsqrt});
-    return result;
+        auto result = at::einsum("...x,...x->...x", {Qselect, Lrsqrt});
+        return result;
+    }catch(const std::exception& e){
+        std::cout<<"Error in iSqrtCovMat eigen decomposition: "<<e.what()<<std::endl;
+        std::cout<<"Covariance matrix shape: "<<covMat.sizes()<<std::endl;
+        std::cout<<"Covariance matrix condition might be ill-conditioned"<<std::endl;
+        // Return identity-like matrix as fallback
+        return at::eye(covMat.size(-1), covMat.dtype());
+    }
 }
 at::Tensor Block4D_::iSqrtCovMat(bool isHorizontal ) const{
     //std::cout<<"is Horizontal: "<<isHorizontal<<std::endl;
@@ -3746,7 +3788,7 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
     }
     int lf_extra_size = (int)(abs(round(adjustment_d*(lf_shape[view_coordinate]-1))));
     lf_shape[spatial_coordinate] = lf_shape[spatial_coordinate] - lf_extra_size;
-
+    //std::cout<<"Adjusted LF Shape: "<<lf_shape[0]<<" "<<lf_shape[1]<<" "<<lf_shape[2]<<" "<<lf_shape[3]<<std::endl;
     double true_alpha;
     if(adjustment_d == 0){
         true_alpha = 0;
@@ -3776,10 +3818,13 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
 
         torch::TensorOptions options = torch::TensorOptions();
         at::Tensor indexes =  at::empty({0},options.dtype(at::kLong));
+
         if(n_start-block_start[spatial_coordinate] < block_shape[spatial_coordinate]){
             int64_t blk_n_start = std::max(n_start-block_start[spatial_coordinate],(int64_t)0);
+
             int64_t blk_n_end = std::min(n_end-block_start[spatial_coordinate],block_shape[spatial_coordinate]);
-            
+            //std::cout<<blk_n_start<<" "<<blk_n_end<<" "<<block_start[spatial_coordinate]<<" "<<block_shape[spatial_coordinate]<<std::endl;
+
             if (blk_n_end - blk_n_start < 1) continue;
             indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*l_).to(at::kLong);
         }
@@ -3793,13 +3838,12 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
     } else {
         vectorized_padding = torch::cat(padding_coordinates);
     }
-    if(false){
-    //if(block_start[3] == 512 && block_shape[3] == 64 && is_horizontal){
+    if(false){        
         std::cout<<"Block Shape: "<<block_shape[0]<<" "<<block_shape[1]<<" "<<block_shape[2]<<" "<<block_shape[3]<<std::endl;
         std::cout<<"Block Start: "<<block_start[0]<<" "<<block_start[1]<<" "<<block_start[2]<<" "<<block_start[3]<<std::endl;
         std::cout<<"vectorized_padding size: "<<vectorized_padding.sizes()<<std::endl;
         for(int i = 0; i<vectorized_padding.size(0);i++){
-            std::cout<<"("<<(int) vectorized_padding[i].item<int64_t>()/block_shape[spatial_coordinate]<<" "<<vectorized_padding[i].item<int64_t>()%block_shape[spatial_coordinate]<<") ";
+            std::cout<<"("<<(int) vectorized_padding[i].item<int64_t>()/block_shape[spatial_coordinate]<<" "<<block_start[spatial_coordinate] + (vectorized_padding[i].item<int64_t>()%block_shape[spatial_coordinate])<<") ";
         }
         std::cout<<std::endl;
     }
