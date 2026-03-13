@@ -251,6 +251,44 @@ void BigEndianSignedIntegerWrite_(long int value, int precision, FILE *outputFil
 //     ssi.QPOptimization(P,q);
 // }
 
+TEST(InvalidCornerTests,MatchTest){
+    LightField lightField;
+    double d = 16;
+    int size = 64;
+    //int start_v = 0;
+    //int start_h = 0;
+    
+    
+    for (d = -20; d <= 20; d+=1){
+        lightField.data = torch::zeros({11,33,1080,1920,3});
+        lightField.slantLightField(d);
+        for (int start_v = 0; start_v < lightField.data.size(2); start_v+=size){
+            for (int start_h = 0; start_h < lightField.data.size(3); start_h+=size){
+                Block4D_ block({11,33,size,size},{0,0,start_v,start_h},&lightField);
+                //std::cout<<block.validPositions.valid_positions_v.sizes()<<std::endl;
+                //std::cout<<block.validPositions.valid_positions_h.sizes()<<std::endl;
+                //std::cout<<block.validPositions.valid_positions_v<<std::endl;
+                int previousInvalid_v = block.computePreviousInvalidNumber(lightField.preSlantTan,start_v,start_v+size,false);
+                int previousInvalid_h = block.computePreviousInvalidNumber(lightField.preSlantTan,start_h,start_h+size,true);
+                int valid_cpin_h = 64*33 - previousInvalid_h;
+                int valid_cpin_v = 64*11 - previousInvalid_v;
+                int valid_builder_h = block.validPositions.valid_positions_h.size(0);
+                int valid_builder_v = block.validPositions.valid_positions_v.size(0);
+                if (valid_builder_h == 0){
+                    valid_builder_h = 64*33;
+                }
+                if (valid_builder_v == 0){
+                    valid_builder_v = 64*11;
+                }
+                
+                
+                EXPECT_EQ(valid_cpin_h, valid_builder_h)<< "failed at: "<<start_v<<" "<<start_h<<" valid_cpin_h: "<<valid_cpin_h<<" valid_builder_h: "<<valid_builder_h;
+                EXPECT_EQ(valid_cpin_v, valid_builder_v)<< "failed at: "<<start_v<<" "<<start_h<<" valid_cpin_v: "<<valid_cpin_v<<" valid_builder_v: "<<valid_builder_v;
+            }
+        }
+    }
+}
+
 // TEST(EncoderTests,SidewallDetail){
 
 //     //string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/Mule_Slant/LightFields/greek/";
