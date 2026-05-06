@@ -29,6 +29,7 @@ public:
     array<int64_t,2> firstView;
     array<int64_t,2> stride = {1,1};
     array<double,2> disparityRange;
+    double preSlantTan = 0;
     string outputDirectory;
     string inputFileName;
     string configFile;
@@ -58,6 +59,8 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
             parametersFile >> stride[0] >> stride[1];
         } else if(command == "-lf") {
             parametersFile >> outputDirectory;
+        } else if(command == "-preSlantTan") {
+            parametersFile >> preSlantTan;
         } else if(command == "-i") {
             parametersFile >> inputFileName;
         } else if(command == "-lenslet13x13") {
@@ -81,6 +84,7 @@ void DecoderParameters :: DisplayConfiguration() {
     cout << "stride = " << stride[0] << " " << stride[1] << endl;
     cout << "outputDirectory = " << outputDirectory << endl;
     cout << "inputFileName = " << inputFileName << endl;
+    cout << "preSlantTan = " << preSlantTan << endl;
     cout << "isLenslet13x13 = " << isLenslet13x13 << endl;
     cout << "extensionMethod = " << extensionMethod << endl;
     cout << "transformGain = " << transformGain << endl;
@@ -107,6 +111,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("num-views,v", po::value<vector<int64_t>>()->multitoken(), "view size")
     ("view-offset,b", po::value<vector<int64_t>>()->multitoken(), "first view")
     ("view-stride,s", po::value<vector<int64_t>>()->multitoken(), "view stride")
+    ("pre-slant-tan", po::value<double>(&par.preSlantTan), "pre slant tangent")
     ("output-dir,o", po::value<string>(&par.outputDirectory), "output directory")
     ("input-file,i", po::value<string>(&par.inputFileName), "input file")
     ("lenslet13x13", po::bool_switch()->default_value(false), "lenslet 13x13")
@@ -206,7 +211,7 @@ int main(int argc, char **argv) {
     std::cout<<"PGMScale: "<<PGMScale<<std::endl;
     hdt.StartDecoder(inputFileNamePointer);
     LightField outputLF(lfSize);
-    outputLF.preSlantTan =16;
+    outputLF.preSlantTan = par.preSlantTan;
     outputLF.mPGMScale = PGMScale;
     Block4D_ lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
 
@@ -231,15 +236,15 @@ int main(int argc, char **argv) {
             //for(int viewLine = 128; viewLine < 128+64; viewLine+=maxPartitionSize[2]){
             //for(int viewLine = 64; viewLine <64  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
             //for(int viewLine = 0*maxPartitionSize[2]; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            //for(int viewLine = 1024; viewLine < 1024 + maxPartitionSize[2]; viewLine+=maxPartitionSize[2]){
+            for(int viewLine = 1024; viewLine < 1024 + maxPartitionSize[2]; viewLine+=maxPartitionSize[2]){
             //for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
+            //for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
                 //for(int viewColumn = 512; viewColumn < 512+64; viewColumn+=maxPartitionSize[3]){
                 //for(int viewColumn = 192 ; viewColumn <192  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn < maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
-                //for(int viewColumn = 11 * maxPartitionSize[3] ; viewColumn <11*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
+                for(int viewColumn = 3 * maxPartitionSize[3] ; viewColumn <3*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 1024; viewColumn < 1024 + maxPartitionSize[3]; viewColumn+=maxPartitionSize[3]){
-                for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
+                //for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
 
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 

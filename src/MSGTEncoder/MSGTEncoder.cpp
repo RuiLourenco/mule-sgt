@@ -51,6 +51,7 @@ public:
     std::string outputFileName = "out.comp";
     std::string configFile = "";
     std::array<double,2> disparityRange = {-3.5,3.5};
+    double preSlantTan = 0;
     ExtensionType extensionMethod = REPEAT_LAST;
     double transformGain = 1;        
     ColorTransformType colorTransformType = BT601; 
@@ -85,6 +86,9 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         }
         if(!command.compare("-r")){
             parametersFile>>disparityRange[0]>>disparityRange[1];
+        }
+        if(!command.compare("-preSlantTan")){
+            parametersFile>>preSlantTan;
         }
         if(!command.compare("-u")){
             parametersFile>>maxPartitionSize[3];
@@ -170,6 +174,7 @@ void EncoderParameters :: DisplayConfiguration(void) {
     cout<<"First View Offset (t,s) = ("<<firstView[0]<<","<<firstView[1]<<")"<<endl;
     cout<<"Transform Gain = "<<transformGain<<endl;
     cout<<"Disparity Range = [ "<<disparityRange[0]<<","<<disparityRange[1]<<"]"<<endl;
+    cout<<"Pre Slant Tan = "<<preSlantTan<<endl;
     cout<<"Input Directory = "<<inputDirectory<<endl;
     cout<<"Output Directory = "<<outputFileName<<endl;
     cout<<"Lenslet 13x13 = "<<isLenslet13x13<<endl;
@@ -201,6 +206,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("maximum-partition-size,l", po::value<std::vector<int64_t>>()->multitoken(), "Maximum Partition Length t s v u") 
         ("minimum-partition-size,m", po::value<std::vector<int64_t>>()->multitoken(), "Minimum Partition Length t s v u") 
         ("disp-range,r", po::value<std::vector<double>>()->multitoken(), "Disparity Range (-5,5) is a good compromise for most LFs") 
+        ("pre-slant-tan", po::value<double>(&par.preSlantTan), "Pre Slant Tangent")
         ("transform-gain,g", po::value<double>(&par.transformGain),  "Transform Gain")
         ("num-views,v", po::value<std::vector<std::int64_t>>()->multitoken(),  "Number of Views: T S")
         ("view-offset,b", po::value<std::vector<std::int64_t>>()->multitoken(),  "Index of First View: T S")
@@ -342,9 +348,11 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
-    inputLF.slantLightField(16);
+    inputLF.slantLightField(par.preSlantTan);
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
     inputLF.computeTopHalfGradients();
+
+
     //inputLF.computeBottomHalfGradients();
     //inputLF.computeGradients();
     //write_tensor(inputLF.data.index({4,at::indexing::Slice(),200,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
@@ -403,13 +411,13 @@ int main(int argc, char **argv) {
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
             //for(int viewLine = 64; viewLine < 64 + par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-            //for(int viewLine = 1024; viewLine < 1024 + 1*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-            for(int viewLine = 0; viewLine <  inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
+            for(int viewLine = 1024; viewLine < 1024 + 1*par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+            //for(int viewLine = 0; viewLine <  inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
                 //for(int viewColumn = 192; viewColumn <192  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 11*par.maxPartitionSize[3]; viewColumn <11*par.maxPartitionSize[3]  + par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                //for(int viewColumn = 0*par.maxPartitionSize[3]; viewColumn <0*par.maxPartitionSize[3]  + 1*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+                for(int viewColumn = 3*par.maxPartitionSize[3]; viewColumn <3*par.maxPartitionSize[3]  + 1*par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                 //for(int viewColumn = 1024; viewColumn < 1024 +  par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
-                for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
+                //for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(viewLine >= inputLF.secondHalfBias){
                         if(!inputLF.secondHalfGradientsComputed){
                             std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
