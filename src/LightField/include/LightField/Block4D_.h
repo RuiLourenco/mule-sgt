@@ -46,7 +46,7 @@ class SgtSideInfo{
         static constexpr double MIN_RHO = 0.1;
         static constexpr double MAX_RHO = 1-1e-5;
         static constexpr double PRECISION_ANGLE = 0.1;  
-        void print();
+        void print() const;
         nlohmann::json toJson() const;
         static SgtSideInfo fromJson(const nlohmann::json& j);
         SgtSideInfo(const Block4D_& block,std::array<double,2> dispRange);
@@ -241,7 +241,7 @@ public:
     //Block4D_(at::Tensor& data);
     Block4D_(std::array<int64_t,4> size,std::array<int64_t,4> lightFieldSize, LightField* lightField);
     Block4D_(const Block4D_& B00, const Block4D_& B01, const Block4D_& B10, const Block4D_& B11, bool views);
-    Block4D_ copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset);
+    Block4D_ copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset) const;
     void Shift_UVPlane(int shift, int position_t, int position_s);
     void Ones(void);
     void Zeros(void);
@@ -249,7 +249,7 @@ public:
 
     int computePreviousInvalidNumber(double preSlantTan,int parentBlockN, int subblockN,bool isHorizontal) const;
     void copySubblockData(Block4D_& destination, std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset) const;
-    std::vector<int64_t> copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal);
+    std::vector<int64_t> copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal) const;
 
 
     

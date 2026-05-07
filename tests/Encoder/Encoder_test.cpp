@@ -1114,19 +1114,19 @@ TEST(DebugInfoTests,LoadAndPrint){
 //     outputLF.OpenLightFieldPPM_(outputDirectory,"",'w');   
 // }
 
-void saveTensorAsMatlabScript2(at::Tensor tensor,std::string name){
-    std::ofstream stuff;
-    stuff.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/modelCovariances/"+name+".m");
-    stuff<<name+"_cpp = [";
-    for(int n = 0; n < tensor.size(0); n++){
-        if(n != 0) stuff<<";"<<std::endl;
-        for(int m = 0; m < tensor.size(1); m++){
-            if (m != 0) stuff<<",";
-            stuff<<tensor[n][m].item();
-        }
-    }
-    stuff<<"];"<<std::endl;
-}
+// void saveTensorAsMatlabScript2(at::Tensor tensor,std::string name){
+//     std::ofstream stuff;
+//     stuff.open("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/modelCovariances/"+name+".m");
+//     stuff<<name+"_cpp = [";
+//     for(int n = 0; n < tensor.size(0); n++){
+//         if(n != 0) stuff<<";"<<std::endl;
+//         for(int m = 0; m < tensor.size(1); m++){
+//             if (m != 0) stuff<<",";
+//             stuff<<tensor[n][m].item();
+//         }
+//     }
+//     stuff<<"];"<<std::endl;
+// }
 
 // TEST(EncoderTests,angleInfluence){
 //     string inputDirectory = "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/data/TEST-DUMMY-ORIGINAL";

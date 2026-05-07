@@ -743,7 +743,7 @@ int Block4D_::computePreviousInvalidNumber(double preSlantTan,int parentBlockN, 
 
 }
 
-std::vector<int64_t> Block4D_::copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal){
+std::vector<int64_t> Block4D_::copyValidSubblockPositions(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset, bool isHorizontal) const{
     
     
     
@@ -772,7 +772,7 @@ std::vector<int64_t> Block4D_::copyValidSubblockPositions(std::array<int64_t,4> 
     return validPositions;
 }
 
-Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset){
+Block4D_ Block4D_::copySubblock(std::array<int64_t,4> subblockLength, std::array<int64_t,4> sourceOffset) const{
     //std::cout<<"Copying subblock of size: "<<subblockLength[0]<<"x"<<subblockLength[1]<<"x"<<subblockLength[2]<<"x"<<subblockLength[3]<<std::endl;
     //std::cout<<"deepCopy.data.device(): "<<this->data.device()<<std::endl;
     if(this->data.size(0) == 1 && this->data.size(1) == 1){
@@ -1042,7 +1042,7 @@ double Block4D_::epiStDisparity(double jAng, double jSpc, double jSpcAng) const{
     st[1][0] = jSpcAng;
     try{
         std::cout<<"Computing eigen decomposition for st: "<<std::endl<<st<<std::endl;
-    auto [L, Q] = torch::linalg::eigh(st, "U");
+    auto [L, Q] = at::linalg_eigh(st, "U");
     }catch(const std::exception& e){
         std::cout<<"Error in eigen decomposition: "<<e.what()<<std::endl;
         std::cout<<"jAng: "<<jAng<<" jSpc: "<<jSpc<<" jSpcAng: "<<jSpcAng<<std::endl;
@@ -1098,7 +1098,7 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     }
     std::array<double,2> angles, reciprocalAngles;
     try{
-        auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+        auto [L, Q] = at::linalg_eigh(structureTensor, "U");
         angles[1] = - 180/PI * (atan(Q[0][3].item<double>()/Q[2][3].item<double>()));
         angles[0] = - 180/PI * (atan(Q[1][3].item<double>()/Q[3][3].item<double>()));
 
@@ -1167,7 +1167,7 @@ void Block4D_::saveBlockGradient(int64_t dimension) const{
 //     double Dv = computeAverageMomentum(secondMomentum,3);
 
 //     at::Tensor structureTensor = torch::tensor({{Dt*Dt,Dt*Ds,Dt*Du,Dt*Dv},{Ds*Dt,Ds*Ds,Ds*Du,Ds*Dv},{Du*Dt,Du*Ds,Du*Du,Du*Dv},{Dv*Dt,Dv*Ds,Dv*Du,Dv*Dv}},at::kDouble);
-//     auto [L, Q] = torch::linalg::eigh(structureTensor, "U");
+//     auto [L, Q] = at::linalg_eigh(structureTensor, "U");
 //     std::cout<<"L = "<<L<<std::endl;
 //     std::cout<<"Q = "<<Q<<std::endl;
 // }
@@ -2075,7 +2075,7 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
 at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     //std::cout<<covMat.sizes()<<std::endl;
     try{
-        auto [L, Q] = torch::linalg::eigh(covMat, "U");
+        auto [L, Q] = at::linalg_eigh(covMat, "U");
         eigVals = L.flip({-1});
         return Q.flip({-1});
     }
@@ -2711,7 +2711,7 @@ void SgtSideInfo::estimateAngleFromMonotony(Block4D_ block){
 }
 
 
-void SgtSideInfo::print(){
+void SgtSideInfo::print() const{
     std::cout<<"Rho S = "<<getRhoS()<<" Rho T = "<<getRhoT()<<" Rho U = "<<getRhoU()<<" Rho V = "<<getRhoV()<<" Angle V = "<<getAngleV()<< " Angle H = "<<getAngleH()<<std::endl;
     std::cout<<"Rho S Code = "<<getRhoSCode()<<" Rho T Code = "<<getRhoTCode()<<" Rho U Code = "<<getRhoUCode()<<" Rho V Code = "<<getRhoVCode()<<" Angle Code H: "<<angleHInt<<" Angle Code V: "<<angleVInt<<std::endl;
 }
@@ -3256,7 +3256,7 @@ double SgtSideInfo::genDivergence(const at::Tensor& p, const at::Tensor& qRsqrt)
     //saveTensorAsMatlabScript(p_regularized,"pReg");
 
     auto prod = at::einsum("...xm,...xy,...yn->...mn", {qRsqrt, p_regularized, qRsqrt});
-    auto eigvals = torch::linalg::eigvalsh(prod, "U");
+    auto eigvals = at::linalg_eigvalsh(prod, "U");
     // double genDivExp =  ((eigvals.mean(-1).log())/ exp(eigvals.log().mean(-1))).item<double>();
     // double regQuotient = 1 + k * genDivExp;
     // double genDiv = genDivExp / regQuotient;
@@ -3275,7 +3275,7 @@ at::Tensor Block4D_::iSqrtCovMat(at::Tensor covMat, bool isHorizontal ) const{
     }
     
     try{
-        auto [L, Q] = torch::linalg::eigh(covMat, "U");
+        auto [L, Q] = at::linalg_eigh(covMat, "U");
         //std::cout<<"Cov Mat Size:"<<covMat.sizes()<<std::endl;
         //std::cout<<"L Size:"<<L.sizes()<<std::endl;
         //std::cout<<"Q Size:"<<Q.sizes()<<std::endl;

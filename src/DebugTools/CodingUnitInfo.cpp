@@ -1,5 +1,6 @@
 #include "DebugTools/CodingUnitInfo.h"
 #include <nlohmann/json.hpp>
+#include<fstream>
 
 
 // Returns a tuple: (angle_multiple_of_ten_with_min_cost, overall_min_angle, is_within_10_degrees, min_cost_within_10, rel_cost_diff)

@@ -2,8 +2,10 @@
 #include "Encoder/Hierarchical4DEncoder.h"
 #include <math.h>
 #include <string.h>
+#include <string>
 #include <vector>
 #include "LightField/Block4D_.h"
+#include "LightField/BlockCollage.h"
 #include "DebugTools/CodingUnitInfo.h"
 #include "DebugTools/CodingPartitionInfo.h"
 
@@ -49,45 +51,57 @@ public:
     double mLambda = 0;
     double totalTransformGain(void);
     int mCodingUnitIndex = 0;
-    char *mPartitionCode;               /*!< String of flags defining the partition tree */
+    std::string mPartitionCode;       // Was char*
     int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     Block4D mPartitionData;             /*!< DCT of all subblocks of the partition */
     Block4D_ mPartitionData_;
+    std::array<int64_t,4> mMaxSize;
+    BlockCollage mPartitionCollage;
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);
     TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain);
     ~TransformPartition(void);
     void RDoptimizeTransform_(Block4D_ &inputBlock, double lambda);
-    double RDoptimizeTransformStep_(Block4D_ &inputBlock, Block4D_ &transformedBlock, std::array<int64_t,4> position, std::array<int64_t,4> length , std::vector<SgtSideInfo>& currSsi,std::vector<CodingUnitInfo>& currCui,char **partitionCode);
+    double RDoptimizeTransformStep(
+        const Block4D_ &inputBlock,
+        BlockCollage &transformedBlock,
+        std::array<int64_t,4> position,
+        std::array<int64_t,4> length,
+        std::string& partitionCode
+    );    
+    double solveQuadrant(const Block4D_& inputBlock, int64_t y_off, int64_t x_off, int64_t h, int64_t w, const std::array<int64_t, 4>& parentPos, const std::array<int64_t, 4>& parentLen, BlockCollage& outCollage, std::string& outCode);
+    double splitInFour(const Block4D_& inputBlock, const std::array<int64_t, 4>& pos, const std::array<int64_t, 4>& len, BlockCollage& outCollage, std::string& outCode);
+    
     void EncodePartition_( double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
-    double EvaluatePartition_(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
-    double EvaluatePartitionLSRho(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
-    double EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , double angleH, double angleV);
-    double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDtestAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDrefineAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDrefineLogdet(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDrefineGridSearch(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDrefineCovariance(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double  RDStructureTensorOrLogdet(Block4D_& block_0,CodingUnitInfo& cui0, ProbabilityModel **coderModelState_0);
-    double RDtestAngle(double angle,Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDtestZero(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double EvaluatePartitionArbitraryRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain , double angle, double rhoAngle, double rhoSpace);
-    double parallelRhoSearch(bool searchSpace, double fixedRho, double angle, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double  RDtestStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RDgridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RefineGridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-    double RefineStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModel **coderModelState_0);
-
-
+    void EncodePartition();
+    void EncodeStep_Recursive(const BlockCollage& collage, const std::string& code, size_t& codeIdx, size_t& blockIdx);
+    double EvaluatePartition_(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , ProbabilityModelCollection& outModel);
+    double EvaluatePartitionArbitraryRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain, double angle, double rhoAngle, double rhoSpace, ProbabilityModelCollection& outModel);
+    double EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain, double angleV, double angleH, ProbabilityModelCollection& outModel);
+    double EvaluatePartitionLSRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain, double angleV, double angleH, ProbabilityModelCollection& outModel);
+    double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDtestAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDrefineStructureTensor(Block4D_& block_0, double refinementPrecision, CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDrefineAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDrefineLogdet(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDrefineGridSearch(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDrefineCovariance(Block4D_& block_0, double refinementPrecision,CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double  RDStructureTensorOrLogdet(Block4D_& block_0,CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);
+    double RDtestAngle(double angle,Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDtestZero(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double parallelRhoSearch(bool searchSpace, double fixedRho, double angle, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double  RDtestStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RDgridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RefineGridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    double RefineStructureTensorAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    std::array<int64_t,4> adjustLFPositionForSubblock(std::array<int64_t,4> parentLFPos, std::array<int64_t,4> subblockOffset) const;
 };
    
 

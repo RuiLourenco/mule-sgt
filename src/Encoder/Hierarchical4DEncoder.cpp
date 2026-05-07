@@ -8,10 +8,7 @@
 /*******************************************************************************/
 
 Hierarchical4DEncoder :: Hierarchical4DEncoder(int height, int width)
-    :mModelArena(
-        static_cast<size_t>(log2(std::max(height,width))) + 30 + 10 
-      ), 
-    mProcessingContext(height, width, 30)
+    : mProcessingContext(height, width, 30)
     {
 
     mSuperiorBitPlane = 30;
@@ -21,20 +18,10 @@ Hierarchical4DEncoder :: Hierarchical4DEncoder(int height, int width)
     mSegmentationTreeCodeBufferSize = 0;
     mSegmentationFlagProbabilityModelIndex = SEGMENTATION_PROB_MODEL_INDEX;
     mSymbolProbabilityModelIndex = SYMBOL_PROBABILITY_MODEL_INDEX;
-
-    mPmodel = new ProbabilityModel[NUMBER_OF_MODELS];
-    mOptimizationPmodel = new ProbabilityModel[NUMBER_OF_MODELS];
-    for(int n = 0; n < NUMBER_OF_MODELS; n++) {
-         mPmodel[n].ResetModel();
-         mOptimizationPmodel[n].ResetModel();
-    }
     
 }
 Hierarchical4DEncoder :: ~Hierarchical4DEncoder(void) {
-    if(mPmodel != NULL)
-        delete [] mPmodel;
-    if(mOptimizationPmodel != NULL)
-        delete [] mOptimizationPmodel;
+
 }
 
 
@@ -208,7 +195,7 @@ double Hierarchical4DEncoder::build_optimal_tree_from_pool(std::array<int64_t,4>
 }
 
 void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane) {    
-    ModelBufferHandle currentProbabilityModel = mModelArena.get_buffer();
+    ProbabilityModelCollection currentProbabilityModel;
     double J0 = 0.0, J1 = 0.0; 
 
 
@@ -234,7 +221,7 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
         return;
     }
     
-    copyOptimizationModels(currentProbabilityModel.get(),mOptimizationPmodel);
+    currentProbabilityModel = mOptimizationPmodel;
 
     
     int significance = checkSignificance(length,position, bitplane);
@@ -279,7 +266,7 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
             
             mProcessingContext.nodePool[current_node_idx].costResults.cost = J1; 
             mProcessingContext.nodePool[current_node_idx].decision = '2';       
-           copyOptimizationModels(mOptimizationPmodel,currentProbabilityModel.get());
+            mOptimizationPmodel = currentProbabilityModel;
     
                 
             if(bitplane > BITPLANE_BYPASS_FLAGS) 
@@ -554,30 +541,14 @@ int Hierarchical4DEncoder :: OptimumBitplaneFaster_(double lambda) {
 
 
 
-void Hierarchical4DEncoder :: GetOptimizerProbabilisticModelState(ProbabilityModel **state) {
-   
-    ProbabilityModel *pmodelArray = new ProbabilityModel [NUMBER_OF_MODELS];
-
-    copyOptimizationModels(pmodelArray,  mOptimizationPmodel);
-
-    *state = pmodelArray;
-
+void Hierarchical4DEncoder::LoadOptimizerState(void) {
+    mOptimizationPmodel = mPmodel; // Simple struct copy
 }
 
-void Hierarchical4DEncoder :: SetOptimizerProbabilisticModelState(ProbabilityModel *state) {
-
-        copyOptimizationModels(mOptimizationPmodel,state);
+void Hierarchical4DEncoder::RestoreOptimizerState(const ProbabilityModelCollection& collection) {
+    mPmodel = collection; // Simple struct copy
 }
 
-void Hierarchical4DEncoder :: DeleteProbabilisticModelState(ProbabilityModel *state) {
-    
-    if(state != NULL) {
-        delete [] state;
-        state = NULL;
-    }
-     
-}
-
-void Hierarchical4DEncoder :: LoadOptimizerState(void) {
-    copyOptimizationModels(mOptimizationPmodel,mPmodel);
+ProbabilityModelCollection Hierarchical4DEncoder::GetOptimizerSnapshot() {
+    return mPmodel; // This automatically creates a copy to return!
 }
