@@ -2,23 +2,21 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "main",
-      "displayName": "Main Branch",
-      "description": "Default build for the main branch",
-      "binaryDir": "${sourceDir}/build/main",
+      "name": "default-profile-base",
+      "displayName": "Project Build Profile",
       "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/new",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "APP_VERSION": "1.0-main"
+        "APP_VERSION": "1.0-new"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "coarse-to-fine-build",
-      "configurePreset": "main",
-      "displayName": "Build (Main)",
-      "description": "Builds the Release target for the main branch"
+      "name": "build",
+      "configurePreset": "default-profile-base",
+      "displayName": "Build Target App"
     }
   ]
 }
