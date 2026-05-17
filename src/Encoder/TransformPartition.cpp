@@ -926,13 +926,28 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
     if(mPartitionCode[mPartitionCodeIndex] == NOSPLITFLAG) {
         std::cout<<"Size: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
         std::cout<<"Position: "<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
+
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] mPartitionCodeIndex: " << mPartitionCodeIndex << ", mCodingUnitIndex: " << mCodingUnitIndex << std::endl;
+#endif
+
         mPartitionCodeIndex++;
+
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Encoding partition flag" << std::endl;
+#endif
         mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
         
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Accessing mSsiBuffer[" << mCodingUnitIndex << "]. Size: " << mSsiBuffer.size() << std::endl;
+#endif
         mSsiBuffer[mCodingUnitIndex].print();
         //mCuiBuffer[mCodingUnitIndex].getSgtSideInfo().print();
         //std::cout<<"1"<<std::endl;
 
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Encoding SSI" << std::endl;
+#endif
         mEntropyCoder.EncodeSSI_(mSsiBuffer[mCodingUnitIndex]);
                 //std::cout<<"2"<<std::endl;
 
@@ -942,20 +957,32 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         
         //std::cout<<"3"<<std::endl;
 
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Copying subblock" << std::endl;
+#endif
         mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
         //if(length[3] == 32) std::cout<<mEntropyCoder.mSubbandLF_.validPositions.valid_positions_h % length[3];
 
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Initializing trueLength" << std::endl;
+#endif
         std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
         //std::cout<<"first few elements block: "<<mPartitionData_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
 
         //std::cout<<"first few elements subblock: "<<mEntropyCoder.mSubbandLF_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
 
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Printing sizes" << std::endl;
+#endif
         std::cout<<"mPartitionData_.size: "<<mPartitionData_.data.size(0)<<"x"<<mPartitionData_.data.size(1)<<"x"<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;
         std::cout<<"mEntropyCoder.mSubbandLF_.size: "<<mEntropyCoder.mSubbandLF_.data.size(0)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(1)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(2)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(3)<<std::endl;
         std::cout<<"length: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
         std::cout<<"trueLength: "<<trueLength[0]<<"x"<<trueLength[1]<<"x"<<trueLength[2]<<"x"<<trueLength[3]<<std::endl;
         std::cout<<"lf position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[0]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[1]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
         //std::cout<<"4"<<std::endl;
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] encodingSubblockFromPool" << std::endl;
+#endif
         if(trueLength[2] * trueLength[3] > 0) mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
         //std::cout<<"5"<<std::endl;
 
@@ -972,6 +999,9 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         //     //}
         // }
         
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Incrementing distortion and size" << std::endl;
+#endif
         double weight = totalTransformGain();
         double distortion = (double) mEntropyCoder.mDistortion/(weight*weight);
         mCodingPartitionInfo.incrementTotalDistortion(distortion);
@@ -979,15 +1009,24 @@ void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, 
         mCodingPartitionInfo.incrementTotalSize(mEntropyCoder.mRate * (length[0]*length[1]*length[2]*length[3]));
         //std::cout<<mCodingPartitionInfo.getTotalDistortion()<<" "<<mCodingPartitionInfo.getTotalSize()<<std::endl;
         //std::cout<<"mRate = "<<mEntropyCoder.mRate<<" mDistortion: "<<(double) mEntropyCoder.mDistortion/(weight*weight)<<std::endl;
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Accessing mCuiBuffer[" << mCodingUnitIndex << "]. Size: " << mCuiBuffer.size() << std::endl;
+#endif
         double psnr = 10 * log10((1024*1024)/mse);
         mCuiBuffer[mCodingUnitIndex].setPSNR(psnr);
         mCuiBuffer[mCodingUnitIndex].setRate(mEntropyCoder.mRate);
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Appending CodingUnitInfo" << std::endl;
+#endif
         mCodingPartitionInfo.appendCodingUnitInfo(mCuiBuffer[mCodingUnitIndex]);
         //std::cout<<"stA: "<<mCuiBuffer[mCodingUnitIndex].getStructureTensorAverageAngle()<<std::endl;
         //std::cout<<"ldA: "<<mCuiBuffer[mCodingUnitIndex].getLogdetAverageAngle()<<std::endl;
 
         mCodingUnitIndex++;
 
+#ifdef DEBUG_TRANSFORM_PARTITION
+        std::cout << "[DEBUG_TP] Finished NOSPLITFLAG block" << std::endl;
+#endif
         //std::cout<<"Weight = "<<weight<<std::endl;
 
         //std::cout<<"Position: = "<<position[0]<<","<<position[1]<<","<<position[2]/9<<","<<position[3]/9<<" Length = "<<length[0]+8<<","<<length[1]+8<<","<<length[2]/9<<","<<length[3]/9<<" "<<(mEntropyCoder.currCost/(double)size)<< std::endl;
@@ -1120,10 +1159,21 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
 
         // Set the entropy coder's active subband
         mEntropyCoder.mSubbandLF_ = currentBlock;
-
+        std::cout<<"CurrentBlock Size = "<< currentBlock.size[0] << " " << currentBlock.size[1] << " " << currentBlock.size[2] << " " << currentBlock.size[3]<<std::endl;
+        std::cout<<"CurrentBlock Transform Size = "<< currentBlock.transformSize[0] << " " <<currentBlock.transformSize[1] << " " <<currentBlock.transformSize[2] << " " <<currentBlock.transformSize[3]<<std::endl;
+        std::cout<<"CurrentBlock Data Size = "<< currentBlock.data.size(0)<<" "<< currentBlock.data.size(1)<<" "<< currentBlock.data.size(2)<<" "<< currentBlock.data.size(3)<<std::endl;
 
         // Use the block's internal size (no more guessing)
         if (currentBlock.transformSize[2] * currentBlock.transformSize[3] > 0) {
+            
+            // Check if the tensor data itself is entirely composed of zeros (a black image)
+            // currentBlock.data.any() is false if all elements are exactly zero.
+            std::cout<<currentBlock.data.index({at::indexing::Slice(),at::indexing::Slice(),0,at::indexing::Slice(0,10)});
+            if (!currentBlock.data.any().item<bool>()) {
+                std::cout << "WARNING: Compressing a completely black (all zeros) block!" << std::endl;
+                // Add any logic here if you want to skip compressing this zero block
+            }
+
             mEntropyCoder.encodeSubblockFromPool(
                 currentBlock.transformSize, 
                 {0,0,0,0}, 
