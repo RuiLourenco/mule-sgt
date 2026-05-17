@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
     inputLF.slantLightField(par.preSlantTan);
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;  
-    write_tensor(inputLF.data.index({4,at::indexing::Slice(),200,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
+    write_tensor(inputLF.data.index({inputLF.data.size(0)/2,at::indexing::Slice(),inputLF.data.size(2)/2,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
     inputLF.computeTopHalfGradients();
 
 
