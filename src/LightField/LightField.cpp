@@ -575,7 +575,9 @@ void LightField::computeTopHalfGradients(){
     this -> secondHalfGradientsComputed = false;
     const auto full_dims = y_channel_slice.sizes();
     this->secondHalfBias = calculate_block_aligned_split_point(full_dims[SPLIT_DIM],128);
-     write_tensor(this->gradients.index({4,4,torch::indexing::Slice(),torch::indexing::Slice(),2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/firstHalfGradients.png");
+    if (this->gradients.size(SPLIT_DIM) > 0) {
+        write_tensor(this->gradients.index({this->gradients.size(0)/2, this->gradients.size(1)/2, torch::indexing::Slice(), torch::indexing::Slice(), 2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/firstHalfGradients.png");
+    }
 
 }
 
@@ -600,14 +602,18 @@ void LightField::computeBottomHalfGradients(){
     compute_second_half_gradients_inplace(y_channel_slice, this->gradients, SPLIT_DIM,128, KERNEL_SIZE, 1.0, CHUNK_SIZE);
     this->secondHalfGradientsComputed  = true;
     this->secondHalfBias = split_point;
-    write_tensor(this->gradients.index({4,4,torch::indexing::Slice(),torch::indexing::Slice(),2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/SecondHalfGradients.png");
+    if (this->gradients.size(SPLIT_DIM) > 0) {
+        write_tensor(this->gradients.index({this->gradients.size(0)/2, this->gradients.size(1)/2, torch::indexing::Slice(), torch::indexing::Slice(), 2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/SecondHalfGradients.png");
+    }
 
     std::cout<<secondHalfBias<<std::endl;
 }
 void LightField::computeGradients(){
     std::cout<<"Computing Gradients"<<std::endl;
     this->gradients =  compute_first_order_derivatives_separable(this->data.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), 0}),5,1.0);
-    write_tensor(this->gradients.index({4,4,torch::indexing::Slice(),torch::indexing::Slice(),2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/fullGradients.png");
+    if (this->gradients.size(2) > 0) {
+        write_tensor(this->gradients.index({this->gradients.size(0)/2, this->gradients.size(1)/2, torch::indexing::Slice(), torch::indexing::Slice(), 2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/fullGradients.png");
+    }
 
     std::cout<<"Gradients Computed!"<<std::endl;
 }

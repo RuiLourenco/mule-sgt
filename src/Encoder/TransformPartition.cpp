@@ -71,7 +71,9 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
         scaledLambda *= inputBlock.size[i];
     }
     mLambda = scaledLambda;
-    
+    // 4.5. Calculate the optimal minimum bitplane for this LightField
+    getOptimalMinimumBitPlane(inputBlock);
+
     // 5. The Main Optimization Loop
     // We create an empty collage to hold the "winning" partition structure
     BlockCollage finalCollage;

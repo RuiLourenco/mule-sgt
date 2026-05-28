@@ -545,10 +545,12 @@ void Hierarchical4DEncoder::LoadOptimizerState(void) {
     mOptimizationPmodel = mPmodel; // Simple struct copy
 }
 
+
+
 void Hierarchical4DEncoder::RestoreOptimizerState(const ProbabilityModelCollection& collection) {
-    mPmodel = collection; // Simple struct copy
+    mOptimizationPmodel = collection; // Simple struct copy
 }
 
 ProbabilityModelCollection Hierarchical4DEncoder::GetOptimizerSnapshot() {
-    return mPmodel; // This automatically creates a copy to return!
+    return mOptimizationPmodel; // This automatically creates a copy to return!
 }
