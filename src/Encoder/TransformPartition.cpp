@@ -369,7 +369,15 @@ double TransformPartition::RefineGridSearchAndRhos(Block4D_& block_0, CodingUnit
     //J0 = parallelRhoSearch(true,blockTemp.ssi.getRhoS(), angle, block_0, cui0, currGain, coderModelState_0);
     return J0;
 }
-
+void TransformPartition::CommitOptimizerState(const ProbabilityModelCollection& winningState) {
+    // 1. Update the master timeline
+    mEntropyCoder.RestoreOptimizerState(winningState);
+    
+    // 2. Broadcast the master timeline to the entire thread pool
+    for (int i = 0; i < m_encoder_pool.size(); ++i) {
+        m_encoder_pool[i]->RestoreOptimizerState(winningState);
+    }
+}
 double TransformPartition::RDtestGridSearch(double angleStep, std::array<double, 2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
     Block4D_ blockOrig = block_0.clone();
     double minAngle = angleRange[0];
@@ -883,7 +891,7 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         partitionCode += partitionCodeS; 
         
         // Apply the winning Split state to the encoder
-        mEntropyCoder.RestoreOptimizerState(stateS);
+        CommitOptimizerState(stateS);
         
         transformedBlock = std::move(transformedBlockS);
     } else {
@@ -892,7 +900,7 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         partitionCode += (char)NOSPLITFLAG;
         
         // Apply the winning No-Split state to the encoder
-        mEntropyCoder.RestoreOptimizerState(state0);
+        CommitOptimizerState(state0);
         
         transformedBlock = BlockCollage(std::move(block_0));
 
