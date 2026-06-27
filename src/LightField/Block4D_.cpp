@@ -1010,8 +1010,28 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
     if(lightFieldPosition[3] == 0 || lightFieldPosition[3] == lightField->data.size(3)-1 || lightFieldPosition[2] == 0 || lightFieldPosition[2] == lightField->data.size(2)-1){
         spatialBorder = 2;
     }
-    at::Tensor blockGradient = fetchBlockGradient(dimension1).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)}) 
-                             * fetchBlockGradient(dimension2).index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
+
+    at::Tensor grad1 = fetchBlockGradient(dimension1);
+    at::Tensor grad2 = fetchBlockGradient(dimension2);
+    at::Tensor blockGradient = grad1 * grad2;
+
+    if (includesInvalidCorners) {
+        if (transformSize[2] == 0 || transformSize[3] == 0) return 0.0;
+        
+        std::array<int64_t,4> transposed_dims = {0,2,1,3};
+        auto flatGradient = blockGradient.permute(transposed_dims).flatten(0,1).flatten(-2);
+        
+        at::Tensor validMask = at::zeros_like(flatGradient);
+        at::Tensor valid_v = validPositions.valid_positions_v;
+        at::Tensor valid_h = validPositions.valid_positions_h;
+        validMask.index_put_({valid_v.unsqueeze(1), valid_h.unsqueeze(0)}, 1.0);
+        
+        auto mask4D = validMask.reshape({(int64_t)size[0], (int64_t)size[2], (int64_t)size[1], (int64_t)size[3]}).permute({0,2,1,3});
+        blockGradient = blockGradient * mask4D;
+    }
+
+    blockGradient = blockGradient.index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
+    
     return blockGradient.sum().item<double>();
 }
 double Block4D_::epiStDisparityAvg() const{
