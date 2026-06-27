@@ -945,19 +945,19 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     }
 
     // 4. Add Flag Costs
-    // if (J0 > 0) 
-    //     J0 += GetExactPartitionFlagCost(NOSPLITFLAG, originalState) * mLambda;
-    //     // Add SSI bits using the original state baseline
-    //     double ssiBits = GetExactSSIBitCost(block_0.ssi, originalState);
-    //     J0 += ssiBits * mLambda;
-    
-    // if (JS > 0)
-    //     JS += GetExactPartitionFlagCost(INTRAVIEWSPLITFLAG, originalState) * mLambda;
-        // 4. Add Flag Costs
     if (J0 > 0) 
-        J0 += 1.0 * mLambda;
+        J0 += GetExactPartitionFlagCost(NOSPLITFLAG, originalState) * mLambda;
+        // Add SSI bits using the original state baseline
+        double ssiBits = GetExactSSIBitCost(block_0.ssi, originalState);
+        J0 += ssiBits * mLambda;
+    
     if (JS > 0)
-        JS += 2.0 * mLambda;
+        JS += GetExactPartitionFlagCost(INTRAVIEWSPLITFLAG, originalState) * mLambda;
+        4. Add Flag Costs
+    // if (J0 > 0) 
+    //     J0 += 1.0 * mLambda;
+    // if (JS > 0)
+    //     JS += 2.0 * mLambda;
 
     
     // 5. Decide the Winner
