@@ -5,6 +5,9 @@
 #include <algorithm> // For std::min_element
 #include <iterator>  // For std::distance
 #include <chrono>
+#include <fstream>
+#include "Decoder/Hierarchical4DDecoder.h"
+extern std::string g_outputFileName;
 
 
 /*******************************************************************************/
@@ -46,6 +49,73 @@ void TransformPartition::create_encoder_pool(size_t num_threads, size_t height, 
 TransformPartition :: ~TransformPartition(void) {
     // No-op since mPartitionCode is a std::string
 }
+
+
+double TransformPartition::GetExactIntegerCost(int integerValue, int precision, ProbabilityModelCollection& trackingModels) {
+    double totalBits = 0.0;
+
+    for (int n = precision - 1; n >= 0; n--) { 
+        int bit = (integerValue >> n) & 01;
+        // SSI integers are written via mPmodel[0]
+        totalBits += trackingModels[0].Rate(bit);
+        trackingModels[0].UpdateModel(bit); 
+    }
+    
+    return totalBits;
+}
+
+double TransformPartition::GetExactPartitionFlagCost(int symbol, const ProbabilityModelCollection& baselineState) {
+    double totalBits = 0.0;
+    ProbabilityModelCollection isolatedModels = baselineState;
+
+    if (symbol == INTRAVIEWSPLITFLAGSYMBOL) { // symbol == 1
+        // Matches the 1, 0 sequence exactly
+        totalBits += isolatedModels[0].Rate(1); isolatedModels[0].UpdateModel(1);
+        totalBits += isolatedModels[0].Rate(0);
+    }
+    else if (symbol == NOSPLITFLAGSYMBOL) { // symbol == 0
+        // Matches the single 0 bit
+        totalBits += isolatedModels[0].Rate(0);
+    }
+
+    return totalBits;
+}
+
+double TransformPartition::GetExactSSIBitCost(const SgtSideInfo& ssi, const ProbabilityModelCollection& baselineState) {
+    int precisionRho = ssi.getRhoPrecision();
+    int precisionD = ssi.getAnglePrecision();
+    double totalBits = 0.0;
+
+    // Create a local isolated workspace from the provided baseline snapshot
+    ProbabilityModelCollection isolatedModels = baselineState;
+
+    // Simulate the exact order your real EncodeSSI_ writes the stream
+    totalBits += GetExactIntegerCost(ssi.getAngleVCode(), precisionD, isolatedModels);
+    totalBits += GetExactIntegerCost(ssi.getAngleHCode(), precisionD, isolatedModels);
+
+#if ADAPTIVE_RHO_CALC == 1
+    totalBits += GetExactIntegerCost(ssi.getRhoSCode(), precisionRho, isolatedModels);
+    totalBits += GetExactIntegerCost(ssi.getRhoTCode(), precisionRho, isolatedModels);
+    totalBits += GetExactIntegerCost(ssi.getRhoUCode(), precisionRho, isolatedModels);
+    totalBits += GetExactIntegerCost(ssi.getRhoVCode(), precisionRho, isolatedModels);
+#endif
+
+    return totalBits;
+}
+double TransformPartition::getSSIBitCost(const SgtSideInfo& ssi) {
+    int precisionRho = ssi.getRhoPrecision();
+    int precisionD = ssi.getAnglePrecision();
+    
+    // AngleVCode and AngleHCode both use precisionD
+    double totalBits = 2.0 * precisionD;
+
+#if ADAPTIVE_RHO_CALC == 1
+    // RhoS, RhoT, RhoU, and RhoV codes all use precisionRho
+    totalBits += 4.0 * precisionRho;
+#endif
+
+    return totalBits;
+}
 double TransformPartition :: totalTransformGain(void){
     return mGain*sqrt(mMaxSize[0]*mMaxSize[1]*mMaxSize[2]*mMaxSize[3]);
 
@@ -62,10 +132,10 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     if(!mSsiBuffer.empty()) mSsiBuffer.clear();
     if(!mCuiBuffer.empty()) mCuiBuffer.clear();
 
-    mCodingUnitIndex = 0;
     mPartitionCode.clear();
     mEvaluateOptimumBitPlane = 1;
     mPartitionData_ = Block4D_(inputBlock.size,inputBlock.lightFieldPosition,inputBlock.lightField);
+    mInputBlock = inputBlock;
     double scaledLambda = lambda;
     for (int i = 0; i < 4; i++){
         scaledLambda *= inputBlock.size[i];
@@ -101,6 +171,7 @@ void TransformPartition :: getOptimalMinimumBitPlane(Block4D_& inputBlock){
 
     mEntropyCoder.mSubbandLF_ = block_0;
     mEntropyCoder.RestartProbabilisticModel();
+    //mEntropyCoder.mInferiorBitPlane = 1;
     mEntropyCoder.mInferiorBitPlane = mEntropyCoder.OptimumBitplaneFaster_(mLambda);
     mEntropyCoder.LoadOptimizerState();
     for(int i = 0; i < m_encoder_pool.size(); i++) {
@@ -874,10 +945,20 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     }
 
     // 4. Add Flag Costs
+    // if (J0 > 0) 
+    //     J0 += GetExactPartitionFlagCost(NOSPLITFLAG, originalState) * mLambda;
+    //     // Add SSI bits using the original state baseline
+    //     double ssiBits = GetExactSSIBitCost(block_0.ssi, originalState);
+    //     J0 += ssiBits * mLambda;
+    
+    // if (JS > 0)
+    //     JS += GetExactPartitionFlagCost(INTRAVIEWSPLITFLAG, originalState) * mLambda;
+        // 4. Add Flag Costs
     if (J0 > 0) 
         J0 += 1.0 * mLambda;
     if (JS > 0)
         JS += 2.0 * mLambda;
+
     
     // 5. Decide the Winner
     bool intraview_split = (JS >= 0 && JS < J0);
@@ -1173,6 +1254,166 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
         std::cout<<"CurrentBlock Transform Size = "<< currentBlock.transformSize[0] << " " <<currentBlock.transformSize[1] << " " <<currentBlock.transformSize[2] << " " <<currentBlock.transformSize[3]<<std::endl;
         std::cout<<"CurrentBlock Data Size = "<< currentBlock.data.size(0)<<" "<< currentBlock.data.size(1)<<" "<< currentBlock.data.size(2)<<" "<< currentBlock.data.size(3)<<std::endl;
 
+        // {
+        //     std::string channelStr = "";
+        //     if (mSpectralComponent == 0) channelStr = "Y";
+        //     else if (mSpectralComponent == 1) channelStr = "Cb";
+        //     else if (mSpectralComponent == 2) channelStr = "Cr";
+            
+        //     static bool first_time[3] = {true, true, true};
+        //     std::string out_name = g_outputFileName + "_encoder_matrices_" + channelStr + ".txt";
+        //     std::ios_base::openmode mode = first_time[mSpectralComponent] ? std::ios::out : std::ios::app;
+        //     first_time[mSpectralComponent] = false;
+        //     std::ofstream enc_out(out_name, mode);
+            
+        //     at::Tensor modelCovMatH = currentBlock.calcModelCovMatrix(currentBlock.ssi, true);
+        //     at::Tensor modelCovMatV = currentBlock.calcModelCovMatrix(currentBlock.ssi, false);
+        //     at::Tensor eigValsH, eigValsV;
+        //     at::Tensor sgtMatrixH = currentBlock.getSgtTransformMatrix(modelCovMatH, true, eigValsH);
+        //     at::Tensor sgtMatrixV = currentBlock.getSgtTransformMatrix(modelCovMatV, false, eigValsV);
+            
+        //     enc_out << "Block Position: " << currentBlock.lightFieldPosition[0] << " " << currentBlock.lightFieldPosition[1] << " " << currentBlock.lightFieldPosition[2] << " " << currentBlock.lightFieldPosition[3] << "\n";
+        //     enc_out << "Block Size: " << currentBlock.size[0] << " " << currentBlock.size[1] << " " << currentBlock.size[2] << " " << currentBlock.size[3] << "\n";
+            
+        //     enc_out << "SSI RhoS: " << currentBlock.ssi.getRhoS() << " RhoT: " << currentBlock.ssi.getRhoT() 
+        //             << " RhoU: " << currentBlock.ssi.getRhoU() << " RhoV: " << currentBlock.ssi.getRhoV() << "\n";
+        //     enc_out << "SSI AngleV: " << currentBlock.ssi.getAngleV() << " AngleH: " << currentBlock.ssi.getAngleH() << "\n";
+            
+        //     int rowsH = std::min<int>(10, sgtMatrixH.size(0));
+        //     int colsH = std::min<int>(10, sgtMatrixH.size(1));
+        //     enc_out << "sgtMatrixH (top " << rowsH << "x" << colsH << "):\n" << sgtMatrixH.index({at::indexing::Slice(0, rowsH), at::indexing::Slice(0, colsH)}) << "\n";
+            
+        //     int rowsV = std::min<int>(10, sgtMatrixV.size(0));
+        //     int colsV = std::min<int>(10, sgtMatrixV.size(1));
+        //     enc_out << "sgtMatrixV (top " << rowsV << "x" << colsV << "):\n" << sgtMatrixV.index({at::indexing::Slice(0, rowsV), at::indexing::Slice(0, colsV)}) << "\n";
+
+        //     at::Tensor identH = sgtMatrixH.matmul(sgtMatrixH.t());
+        //     at::Tensor trueIdentH = at::eye(sgtMatrixH.size(0), sgtMatrixH.options());
+        //     double stabilityH = at::abs(identH - trueIdentH).max().item<double>();
+
+        //     at::Tensor identV = sgtMatrixV.matmul(sgtMatrixV.t());
+        //     at::Tensor trueIdentV = at::eye(sgtMatrixV.size(0), sgtMatrixV.options());
+        //     double stabilityV = at::abs(identV - trueIdentV).max().item<double>();
+            
+        //     enc_out << "Stability/Orthogonality (Max Diff from Identity) H: " << stabilityH << "\n";
+        //     enc_out << "Stability/Orthogonality (Max Diff from Identity) V: " << stabilityV << "\n";
+
+        //     // Crop original block from mInputBlock
+        //     std::array<int64_t, 4> offset;
+        //     for (int i = 0; i < 4; i++) {
+        //         offset[i] = currentBlock.lightFieldPosition[i] - mInputBlock.lightFieldPosition[i];
+        //     }
+        //     Block4D_ origBlock = mInputBlock.copySubblock(currentBlock.size, offset);
+            
+        //     // Reconstruct transformed block by applying inverse transform
+        //     Block4D_ tempBlock = currentBlock.clone();
+        //     tempBlock.isgtTransform(this->totalTransformGain(), currentBlock.ssi);
+        //     at::Tensor invBlockTensor = tempBlock.data;
+            
+        //     at::Tensor mse_tensor = at::mse_loss(origBlock.data.to(at::kDouble), invBlockTensor.to(at::kDouble));
+        //     double mse = mse_tensor.item<double>();
+        //     double psnr = 10.0 * std::log10((255.0 * 255.0) / (mse + 1e-10));
+            
+        //     enc_out << "origBlock.data mean: " << origBlock.data.to(at::kDouble).mean().item<double>() << "\n";
+        //     enc_out << "invBlockTensor mean: " << invBlockTensor.to(at::kDouble).mean().item<double>() << "\n";
+            
+        //     enc_out << "MSE (Original vs Inverse): " << mse << "\n";
+        //     enc_out << "PSNR (Original vs Inverse): " << psnr << " dB\n";
+
+        //     // Unquantized mathematical round-trip
+        //     at::Tensor flatBlock = origBlock.getFlatBlock().to(at::kDouble);
+        //     at::Tensor flatTransform = origBlock.sgt(flatBlock, sgtMatrixH, sgtMatrixV, eigValsH, eigValsV);
+        //     at::Tensor flatRecovered = origBlock.isgt(flatTransform, sgtMatrixH, sgtMatrixV);
+        //     at::Tensor mathReconstruction = origBlock.flat24D(flatRecovered);
+            
+        //     at::Tensor math_mse_tensor = at::mse_loss(origBlock.data.to(at::kDouble), mathReconstruction.to(at::kDouble));
+        //     double math_mse = math_mse_tensor.item<double>();
+            
+        //     enc_out << "MSE (Pure Mathematical Transform Without Rounding): " << math_mse << "\n";
+
+        //     enc_out << "----------------------------------------\n";
+            
+        //     if (currentBlock.lightFieldPosition[2] == 1040 && currentBlock.lightFieldPosition[3] == 416) {
+        //         torch::save(sgtMatrixH, g_outputFileName + "_1040_416_enc_H_" + channelStr + ".pt");
+        //         torch::save(sgtMatrixV, g_outputFileName + "_1040_416_enc_V_" + channelStr + ".pt");
+
+        //         // Extract 1st view (0,0) and export to PNG
+        //         at::Tensor orig2D = origBlock.data.index({0, 0, at::indexing::Slice(), at::indexing::Slice()});
+        //         at::Tensor inv2D = invBlockTensor.index({0, 0, at::indexing::Slice(), at::indexing::Slice()});
+                
+        //         write_tensor(orig2D, "1040_416_orig_" + channelStr + ".png", {-512, 512}, false);
+        //         write_tensor(inv2D, "1040_416_inv_" + channelStr + ".png", {-512, 512}, false);
+
+        //         // -------------------------------------------------------------
+        //         // Standalone Encoder/Decoder Test
+        //         // -------------------------------------------------------------
+        //         std::string testFileName = g_outputFileName + "_1040_416_standalone_" + channelStr + ".bin";
+                
+        //         // 1. Encode
+        //         FILE* outFile = fopen(testFileName.c_str(), "wb");
+        //         Hierarchical4DEncoder standaloneEnc(mEntropyCoder.mProcessingContext.image_height, mEntropyCoder.mProcessingContext.image_width);
+        //         standaloneEnc.StartEncoder(outFile);
+        //         standaloneEnc.mInferiorBitPlane = mEntropyCoder.mInferiorBitPlane;
+        //         standaloneEnc.mSuperiorBitPlane = mEntropyCoder.mSuperiorBitPlane;
+        //         standaloneEnc.mSubbandLF_ = currentBlock.clone(); // copy the transformed block
+        //         standaloneEnc.RestartProbabilisticModel();
+
+        //         standaloneEnc.build_optimal_tree_from_pool(
+        //             currentBlock.transformSize, 
+        //             {0,0,0,0}, 
+        //             standaloneEnc.mSuperiorBitPlane, 
+        //             mLambda
+        //         );
+
+        //         standaloneEnc.encodeSubblockFromPool(
+        //             currentBlock.transformSize, 
+        //             {0,0,0,0}, 
+        //             standaloneEnc.mSuperiorBitPlane, 
+        //             mLambda
+        //         );
+        //         standaloneEnc.DoneEncoding();
+        //         fclose(outFile);
+
+        //         // 2. Decode
+        //         FILE* inFile = fopen(testFileName.c_str(), "rb");
+        //         Hierarchical4DDecoder standaloneDec;
+        //         standaloneDec.StartDecoder(inFile);
+        //         standaloneDec.mInferiorBitPlane = mEntropyCoder.mInferiorBitPlane;
+        //         standaloneDec.mSuperiorBitPlane = mEntropyCoder.mSuperiorBitPlane;
+                
+        //         // Prepare an empty block with the same metadata
+        //         standaloneDec.mSubbandLF = currentBlock.clone(); 
+        //         standaloneDec.mSubbandLF.data = at::zeros(currentBlock.transformSize, at::kInt); 
+                
+        //         standaloneDec.RestartProbabilisticModel();
+
+        //         // Decode the block
+        //         standaloneDec.DecodeBlock(0, 0, 0, 0, 
+        //             currentBlock.transformSize[0], currentBlock.transformSize[1], 
+        //             currentBlock.transformSize[2], currentBlock.transformSize[3], 
+        //             standaloneDec.mSuperiorBitPlane);
+        //         standaloneDec.DoneDecoding();
+        //         fclose(inFile);
+
+        //         // 3. Inverse transform the decoded block
+        //         Block4D_ decodedBlock = standaloneDec.mSubbandLF.clone();
+        //         decodedBlock.isgtTransform(this->totalTransformGain(), decodedBlock.ssi);
+        //         at::Tensor decodedInvTensor = decodedBlock.data;
+
+        //         // 4. Calculate metrics and export PNG
+        //         at::Tensor standalone_mse_tensor = at::mse_loss(origBlock.data.to(at::kDouble), decodedInvTensor.to(at::kDouble));
+        //         double standalone_mse = standalone_mse_tensor.item<double>();
+        //         double standalone_psnr = 10.0 * std::log10((255.0 * 255.0) / (standalone_mse + 1e-10));
+
+        //         enc_out << "MSE (Standalone Decode): " << standalone_mse << "\n";
+        //         enc_out << "PSNR (Standalone Decode): " << standalone_psnr << " dB\n";
+
+        //         at::Tensor decoded2D = decodedInvTensor.index({0, 0, at::indexing::Slice(), at::indexing::Slice()});
+        //         write_tensor(decoded2D, "1040_416_decoded_" + channelStr + ".png", {-512, 512}, false);
+        //     }
+        // }
+
+        //mEntropyCoder.mSubbandLF_ = currentBlock;
         // Use the block's internal size (no more guessing)
         if (currentBlock.transformSize[2] * currentBlock.transformSize[3] > 0) {
             

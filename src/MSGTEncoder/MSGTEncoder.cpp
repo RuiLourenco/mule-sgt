@@ -23,6 +23,8 @@ bool is_all_whitespace(const std::string& str) {
     });
 }
 
+std::string g_outputFileName = "";
+
 class EncoderParameters;
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
@@ -342,6 +344,7 @@ int main(int argc, char **argv) {
         infoPath =  path + "info.json";
     }
    
+    g_outputFileName = par.outputFileName;
 
 
     LightField inputLF;
@@ -350,9 +353,12 @@ int main(int argc, char **argv) {
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
     inputLF.slantLightField(par.preSlantTan);
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;  
+    std::array<int64_t,2> stride = {2,3};
+    // inputLF.OpenLightFieldPPM_("/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/set2_slanted", "", 'w',{0,2} , stride);
+    // std::cout << "Press Enter to continue..." << std::endl;
+    // std::cin.get();
     write_tensor(inputLF.data.index({inputLF.data.size(0)/2,at::indexing::Slice(),inputLF.data.size(2)/2,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
     inputLF.computeTopHalfGradients();
-
 
     //inputLF.computeBottomHalfGradients();
     //inputLF.computeGradients();
@@ -410,8 +416,8 @@ int main(int argc, char **argv) {
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            for(int viewLine = 0; viewLine <  inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
-                for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
+            for(int viewLine = 1024; viewLine <  1024+par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
+                for(int viewColumn = 384; viewColumn < 384+par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
                     if(viewLine >= inputLF.secondHalfBias){
                         if(!inputLF.secondHalfGradientsComputed){
                             std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
@@ -518,6 +524,7 @@ int main(int argc, char **argv) {
                                                                                               
 
                         tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
+                        tp.mSpectralComponent = spectralComponent;
                         tp.RDoptimizeTransform_(lfBlock, par.Lambda);
                         tp.EncodePartition();
                         error[spectralComponent] += tp.mCodingPartitionInfo.getTotalDistortion();

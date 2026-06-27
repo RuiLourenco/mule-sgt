@@ -108,7 +108,7 @@ cv::Mat torchToCv(const torch::Tensor& tensor) {
     return image;
 }
 
-void write_image(const cv::Mat& image,std::string path,std::array<double,2> valueRange = {1,1}){ 
+void write_image(const cv::Mat& image,std::string path,std::array<double,2> valueRange = {1,1}, bool useColorMap = true){ 
     cv::Mat display_image;
     double min_val; 
     double max_val; 
@@ -127,17 +127,20 @@ void write_image(const cv::Mat& image,std::string path,std::array<double,2> valu
     display_image /= max_val - min_val;
     display_image *= 255;
     display_image.convertTo(display_image,CV_8U);
-    cv::Mat img_color;
-    // Apply the colormap:
-    applyColorMap(display_image, img_color, cv::COLORMAP_JET);
-    // Write the image
-    cv::imwrite(path, img_color);
-    //cv::imwrite(path, display_image);
+    if(useColorMap){
+        cv::Mat img_color;
+        // Apply the colormap:
+        applyColorMap(display_image, img_color, cv::COLORMAP_JET);
+        // Write the image
+        cv::imwrite(path, img_color);
+    } else {
+        cv::imwrite(path, display_image);
+    }
 }
-void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange){
+void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange, bool useColorMap){
 #if DEBUG == 1
   cv::Mat mat = torchToCv(tensor);
-  write_image(mat,path,valueRange);
+  write_image(mat,path,valueRange,useColorMap);
 #endif
 }
 

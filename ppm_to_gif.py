@@ -5,8 +5,8 @@ import subprocess
 import tempfile
 
 def generate_zigzag_webm(input_dir, output_file, fps):
-    # Regex to match NNNxMMM.ppm
-    pattern = re.compile(r'^(\d+)_(\d+)\.ppm$', re.IGNORECASE)
+    # Regex to match NNN_MMM.ppm or NNN_MMM.png
+    pattern = re.compile(r'^(\d+)_(\d+)\.(?:ppm|png)$', re.IGNORECASE)
     
     parsed_files = []
     
@@ -24,7 +24,7 @@ def generate_zigzag_webm(input_dir, output_file, fps):
             parsed_files.append((row, col, filepath))
             
     if not parsed_files:
-        print(f"No files matching 'NNNxMMM.ppm' found.")
+        print(f"No files matching 'NNN_MMM.ppm' or 'NNN_MMM.png' found.")
         return
 
     # 2. Sort Logic (Horizontal-first Zigzag)
@@ -88,7 +88,7 @@ def generate_zigzag_webm(input_dir, output_file, fps):
             os.remove(concat_file)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PPM to Lossless WebM Zigzag Converter")
+    parser = argparse.ArgumentParser(description="PPM/PNG to Lossless WebM Zigzag Converter")
     parser.add_argument("-i", "--input", required=True, help="Input directory")
     parser.add_argument("-o", "--output", required=True, help="Output file (e.g. video.webm)")
     parser.add_argument("-s", "--speed", type=float, default=10.0, help="Frames Per Second")

@@ -13,7 +13,7 @@
 #define FLAT_TRANSFORM 1
 
 class Block4D_;
-void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange = {1,1});
+void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange = {1,1}, bool useColorMap = true);
 struct ValidPositions{
     at::Tensor valid_positions_h;
     at::Tensor valid_positions_v;
@@ -128,8 +128,7 @@ private:
     at::Tensor flat24DAll(const at::Tensor& flatBlock) const;
     at::Tensor flat24DValid(const at::Tensor& flatBlock) const;
     static at::Tensor klt(at::Tensor covMat, at::Tensor& eigVals);
-    at::Tensor sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV, const at::Tensor& eigValsH, const at::Tensor& eigValsV) ;
-    static at::Tensor isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) ;
+
     at::Tensor covFun2MatValid(const at::Tensor& covFun, bool isHorizontal) const;
     at::Tensor covFun2MatAll(const at::Tensor& covFun) const;
     static void splitHexaDecaTree(std::array<int64_t,4> length,std::array<int64_t,4> position,std::vector<std::array<int64_t,4>> &positions);
@@ -143,6 +142,8 @@ public:
     void saveBlockGradient(int64_t dimension) const;
     double computeGradientSum(int64_t dimension1, int64_t dimension2) const;
     at::Tensor structureTensor() const;
+    at::Tensor sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV, const at::Tensor& eigValsH, const at::Tensor& eigValsV) ;
+    static at::Tensor isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) ;
     std::array<double,2> computeAnglesFromStructureTensor(std::array<double,2> disparityRange) const;
     at::Tensor fetchBlockGradient(int64_t dimension) const;
     LightField* lightField = nullptr;

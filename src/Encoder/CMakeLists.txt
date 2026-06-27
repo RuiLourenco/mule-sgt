@@ -8,6 +8,7 @@ PUBLIC
     torch 
     DebugTools 
     ProbabilityModel  
-    OldDCT 
+    OldDCT
+    Decoder 
     OpenMP::OpenMP_CXX
     LightField)  

@@ -460,6 +460,8 @@ void Hierarchical4DEncoder :: EncodeInteger(int integerValue, int precision)  {
         
 }
 
+
+
 void Hierarchical4DEncoder :: DoneEncoding(void) {
     //std::cout<<"0: "<<flagZero<<" 1: "<<flagOne<<" 2: "<<flagTwo<<" Ignore Efficiency = "<<mIgnoreEfficiency<<" "<<mIgnored<<std::endl;
     mEntropyCoder.Flush();      //flushes entropy encoder

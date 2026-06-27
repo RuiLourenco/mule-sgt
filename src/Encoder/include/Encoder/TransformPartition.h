@@ -57,6 +57,8 @@ public:
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     Block4D mPartitionData;             /*!< DCT of all subblocks of the partition */
     Block4D_ mPartitionData_;
+    Block4D_ mInputBlock;
+    int mSpectralComponent = 0;
     std::array<int64_t,4> mMaxSize;
     BlockCollage mPartitionCollage;
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
@@ -72,6 +74,10 @@ public:
         std::array<int64_t,4> length,
         std::string& partitionCode
     );    
+    double getSSIBitCost(const SgtSideInfo& ssi);
+    double GetExactIntegerCost(int integerValue, int precision, ProbabilityModelCollection& trackingModels);
+    double GetExactSSIBitCost(const SgtSideInfo& ssi, const ProbabilityModelCollection& baselineState);
+    double GetExactPartitionFlagCost(int symbol, const ProbabilityModelCollection& baselineState);
     double solveQuadrant(const Block4D_& inputBlock, int64_t y_off, int64_t x_off, int64_t h, int64_t w, const std::array<int64_t, 4>& parentPos, const std::array<int64_t, 4>& parentLen, BlockCollage& outCollage, std::string& outCode);
     double splitInFour(const Block4D_& inputBlock, const std::array<int64_t, 4>& pos, const std::array<int64_t, 4>& len, BlockCollage& outCollage, std::string& outCode);
     void CommitOptimizerState(const ProbabilityModelCollection& winningState);

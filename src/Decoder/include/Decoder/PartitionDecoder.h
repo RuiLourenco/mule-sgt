@@ -20,6 +20,7 @@ public:
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     int mUseSameBitPlane;               /*!< Forces to use the same minimum bitplane for all subblocks */
     Block4D_ mPartitionData;             /*!< DCT of all subblocks of the partition */
+    int mSpectralComponent = 0;
     double mGain = 1;                   /*!< Gain of the transform */
     PartitionDecoder(double mGain = 1);
     double calcEntropy(at::Tensor &data);

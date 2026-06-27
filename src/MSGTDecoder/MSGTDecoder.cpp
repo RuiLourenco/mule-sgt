@@ -14,6 +14,8 @@
 
 using namespace std;
 
+std::string g_inputFileName = "";
+
 class DecoderParameters;
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
@@ -170,6 +172,7 @@ int main(int argc, char **argv) {
     if(v != 0){
         return v;
     }
+    g_inputFileName = par.inputFileName;
     if(par.configFile.compare("") != 0){
         par.ReadConfigurationFile(par.configFile);
     } 
@@ -238,13 +241,13 @@ int main(int argc, char **argv) {
             //for(int viewLine = 0*maxPartitionSize[2]; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
             //for(int viewLine = 1024; viewLine < 1024 + maxPartitionSize[2]; viewLine+=maxPartitionSize[2]){
             //for(int viewLine = 0; viewLine <0*maxPartitionSize[2]  +maxPartitionSize[2]; viewLine += maxPartitionSize[2]) {
-            for(int viewLine = 0; viewLine <lfSize[2]; viewLine+=maxPartitionSize[2]){
+            for(int viewLine = 1024; viewLine < 1024 + maxPartitionSize[2]; viewLine+=maxPartitionSize[2]){
                 //for(int viewColumn = 512; viewColumn < 512+64; viewColumn+=maxPartitionSize[3]){
                 //for(int viewColumn = 192 ; viewColumn <192  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 0 * maxPartitionSize[3] ; viewColumn < maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 3 * maxPartitionSize[3] ; viewColumn <3*maxPartitionSize[3]  +maxPartitionSize[3]; viewColumn += maxPartitionSize[3]) {
                 //for(int viewColumn = 1024; viewColumn < 1024 + maxPartitionSize[3]; viewColumn+=maxPartitionSize[3]){
-                for(int viewColumn = 0; viewColumn < lfSize[3]; viewColumn+=maxPartitionSize[3]){
+                for(int viewColumn = 384; viewColumn < 384 + maxPartitionSize[3]; viewColumn+=maxPartitionSize[3]){
 
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
@@ -257,6 +260,7 @@ int main(int argc, char **argv) {
                         pd.mPartitionData = Block4D_(maxPartitionSize,blockPosition,&outputLF);
 
                         hdt.RestartProbabilisticModel();
+                        pd.mSpectralComponent = spectralComponent;
                         pd.DecodePartition(hdt,par.disparityRange);
                                       
                 
@@ -367,7 +371,7 @@ int main(int argc, char **argv) {
 
 
     hdt.DoneDecoding();
-    outputLF.slantLightFieldBack();
+    //outputLF.slantLightFieldBack();
     std::cout << "Creating output directory path: " << par.outputDirectory << std::endl;
     std::error_code ec;
     if (std::filesystem::create_directories(par.outputDirectory, ec)) {

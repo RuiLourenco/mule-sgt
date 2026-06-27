@@ -27,7 +27,7 @@ public:
     Block4D_ ReadBlock4DfromLightField_(std::array<int64_t,4> size, std::array<int64_t,4> position_t,int64_t channel );
     void WriteBlock4DtoLightField_(Block4D_ sourceBlock, std::array<int64_t,5> position);
     void slantLightField(double slope);
-    static at::Tensor slantData(const at::Tensor& block, double slantSlope);
+    static at::Tensor slantData(const at::Tensor& block, double slantSlope, int PGMScale = 1023);
     void slantLightFieldBack();
     static at::Tensor unslantData(const at::Tensor& block, double slantSlope);
 

@@ -1,6 +1,10 @@
 #include "Decoder/PartitionDecoder.h"
 #include "LightField/Block4D_.h"
 #include <vector>
+#include <fstream>
+
+extern std::string g_inputFileName;
+
 
 /*******************************************************************************/
 /*                      PartitionDecoder class methods                         */
@@ -159,6 +163,58 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         //std::cout<<"ISG Transform"<<std::endl;
         double gain = transformGain(length);        
         std::cout<<"size before ISGT: "<<entropyDecoder.mSubbandLF.data.sizes()<<std::endl;
+        
+        {
+            std::string channelStr = "";
+            if (mSpectralComponent == 0) channelStr = "Y";
+            else if (mSpectralComponent == 1) channelStr = "Cb";
+            else if (mSpectralComponent == 2) channelStr = "Cr";
+            
+            static bool first_time[3] = {true, true, true};
+            std::string out_name = g_inputFileName + "_decoder_matrices_" + channelStr + ".txt";
+            std::ios_base::openmode mode = first_time[mSpectralComponent] ? std::ios::out : std::ios::app;
+            first_time[mSpectralComponent] = false;
+            std::ofstream dec_out(out_name, mode);
+            
+            at::Tensor modelCovMatH = entropyDecoder.mSubbandLF.calcModelCovMatrix(ssi, true);
+            at::Tensor modelCovMatV = entropyDecoder.mSubbandLF.calcModelCovMatrix(ssi, false);
+            at::Tensor eigValsH, eigValsV;
+            at::Tensor sgtMatrixH = entropyDecoder.mSubbandLF.getSgtTransformMatrix(modelCovMatH, true, eigValsH);
+            at::Tensor sgtMatrixV = entropyDecoder.mSubbandLF.getSgtTransformMatrix(modelCovMatV, false, eigValsV);
+            
+            dec_out << "Block Position: " << entropyDecoder.mSubbandLF.lightFieldPosition[0] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[1] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[2] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[3] << "\n";
+            dec_out << "Block Size: " << entropyDecoder.mSubbandLF.size[0] << " " << entropyDecoder.mSubbandLF.size[1] << " " << entropyDecoder.mSubbandLF.size[2] << " " << entropyDecoder.mSubbandLF.size[3] << "\n";
+            
+            dec_out << "SSI RhoS: " << ssi.getRhoS() << " RhoT: " << ssi.getRhoT() 
+                    << " RhoU: " << ssi.getRhoU() << " RhoV: " << ssi.getRhoV() << "\n";
+            dec_out << "SSI AngleV: " << ssi.getAngleV() << " AngleH: " << ssi.getAngleH() << "\n";
+            
+            int rowsH = std::min<int>(10, sgtMatrixH.size(0));
+            int colsH = std::min<int>(10, sgtMatrixH.size(1));
+            dec_out << "sgtMatrixH (top " << rowsH << "x" << colsH << "):\n" << sgtMatrixH.index({at::indexing::Slice(0, rowsH), at::indexing::Slice(0, colsH)}) << "\n";
+            
+            int rowsV = std::min<int>(10, sgtMatrixV.size(0));
+            int colsV = std::min<int>(10, sgtMatrixV.size(1));
+            dec_out << "sgtMatrixV (top " << rowsV << "x" << colsV << "):\n" << sgtMatrixV.index({at::indexing::Slice(0, rowsV), at::indexing::Slice(0, colsV)}) << "\n";
+
+            at::Tensor identH = sgtMatrixH.matmul(sgtMatrixH.t());
+            at::Tensor trueIdentH = at::eye(sgtMatrixH.size(0), sgtMatrixH.options());
+            double stabilityH = at::abs(identH - trueIdentH).max().item<double>();
+
+            at::Tensor identV = sgtMatrixV.matmul(sgtMatrixV.t());
+            at::Tensor trueIdentV = at::eye(sgtMatrixV.size(0), sgtMatrixV.options());
+            double stabilityV = at::abs(identV - trueIdentV).max().item<double>();
+            
+            dec_out << "Stability/Orthogonality (Max Diff from Identity) H: " << stabilityH << "\n";
+            dec_out << "Stability/Orthogonality (Max Diff from Identity) V: " << stabilityV << "\n";
+            dec_out << "----------------------------------------\n";
+            
+            if (entropyDecoder.mSubbandLF.lightFieldPosition[2] == 1032 && entropyDecoder.mSubbandLF.lightFieldPosition[3] == 416) {
+                torch::save(sgtMatrixH, g_inputFileName + "_1032_416_dec_H_" + channelStr + ".pt");
+                torch::save(sgtMatrixV, g_inputFileName + "_1032_416_dec_V_" + channelStr + ".pt");
+            }
+        }
+
         entropyDecoder.mSubbandLF.isgtTransform(gain,ssi);
         //std::cout<<"ISG Transform DONE"<<std::endl;
 

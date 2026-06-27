@@ -722,7 +722,7 @@ void LightField::slantLightField(double slope){
         throw std::runtime_error("LightField data must be 5D");
     }
     std::cout<<"Slanting Light Field of size: "<<this->data.sizes()<<" with slope: "<<slope<<std::endl;
-    this->data = slantData(this->data, slope);
+    this->data = slantData(this->data, slope, this->mPGMScale);
     this->preSlantTan = slope;
     this ->secondHalfBias = this->data.size(2);
     std::cout<<"Second Half Bias after slanting: "<<this->secondHalfBias<<std::endl;
@@ -777,13 +777,14 @@ at::Tensor LightField::unslantData(const at::Tensor& block, double slantSlope){
     return new_block;
 }
  
-at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope){
+at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope, int PGMScale){
     if(slantSlope == 0) return block;
     auto size = block.sizes();
     torch::TensorOptions options = torch::TensorOptions().dtype(torch::kDouble);
     int size_increase_v = (int)(abs(round(slantSlope*(size[0]-1))));
     int size_increase_h = (int)(abs(round(slantSlope*(size[1]-1))));
-    at::Tensor new_block = torch::zeros({(int)size[0],(int)size[1],(int)size[2]+size_increase_v,(int)size[3]+size_increase_h,size[4]},options);
+    double fill_value = (PGMScale + 1) / 2.0;
+    at::Tensor new_block = torch::full({(int)size[0],(int)size[1],(int)size[2]+size_increase_v,(int)size[3]+size_increase_h,size[4]}, fill_value, options);
     double true_alpha_v = slantSlope/abs(slantSlope) * (double)size_increase_v/((double)size[0]-1);
     double true_alpha_h = slantSlope/abs(slantSlope) * (double)size_increase_h/((double)size[1]-1);
     for (int c = 0; c < size[4]; c++){
