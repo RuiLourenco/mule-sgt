@@ -10,12 +10,27 @@
         "CMAKE_BUILD_TYPE": "Release",
         "APP_VERSION": "1.0-new"
       }
+    },
+    {
+      "name": "slow-profile-base",
+      "displayName": "Project Build Profile",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/slow",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "APP_VERSION": "1.0-new"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "build",
       "configurePreset": "default-profile-base",
+      "displayName": "Build Target App"
+    },
+    {
+      "name": "slow",
+      "configurePreset": "slow-profile-base",
       "displayName": "Build Target App"
     }
   ]

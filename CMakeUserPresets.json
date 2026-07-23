@@ -8,6 +8,26 @@
         "CMAKE_C_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-gcc",
         "CMAKE_CXX_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-c++"
       }
+    },
+    {
+      "name": "slow-profile",
+      "inherits": "slow-profile-base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-gcc",
+        "CMAKE_CXX_COMPILER": "/nfs/home/ruilourenco.it/miniconda3/envs/slantKLT/bin/x86_64-conda-linux-gnu-c++"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default-profile-build",
+      "configurePreset": "default-profile",
+      "displayName": "Build with default profile"
+    },
+    {
+      "name": "slow-profile-build",
+      "configurePreset": "slow-profile",
+      "displayName": "Build with slow profile"
     }
   ]
 }
