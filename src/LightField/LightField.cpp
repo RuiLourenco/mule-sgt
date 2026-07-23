@@ -724,6 +724,7 @@ void LightField::slantLightField(double slope){
     std::cout<<"Slanting Light Field of size: "<<this->data.sizes()<<" with slope: "<<slope<<std::endl;
     this->data = slantData(this->data, slope, this->mPGMScale);
     this->preSlantTan = slope;
+    this->changePadding("RepeatBorders");
     this ->secondHalfBias = this->data.size(2);
     std::cout<<"Second Half Bias after slanting: "<<this->secondHalfBias<<std::endl;
     //computeGradients();
@@ -807,9 +808,93 @@ at::Tensor LightField::slantData(const at::Tensor& block, double slantSlope, int
                     m_start -= (size[1]-1)*true_alpha_h;
                     m_end -= (size[1]-1)*true_alpha_h;
                 }
+                // Copy the valid data
                 new_block.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(m_start,m_end),c}) = block.index({l_,k_,torch::indexing::Slice(),torch::indexing::Slice(),c});              
             }
         }
     }
     return new_block;
+}
+void LightField::changePadding(std::string mode, double fill_value) {
+    if (this->preSlantTan == 0) return;
+    auto size = this->data.sizes();
+    double slantSlope = this->preSlantTan;
+    int size_increase_v = (int)(abs(round(slantSlope*(size[0]-1))));
+    int size_increase_h = (int)(abs(round(slantSlope*(size[1]-1))));
+    double true_alpha_v = slantSlope/abs(slantSlope) * (double)size_increase_v/((double)size[0]-1);
+    double true_alpha_h = slantSlope/abs(slantSlope) * (double)size_increase_h/((double)size[1]-1);
+    
+    int orig_size_v = size[2] - size_increase_v;
+    int orig_size_h = size[3] - size_increase_h;
+
+    for (int c = 0; c < size[4]; c++) {
+        for(int l_ = 0; l_<size[0]; l_++){
+            int n_start = floor(l_*true_alpha_v);
+            int n_end = orig_size_v + floor(l_*true_alpha_v);
+            if(slantSlope < 0){
+                n_start -= (size[0]-1)*true_alpha_v;
+                n_end -= (size[0]-1)*true_alpha_v;
+            }
+            for(int k_ = 0; k_ < size[1]; k_++){
+                int m_start = floor(k_*true_alpha_h);
+                int m_end = orig_size_h + floor(k_*true_alpha_h);
+                if(slantSlope < 0){
+                    m_start -= (size[1]-1)*true_alpha_h;
+                    m_end -= (size[1]-1)*true_alpha_h;
+                }
+
+                if (mode == "RepeatBorders") {
+                    if (n_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(m_start,m_end),c}) = this->data.index({l_,k_,n_start,torch::indexing::Slice(m_start,m_end),c}).unsqueeze(0);
+                    }
+                    if (n_end < size[2]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(m_start,m_end),c}) = this->data.index({l_,k_,n_end-1,torch::indexing::Slice(m_start,m_end),c}).unsqueeze(0);
+                    }
+                    if (m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(0,m_start),c}) = this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),m_start,c}).unsqueeze(1);
+                    }
+                    if (m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(m_end,torch::indexing::None),c}) = this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),m_end-1,c}).unsqueeze(1);
+                    }
+                    if (n_start > 0 && m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(0,m_start),c}) = this->data.index({l_,k_,n_start,m_start,c});
+                    }
+                    if (n_start > 0 && m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(m_end,torch::indexing::None),c}) = this->data.index({l_,k_,n_start,m_end-1,c});
+                    }
+                    if (n_end < size[2] && m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(0,m_start),c}) = this->data.index({l_,k_,n_end-1,m_start,c});
+                    }
+                    if (n_end < size[2] && m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(m_end,torch::indexing::None),c}) = this->data.index({l_,k_,n_end-1,m_end-1,c});
+                    }
+                } else if (mode == "Fill") {
+                    if (n_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(m_start,m_end),c}) = fill_value;
+                    }
+                    if (n_end < size[2]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(m_start,m_end),c}) = fill_value;
+                    }
+                    if (m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(0,m_start),c}) = fill_value;
+                    }
+                    if (m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_start,n_end),torch::indexing::Slice(m_end,torch::indexing::None),c}) = fill_value;
+                    }
+                    if (n_start > 0 && m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(0,m_start),c}) = fill_value;
+                    }
+                    if (n_start > 0 && m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(0,n_start),torch::indexing::Slice(m_end,torch::indexing::None),c}) = fill_value;
+                    }
+                    if (n_end < size[2] && m_start > 0) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(0,m_start),c}) = fill_value;
+                    }
+                    if (n_end < size[2] && m_end < size[3]) {
+                        this->data.index({l_,k_,torch::indexing::Slice(n_end,torch::indexing::None),torch::indexing::Slice(m_end,torch::indexing::None),c}) = fill_value;
+                    }
+                }
+            }
+        }
+    }
 }

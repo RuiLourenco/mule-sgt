@@ -867,10 +867,10 @@ void Block4D_::CopySubblockFrom(const Block4D_& B, std::array<int64_t,4> sourceO
     
 }
 at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizontal, at::Tensor& eigVals) const{
-    //double eps1 = 1e10; 
-    //double eps = 1e-0; 
-    //double k = 10;
-    //at::Tensor cov1 = cov+at::eye(cov.size(-1),cov.options())*eps1;
+    if (cov.size(0) == 0 || cov.size(1) == 0) {
+        eigVals = at::empty({0}, cov.options());
+        return at::empty({0, 0}, cov.options());
+    }
 
     at::Tensor transform = klt(cov,eigVals);
 
@@ -980,27 +980,24 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
             gradientPosition[i] -= lightField->secondHalfBias;
         }
     }
-    at::Tensor blockGradient = lightField->gradients.index({at::indexing::Slice({gradientPosition[0],gradientPosition[0]+trueSize[0]}),
-                                                            at::indexing::Slice({gradientPosition[1],gradientPosition[1]+trueSize[1]}),
-                                                            at::indexing::Slice({gradientPosition[2],gradientPosition[2]+trueSize[2]}),
-                                                            at::indexing::Slice({gradientPosition[3],gradientPosition[3]+trueSize[3]}),
-                                                           dimension});
-
-                                                           //write_tensor(this->data.index({at::indexing::Slice(),1,at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/gradient_"+std::to_string(dimension)+".png");
-    // std::cout<<"size: "<<size[0]<<" "<<size[1]<<" "<<size[2]<<" "<<size[3]<<std::endl;
-    //std::cout<<"lightFieldPosition: "<<lightFieldPosition[0]<<" "<<lightFieldPosition[1]<<" "<<lightFieldPosition[2]<<" "<<lightFieldPosition[3]<<std::endl;
-    //std::cout<<"gradientPosition: "<<gradientPosition[0]<<" "<<gradientPosition[1]<<" "<<gradientPosition[2]<<" "<<gradientPosition[3]<<std::endl;
-    // std::cout<<"lightField size: "<<lightField->data.sizes()<<std::endl;
-    // std::cout<<"lightField gradients size: "<<lightField->gradients.sizes()<<std::endl;
-    // std::cout<<"trueSize: "<<trueSize[0]<<" "<<trueSize[1]<<" "<<trueSize[2]<<" "<<trueSize[3]<<std::endl;
+    at::Tensor blockGradient = at::zeros({size[0], size[1], size[2], size[3]}, torch::kDouble);
+    bool valid = true;
     for( int i = 0; i < 4; i++){
         if(lightField->data.size(i) <= lightFieldPosition[i]){
-            //std::cout<<lightField->data.size(i)<<" >= "<<lightFieldPosition[i]<<" at dimension "<<i<<std::endl;
-             blockGradient = at::zeros(size, torch::kDouble);
-             //std::cout<<"Block gradient is empty because lightFieldPosition is out of bounds!"<<std::endl;
+             valid = false;
         }
     }
-    // std::cout<<"block gradient size: "<<blockGradient.sizes()<<std::endl;
+    if (valid) {
+        at::Tensor slicedGradient = lightField->gradients.index({at::indexing::Slice({gradientPosition[0],gradientPosition[0]+trueSize[0]}),
+                                                                at::indexing::Slice({gradientPosition[1],gradientPosition[1]+trueSize[1]}),
+                                                                at::indexing::Slice({gradientPosition[2],gradientPosition[2]+trueSize[2]}),
+                                                                at::indexing::Slice({gradientPosition[3],gradientPosition[3]+trueSize[3]}),
+                                                               dimension});
+        blockGradient.index({at::indexing::Slice(0,trueSize[0]),
+                             at::indexing::Slice(0,trueSize[1]),
+                             at::indexing::Slice(0,trueSize[2]),
+                             at::indexing::Slice(0,trueSize[3])}) = slicedGradient;
+    }
     return blockGradient;
 }
 
@@ -1022,11 +1019,32 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
         auto flatGradient = blockGradient.permute(transposed_dims).flatten(0,1).flatten(-2);
         
         at::Tensor validMask = at::zeros_like(flatGradient);
-        at::Tensor valid_v = validPositions.valid_positions_v;
-        at::Tensor valid_h = validPositions.valid_positions_h;
+        at::Tensor valid_v;
+        at::Tensor valid_h;
+        if (this->includesInvalidCorners) {
+            std::array<int64_t,4> lfSize;
+            for (int i = 0; i < 4; i++){
+                lfSize[i] = this->lightField->data.size(i);
+            }
+            valid_h = get_valid_position(this->lightField->preSlantTan, lfSize, this->size, this->lightFieldPosition, true, 1);
+            valid_v = get_valid_position(this->lightField->preSlantTan, lfSize, this->size, this->lightFieldPosition, false, 1);
+            if (valid_h.size(0) == 0 || valid_v.size(0) == 0) {
+                // If margin shrinks it to 0, fallback to original to avoid crash
+                valid_h = validPositions.valid_positions_h;
+                valid_v = validPositions.valid_positions_v;
+            }
+        } else {
+            valid_v = validPositions.valid_positions_v;
+            valid_h = validPositions.valid_positions_h;
+        }
         validMask.index_put_({valid_v.unsqueeze(1), valid_h.unsqueeze(0)}, 1.0);
         
-        auto mask4D = validMask.reshape({(int64_t)size[0], (int64_t)size[2], (int64_t)size[1], (int64_t)size[3]}).permute({0,2,1,3});
+        auto mask4D = validMask.reshape({size[0],size[2],size[1],size[3]}).permute({0,2,1,3});
+        at::Tensor validGradients = blockGradient.masked_select(mask4D.to(at::kBool));
+        if ((validGradients.abs() > 900000.0).any().item<bool>()) {
+            throw std::runtime_error("POISON LEAKED INTO VALID PIXELS IN computeGradientSum!");
+        }
+        
         blockGradient = blockGradient * mask4D;
     }
 
@@ -1358,6 +1376,10 @@ void Block4D_::sgtTransform(double scale){
     //std::cout<<"Valid Positions H 42 AFTER: "<<this->validPositions.valid_positions_h[42].item()<<std::endl;
 
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);
+    
+    // DEBUG: Capture covariance matrices
+    this->actualCovMatH = modelCovMatH;
+    this->actualCovMatV = modelCovMatV;
 
     //std::cout<<"Includes Invalid Corners: "<<this->includesInvalidCorners<<std::endl;
 
@@ -1365,15 +1387,17 @@ void Block4D_::sgtTransform(double scale){
 
     
     at::Tensor eigValsH,eigValsV;
-    at::Tensor flatBlock = scale * getFlatBlock();
+    at::Tensor flatBlock = scale * getFlatBlock().to(at::kDouble);
+    this->actualFlatBlockInput = flatBlock;
     //std::cout<<"Flat Block Size: "<<flatBlock.sizes()<<std::endl;
     //ssi.print();
     //std::cout<<this->includesInvalidCorners<<std::endl;
     //std::cout<<modelCovMatH.sizes()<<" "<<modelCovMatV.sizes()<<std::endl;
-    // if(modelCovMatH.size(0) == 0 || modelCovMatH.size(0) == 0){
-    //     std::cout<<"Warning: Model Cov Mat Matrix is empty!"<<std::endl;
-    //     return;
-    // }
+    if(modelCovMatH.size(0) == 0 || modelCovMatV.size(0) == 0){
+        this->data = at::zeros_like(this->data); // ensure it's completely empty
+        this->sgtDomain = true;
+        return;
+    }
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
 
@@ -1390,11 +1414,13 @@ void Block4D_::sgtTransform(double scale){
     //double Du = computeGradientSum(3,3);
     //std::cout<<" Ds/Du: "<<Ds/Du<<std::endl;
     //std::cout<<" Dt/Dv: "<<Dt/Dv<<std::endl;
-    //std::cout<<" Ds/Dt: "<<Ds/Dt<<std::endl;
-    //std::cout<<" Du/Dv: "<<Du/Dv<<std::endl;
+
     //write_tensor(flatBlock,"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2D-b4transform.png");
 
     at::Tensor flatTransform = sgt(flatBlock,sgtMatrixH,sgtMatrixV,eigValsH,eigValsV);
+    this->actualFlatTransform = flatTransform;
+    this->sgtMatrixH = sgtMatrixH;
+    this->sgtMatrixV = sgtMatrixV;
 
     //write_tensor(log(1+(flatTransform * flatTransform)),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/2DFull.png");
 
@@ -2083,6 +2109,10 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
     at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
     at::Tensor sgtMatrixV = getSgtTransformMatrix(modelCovMatV,false,eigValsV);
     
+    // DEBUG: Capture inverse transform matrices
+    this->isgtMatrixH = sgtMatrixH;
+    this->isgtMatrixV = sgtMatrixV;
+    
 #if FLAT_TRANSFORM == 1
     at::Tensor flatBlock = this->data.squeeze().to(at::kDouble)/scale;  
 #else
@@ -2100,7 +2130,16 @@ at::Tensor Block4D_::klt(at::Tensor covMat, at::Tensor& eigVals){
     try{
         auto [L, Q] = at::linalg_eigh(covMat, "U");
         eigVals = L.flip({-1});
-        return Q.flip({-1});
+        at::Tensor Q_flipped = Q.flip({-1});
+        
+        // Enforce deterministic eigenvector signs to fix PyTorch eigh non-determinism
+        at::Tensor max_abs_indices = Q_flipped.abs().argmax(0);
+        at::Tensor max_vals = Q_flipped.gather(0, max_abs_indices.unsqueeze(0)).squeeze(0);
+        at::Tensor signs = torch::sign(max_vals);
+        signs = torch::where(signs == 0, torch::ones_like(signs), signs);
+        Q_flipped = Q_flipped * signs.unsqueeze(0);
+        
+        return Q_flipped;
     }
     catch (const c10::Error& e) {
         std::cerr << "Error computing eigen decomposition: " << e.what() << std::endl;
@@ -2138,16 +2177,6 @@ at::Tensor Block4D_::getOrderV(){
 
 at::Tensor Block4D_::sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV,const at::Tensor& eigValsH,const at::Tensor& eigValsV) {
     at::Tensor block = flatBlock.to(at::kDouble);
-    // for(int i = 0; i < eigValsH.size(0); i++){
-    //     if (eigValsH[i].item<double>() < 0) {
-    //         std::cerr<<"eigValsH < 0"<<std::endl;
-    //        // exit(-2);
-    //     }
-    //     if (eigValsV[i].item<double>() < 0) {
-    //         std::cerr<<"eigValsV < 0"<<std::endl;
-    //         //exit(-2);
-    //     }
-    // }
 
     at::Tensor transform = at::mm(at::mm(sgtMatrixV.t(), block), sgtMatrixH);
     
@@ -2373,6 +2402,9 @@ at::Tensor Block4D_::getFlatBlockValid(){
     at::Tensor flatBlock = getFlatBlockAll();
     flatBlock = flatBlock.index({at::indexing::Slice(), validPositions.valid_positions_h});
     flatBlock = flatBlock.index({validPositions.valid_positions_v,at::indexing::Slice()});
+    if ((flatBlock.abs() > 900000.0).any().item<bool>()) {
+        throw std::runtime_error("POISON LEAKED INTO VALID PIXELS IN getFlatBlockValid!");
+    }
     return flatBlock;
 }
 
@@ -3764,6 +3796,17 @@ void Block4D_::operator = (const Block4D_ &B){
     this->orderV = B.orderV;
     this->lightFieldPosition = B.lightFieldPosition;
     this->lightField = B.lightField;
+    
+    this->eigenValuesH = B.eigenValuesH;
+    this->eigenValuesV = B.eigenValuesV;
+    this->actualFlatBlockInput = B.actualFlatBlockInput;
+    this->actualCovMatH = B.actualCovMatH;
+    this->actualCovMatV = B.actualCovMatV;
+    this->sgtMatrixH = B.sgtMatrixH;
+    this->sgtMatrixV = B.sgtMatrixV;
+    this->actualFlatTransform = B.actualFlatTransform;
+    this->isgtMatrixH = B.isgtMatrixH;
+    this->isgtMatrixV = B.isgtMatrixV;
 }
 
 Block4D_ Block4D_::clone() const{
@@ -3783,13 +3826,25 @@ Block4D_ Block4D_::clone() const{
     newBlock.orderV = this->orderV;
     newBlock.lightFieldPosition = this->lightFieldPosition;
     newBlock.lightField = this->lightField;
+    
+    // Copy missing properties and debug fields
+    newBlock.eigenValuesH = this->eigenValuesH.clone();
+    newBlock.eigenValuesV = this->eigenValuesV.clone();
+    newBlock.actualFlatBlockInput = this->actualFlatBlockInput.defined() ? this->actualFlatBlockInput.clone() : at::Tensor();
+    newBlock.actualCovMatH = this->actualCovMatH.defined() ? this->actualCovMatH.clone() : at::Tensor();
+    newBlock.actualCovMatV = this->actualCovMatV.defined() ? this->actualCovMatV.clone() : at::Tensor();
+    newBlock.sgtMatrixH = this->sgtMatrixH.defined() ? this->sgtMatrixH.clone() : at::Tensor();
+    newBlock.sgtMatrixV = this->sgtMatrixV.defined() ? this->sgtMatrixV.clone() : at::Tensor();
+    newBlock.actualFlatTransform = this->actualFlatTransform.defined() ? this->actualFlatTransform.clone() : at::Tensor();
+    newBlock.isgtMatrixH = this->isgtMatrixH.defined() ? this->isgtMatrixH.clone() : at::Tensor();
+    newBlock.isgtMatrixV = this->isgtMatrixV.defined() ? this->isgtMatrixV.clone() : at::Tensor();
 
     return newBlock;
 }
 
 /********Static Functions******/
 
-at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal){
+at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal, int margin){
   
     //std::cout<<"block_start: "<<block_start[0]<<" "<<block_start[1]<<" "<<block_start[2]<<" "<<block_start[3]<<std::endl;
     //std::cout<<"block_shape: "<<block_shape[0]<<" "<<block_shape[1]<<" "<<block_shape[2]<<" "<<block_shape[3]<<std::endl;
@@ -3837,6 +3892,12 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
             n_start -= (lf_shape[view_coordinate]-1)*true_alpha;
             n_end -= (lf_shape[view_coordinate]-1)*true_alpha;
         }
+        
+        n_start += margin;
+        n_end -= margin;
+        
+        if (n_start >= n_end) continue;
+        
         //std::cout<<l_<<": "<<n_start<<" "<<n_end<<std::endl;
 
         torch::TensorOptions options = torch::TensorOptions();
@@ -3978,7 +4039,6 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
 
     return -chosenAngle;
 }
-
 
 
 

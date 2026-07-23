@@ -199,6 +199,18 @@ public:
     ValidPositions validPositions;
     bool includesInvalidCorners = false;
     bool sgtDomain = false;
+
+    // --- DEBUG TEMPORARY FIELDS ---
+    at::Tensor actualFlatBlockInput;
+    at::Tensor actualCovMatH;
+    at::Tensor actualCovMatV;
+    at::Tensor sgtMatrixH;
+    at::Tensor sgtMatrixV;
+    at::Tensor actualFlatTransform;
+    at::Tensor isgtMatrixH;
+    at::Tensor isgtMatrixV;
+    // ------------------------------
+
     static void YCoCg2RGB(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Co, Block4D_ const &Cg, int Scale);
     static void YCbCr2RGB_BT601(Block4D_ &R, Block4D_ &G, Block4D_ &B, Block4D_ const &Y, Block4D_ const &Cb, Block4D_ const &Cr, int Scale);
     static void RGB2YCbCr_BT601(Block4D_ &Y, Block4D_ &Cb, Block4D_ &Cr, Block4D_ const &R, Block4D_ const &G, Block4D_ const &B, int Scale);
@@ -210,7 +222,7 @@ public:
     at::Tensor covFun2Mat(const at::Tensor& covFun,bool isHorizontal) const;
     at::Tensor iSqrtCovMat(bool isHorizontal) const;
     double epiStDisparityAvg() const;
-    static at::Tensor get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal);
+    static at::Tensor get_valid_position(double adjustment_d,std::array<int64_t,4> lf_shape,std::array<int64_t,4> block_shape,std::array<int64_t,4>block_start,bool is_horizontal, int margin = 0);
     void sgtTransform(double scale);
     at::Tensor isgtTransformData(double scale, SgtSideInfo ssi) ;
     void isgtTransform(double scale, SgtSideInfo ssi);

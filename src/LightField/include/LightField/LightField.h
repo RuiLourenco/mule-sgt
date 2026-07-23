@@ -1,7 +1,7 @@
 #include <torch/torch.h>
 #include "View.h"
 #include <array>
-
+#include <limits>
 
 
 #ifndef LIGHTFIELD_H
@@ -16,6 +16,7 @@ public:
     void computeGradients();
     void computeTopHalfGradients();
     void computeBottomHalfGradients();
+    void changePadding(std::string mode, double fill_value = 0.0);
     int preSlantTan = 0;
     int mPGMScale;                      /*!< scale of the pgm files*/
     at::Tensor data;    
