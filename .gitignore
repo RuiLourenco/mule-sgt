@@ -11,3 +11,13 @@
 /results/
 *.ppm
 *.png
+
+# Python artefacts
+__pycache__/
+*.pyc
+
+# Data & Output artefacts
+*.csv
+*.txt
+*.comp
+*_info.json
