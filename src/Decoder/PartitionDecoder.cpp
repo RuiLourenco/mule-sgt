@@ -199,11 +199,11 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
 
             at::Tensor identH = sgtMatrixH.matmul(sgtMatrixH.t());
             at::Tensor trueIdentH = at::eye(sgtMatrixH.size(0), sgtMatrixH.options());
-            double stabilityH = at::abs(identH - trueIdentH).max().item<double>();
+            double stabilityH = sgtMatrixH.size(0) > 0 ? at::abs(identH - trueIdentH).max().item<double>() : 0.0;
 
             at::Tensor identV = sgtMatrixV.matmul(sgtMatrixV.t());
             at::Tensor trueIdentV = at::eye(sgtMatrixV.size(0), sgtMatrixV.options());
-            double stabilityV = at::abs(identV - trueIdentV).max().item<double>();
+            double stabilityV = sgtMatrixV.size(0) > 0 ? at::abs(identV - trueIdentV).max().item<double>() : 0.0;
             
             dec_out << "Stability/Orthogonality (Max Diff from Identity) H: " << stabilityH << "\n";
             dec_out << "Stability/Orthogonality (Max Diff from Identity) V: " << stabilityV << "\n";

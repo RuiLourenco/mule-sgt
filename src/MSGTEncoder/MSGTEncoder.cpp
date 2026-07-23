@@ -362,6 +362,7 @@ int main(int argc, char **argv) {
 
     //inputLF.computeBottomHalfGradients();
     //inputLF.computeGradients();
+    //inputLF.changePadding("Fill", 999999.0);
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),2}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/v.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),1}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/s.png");
     // write_tensor(inputLF.gradients.index({4,4,at::indexing::Slice(),at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/t.png");
@@ -416,18 +417,21 @@ int main(int argc, char **argv) {
     double size = 0;
     for(int verticalView = 0; verticalView < inputLF.data.size(0); verticalView += par.maxPartitionSize[0]) {
         for(int horizontalView = 0; horizontalView < inputLF.data.size(1); horizontalView += par.maxPartitionSize[1]) {
-            for(int viewLine = 1024; viewLine <  1024+par.maxPartitionSize[2]; viewLine += par.maxPartitionSize[2]) {
-                for(int viewColumn = 384; viewColumn < 384+par.maxPartitionSize[3]; viewColumn += par.maxPartitionSize[3]) {
+            for(int viewLine = 0; viewLine < inputLF.data.size(2); viewLine += par.maxPartitionSize[2]) {
+                for(int viewColumn = 0; viewColumn < inputLF.data.size(3); viewColumn += par.maxPartitionSize[3]) {
                     if(viewLine >= inputLF.secondHalfBias){
                         if(!inputLF.secondHalfGradientsComputed){
                             std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
+                            inputLF.changePadding("RepeatBorders");
                             inputLF.computeBottomHalfGradients();
+                            //inputLF.changePadding("Fill", 999999.0);
                         }
                     }
                     if(true)
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
+                    //if (verticalView != 0 || horizontalView != 0 || viewLine != 1152 || viewColumn != 0) continue;
 
                     Block4D_ rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
                     Block4D_ gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
@@ -543,7 +547,6 @@ int main(int argc, char **argv) {
                 }
             }
         }
-    }
     std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
     double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
     double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
