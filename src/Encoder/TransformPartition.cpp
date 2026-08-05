@@ -19,8 +19,19 @@ extern std::string g_outputFileName;
     
 //     //mUseSameBitPlane = 1;
 // }
-TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain)
-    : mEntropyCoder(entropyCoder), mDisparityRange(disparityRange), mGain(transformGain) {
+TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain, 
+                                       SearchMethodType searchMethod,
+                                       double logdetAngleStep,
+                                       double gridSearchAngleStep,
+                                       double refineStructureTensorRange,
+                                       double refineStructureTensorStep,
+                                       double refineGridSearchInitialStep,
+                                       double refineGridSearchRange,
+                                       double refineGridSearchStep)
+    : mEntropyCoder(entropyCoder), mDisparityRange(disparityRange), mGain(transformGain), mSearchMethod(searchMethod),
+      mLogdetAngleStep(logdetAngleStep), mGridSearchAngleStep(gridSearchAngleStep),
+      mRefineStructureTensorRange(refineStructureTensorRange), mRefineStructureTensorStep(refineStructureTensorStep),
+      mRefineGridSearchInitialStep(refineGridSearchInitialStep), mRefineGridSearchRange(refineGridSearchRange), mRefineGridSearchStep(refineGridSearchStep) {
     
     create_encoder_pool(omp_get_max_threads(),mEntropyCoder.mProcessingContext.image_height ,mEntropyCoder.mProcessingContext.image_width);
     //std::cout<<"Using "<<m_encoder_pool.size()<<" threads for encoding."<<std::endl;
@@ -225,6 +236,7 @@ double TransformPartition::EvaluatePartitionLSRho(
     // Pass the collection directly into the sandbox
     return EvaluatePartition_(encoder, block_0, currGain, outModel);
 }
+
 double TransformPartition::EvaluatePartition_(
     Hierarchical4DEncoder& encoder, 
     Block4D_ &block_0, 
@@ -414,7 +426,7 @@ double TransformPartition::RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0,
     double J0 = std::numeric_limits<double>::max();
     
     // Evaluate Logdet
-    double angleStep = 1;
+    double angleStep = mLogdetAngleStep;
     std::array<double, 2> logdetAngles = blockOrig.logDetAngleEstimation(angleStep, mDisparityRange);
     std::array<double, 3> anglesToTest = {logdetAngles[0], logdetAngles[1], (logdetAngles[0] + logdetAngles[1]) / 2};
 
@@ -451,12 +463,12 @@ double TransformPartition::RefineGridSearchAndRhos(Block4D_& block_0, CodingUnit
     double J0;
     std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
     ProbabilityModelCollection tempModel;
-    J0 = RDtestGridSearch(1,angleRange,blockTemp,cui0,currGain,tempModel);
+    J0 = RDtestGridSearch(mRefineGridSearchInitialStep,angleRange,blockTemp,cui0,currGain,tempModel);
     
     double angle = blockTemp.ssi.getAngleH();
-    std::array<double,2> refinementAngleRange = {angle-0.9,angle+0.9};
+    std::array<double,2> refinementAngleRange = {angle-mRefineGridSearchRange,angle+mRefineGridSearchRange};
     blockTemp = block_0.clone();
-    double J = RDtestGridSearch(0.1,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
+    double J = RDtestGridSearch(mRefineGridSearchStep,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
     angle = blockTemp.ssi.getAngleH();
 
     //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);
@@ -644,10 +656,10 @@ double TransformPartition::RefineStructureTensorAndRhos(Block4D_& block_0, Codin
     J0 = RDtestStructureTensor(blockTemp,cui0,currGain,tempModel);
     
     double angle = blockTemp.ssi.getAngleH();
-    std::array<double,2> refinementAngleRange = {angle-10,angle+10};
+    std::array<double,2> refinementAngleRange = {angle-mRefineStructureTensorRange,angle+mRefineStructureTensorRange};
     blockTemp = block_0.clone();
     
-    double J = RDtestGridSearch(0.5,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
+    double J = RDtestGridSearch(mRefineStructureTensorStep,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
     angle = blockTemp.ssi.getAngleH();
 
 
@@ -952,7 +964,26 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     // We pass our state collection directly in. Thanks to the sandbox, mEntropyCoder remains untouched!
     ProbabilityModelCollection state0;
     CodingUnitInfo cui0(block_0.size,block_0.lightFieldPosition); 
-    double J0 = RefineStructureTensorAndRhos(block_0, cui0, currGain, state0);
+    double J0 = 0;
+    
+    if (mSearchMethod == SearchMethodType::STRUCTURE_TENSOR) {
+        J0 = RDtestStructureTensor(block_0, cui0, currGain, state0);
+    } else if (mSearchMethod == SearchMethodType::LOGDET) {
+        J0 = RDtestLogdet(block_0, cui0, currGain, state0);
+    } else if (mSearchMethod == SearchMethodType::GRID_SEARCH) {
+        std::array<double, 2> angleRange = SgtSideInfo::angleRangeFromDispRange(mDisparityRange);
+        J0 = RDtestGridSearch(mGridSearchAngleStep, angleRange, block_0, cui0, currGain, state0);
+    } else if (mSearchMethod == SearchMethodType::COVARIANCE) {
+        J0 = RDtestCovariance(block_0, cui0, currGain, state0);
+    } else if (mSearchMethod == SearchMethodType::ALL_HEURISTICS) {
+        J0 = RDtestAllAngleHeuristics(block_0, cui0, state0);
+    } else if (mSearchMethod == SearchMethodType::ZERO) {
+        J0 = RDtestZero(block_0, cui0, currGain, state0);
+    } else if (mSearchMethod == SearchMethodType::REFINE_GRID_SEARCH) {
+        J0 = RefineGridSearchAndRhos(block_0, cui0, currGain, state0);
+    } else {
+        J0 = RefineStructureTensorAndRhos(block_0, cui0, currGain, state0);
+    }
 
     // 3. Evaluate SPLIT (JS)
     double JS = -1.0;

@@ -53,7 +53,25 @@ public:
     std::string outputFileName = "out.comp";
     std::string configFile = "";
     std::array<double,2> disparityRange = {-3.5,3.5};
-    double preSlantTan = 0;
+    int preSlantTan = 0;
+    SearchMethodType searchMethod = SearchMethodType::REFINE_STRUCTURE_TENSOR;
+    bool searchMethodSet = false;
+    double logdetAngleStep = 1.0;
+    double gridSearchAngleStep = 1.0;
+    double refineStructureTensorRange = 10.0;
+    double refineStructureTensorStep = 0.5;
+    double refineGridSearchInitialStep = 1.0;
+    double refineGridSearchRange = 0.9;
+    double refineGridSearchStep = 0.1;
+
+    void setMethod(SearchMethodType method) {
+        if (searchMethodSet) {
+            std::cerr << "Error: Multiple search methods specified in configuration file!" << std::endl;
+            exit(1);
+        }
+        searchMethod = method;
+        searchMethodSet = true;
+    }
     ExtensionType extensionMethod = REPEAT_LAST;
     double transformGain = 1;        
     ColorTransformType colorTransformType = BT601; 
@@ -91,6 +109,83 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         }
         if(!command.compare("-preSlantTan")){
             parametersFile>>preSlantTan;
+        }
+        if(!command.compare("-structure_tensor") || !command.compare("-structure-tensor")){
+            setMethod(SearchMethodType::STRUCTURE_TENSOR);
+        }
+        if(!command.compare("-logdet")){
+            setMethod(SearchMethodType::LOGDET);
+            auto pos = parametersFile.tellg();
+            std::string peekToken;
+            if (parametersFile >> peekToken) {
+                if (!peekToken.empty() && peekToken[0] != '-') {
+                    logdetAngleStep = std::stod(peekToken);
+                } else {
+                    parametersFile.seekg(pos);
+                }
+            }
+        }
+        if(!command.compare("-grid_search") || !command.compare("-grid-search")){
+            setMethod(SearchMethodType::GRID_SEARCH);
+            auto pos = parametersFile.tellg();
+            std::string peekToken;
+            if (parametersFile >> peekToken) {
+                if (!peekToken.empty() && peekToken[0] != '-') {
+                    gridSearchAngleStep = std::stod(peekToken);
+                } else {
+                    parametersFile.seekg(pos);
+                }
+            }
+        }
+        if(!command.compare("-covariance")){
+            setMethod(SearchMethodType::COVARIANCE);
+        }
+        if(!command.compare("-all_heuristics") || !command.compare("-all-heuristics")){
+            setMethod(SearchMethodType::ALL_HEURISTICS);
+        }
+        if(!command.compare("-zero")){
+            setMethod(SearchMethodType::ZERO);
+        }
+        if(!command.compare("-refine_structure_tensor") || !command.compare("-refine-structure-tensor")){
+            setMethod(SearchMethodType::REFINE_STRUCTURE_TENSOR);
+            std::string peekToken;
+            int paramsRead = 0;
+            while (paramsRead < 2) {
+                auto pos = parametersFile.tellg();
+                if (parametersFile >> peekToken) {
+                    if (!peekToken.empty() && peekToken[0] != '-') {
+                        if (paramsRead == 0) refineStructureTensorRange = std::stod(peekToken);
+                        if (paramsRead == 1) refineStructureTensorStep = std::stod(peekToken);
+                        paramsRead++;
+                    } else {
+                        parametersFile.seekg(pos);
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        if(!command.compare("-refine_grid_search") || !command.compare("-refine-grid-search")){
+            setMethod(SearchMethodType::REFINE_GRID_SEARCH);
+            std::string peekToken;
+            int paramsRead = 0;
+            while (paramsRead < 3) {
+                auto pos = parametersFile.tellg();
+                if (parametersFile >> peekToken) {
+                    if (!peekToken.empty() && peekToken[0] != '-') {
+                        if (paramsRead == 0) refineGridSearchInitialStep = std::stod(peekToken);
+                        if (paramsRead == 1) refineGridSearchRange = std::stod(peekToken);
+                        if (paramsRead == 2) refineGridSearchStep = std::stod(peekToken);
+                        paramsRead++;
+                    } else {
+                        parametersFile.seekg(pos);
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
         }
         if(!command.compare("-u")){
             parametersFile>>maxPartitionSize[3];
@@ -177,6 +272,7 @@ void EncoderParameters :: DisplayConfiguration(void) {
     cout<<"Transform Gain = "<<transformGain<<endl;
     cout<<"Disparity Range = [ "<<disparityRange[0]<<","<<disparityRange[1]<<"]"<<endl;
     cout<<"Pre Slant Tan = "<<preSlantTan<<endl;
+    cout<<"Search Method Enum = "<<static_cast<int>(searchMethod)<<endl;
     cout<<"Input Directory = "<<inputDirectory<<endl;
     cout<<"Output Directory = "<<outputFileName<<endl;
     cout<<"Lenslet 13x13 = "<<isLenslet13x13<<endl;
@@ -208,7 +304,15 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("maximum-partition-size,l", po::value<std::vector<int64_t>>()->multitoken(), "Maximum Partition Length t s v u") 
         ("minimum-partition-size,m", po::value<std::vector<int64_t>>()->multitoken(), "Minimum Partition Length t s v u") 
         ("disp-range,r", po::value<std::vector<double>>()->multitoken(), "Disparity Range (-5,5) is a good compromise for most LFs") 
-        ("pre-slant-tan", po::value<double>(&par.preSlantTan), "Pre Slant Tangent")
+        ("pre-slant-tan", po::value<int>(&par.preSlantTan), "Pre Slant Tangent")
+        ("structure-tensor", po::bool_switch(), "Structure Tensor Heuristic")
+        ("logdet", po::value<std::vector<double>>()->multitoken(), "Logdet Heuristic [angleStep]")
+        ("grid-search", po::value<std::vector<double>>()->multitoken(), "Grid Search Heuristic [angleStep]")
+        ("covariance", po::bool_switch(), "Covariance Heuristic")
+        ("all-heuristics", po::bool_switch(), "All Heuristics")
+        ("zero", po::bool_switch(), "Zero Heuristic")
+        ("refine-structure-tensor", po::value<std::vector<double>>()->multitoken(), "Refine Structure Tensor [refinementRange refinementStep]")
+        ("refine-grid-search", po::value<std::vector<double>>()->multitoken(), "Refine Grid Search [initialStep refinementRange refinementStep]")
         ("transform-gain,g", po::value<double>(&par.transformGain),  "Transform Gain")
         ("num-views,v", po::value<std::vector<std::int64_t>>()->multitoken(),  "Number of Views: T S")
         ("view-offset,b", po::value<std::vector<std::int64_t>>()->multitoken(),  "Index of First View: T S")
@@ -271,6 +375,53 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         std::copy(data.begin(), data.end(), par.firstView.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    
+    // Process search methods
+    std::vector<std::string> searchMethodFlags = {
+        "structure-tensor", "logdet", "grid-search", "covariance", "all-heuristics", "zero", "refine-structure-tensor", "refine-grid-search"
+    };
+    int setMethods = 0;
+    for (const auto& flag : searchMethodFlags) {
+        if (vm.count(flag)) {
+            if (vm[flag].value().type() == typeid(bool)) {
+                if (vm[flag].as<bool>()) setMethods++;
+            } else {
+                setMethods++;
+            }
+        }
+    }
+    if (setMethods > 1) {
+        throw std::logic_error("Conflicting options: Multiple search methods specified.");
+    }
+
+    if (vm.count("structure-tensor") && vm["structure-tensor"].as<bool>()) par.setMethod(SearchMethodType::STRUCTURE_TENSOR);
+    if (vm.count("logdet")) {
+        par.setMethod(SearchMethodType::LOGDET);
+        auto data = vm["logdet"].as<std::vector<double>>();
+        if (data.size() > 0) par.logdetAngleStep = data[0];
+    }
+    if (vm.count("grid-search")) {
+        par.setMethod(SearchMethodType::GRID_SEARCH);
+        auto data = vm["grid-search"].as<std::vector<double>>();
+        if (data.size() > 0) par.gridSearchAngleStep = data[0];
+    }
+    if (vm.count("covariance") && vm["covariance"].as<bool>()) par.setMethod(SearchMethodType::COVARIANCE);
+    if (vm.count("all-heuristics") && vm["all-heuristics"].as<bool>()) par.setMethod(SearchMethodType::ALL_HEURISTICS);
+    if (vm.count("zero") && vm["zero"].as<bool>()) par.setMethod(SearchMethodType::ZERO);
+    if (vm.count("refine-structure-tensor")) {
+        par.setMethod(SearchMethodType::REFINE_STRUCTURE_TENSOR);
+        auto data = vm["refine-structure-tensor"].as<std::vector<double>>();
+        if (data.size() > 0) par.refineStructureTensorRange = data[0];
+        if (data.size() > 1) par.refineStructureTensorStep = data[1];
+    }
+    if (vm.count("refine-grid-search")) {
+        par.setMethod(SearchMethodType::REFINE_GRID_SEARCH);
+        auto data = vm["refine-grid-search"].as<std::vector<double>>();
+        if (data.size() > 0) par.refineGridSearchInitialStep = data[0];
+        if (data.size() > 1) par.refineGridSearchRange = data[1];
+        if (data.size() > 2) par.refineGridSearchStep = data[2];
+    }
+
     return 0;
 }
 
@@ -332,7 +483,7 @@ int main(int argc, char **argv) {
         if (originalPath.back() == '/') {
             originalPath.pop_back(); // Remove trailing slash if present
         }
-        while (exists(path)) {
+        while (exists(path + filename)) {
             path = originalPath + "-" + std::to_string(counter)+"/";
             counter++;
         }
@@ -401,6 +552,9 @@ int main(int argc, char **argv) {
     }
     std::cout<<"Disparity Range: "<<par.disparityRange[0]<<" "<<par.disparityRange[1]<<std::endl;
 
+    BigEndianSignedIntegerWrite(par.preSlantTan, 1, outputFileNamePointer);
+    std::cout<<"Pre-Slant Tangent: "<<par.preSlantTan<<std::endl;
+
   
 
     //writes the bit precision of each component of the pixels of the views
@@ -409,7 +563,10 @@ int main(int argc, char **argv) {
 
     //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
     std::vector<CodingPartitionInfo> codingPartitionInfos;
-    TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain);
+    TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain,par.searchMethod,
+                          par.logdetAngleStep, par.gridSearchAngleStep, par.refineStructureTensorRange,
+                          par.refineStructureTensorStep, par.refineGridSearchInitialStep,
+                          par.refineGridSearchRange, par.refineGridSearchStep);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
 
     std::array<double,3> error = {0,0,0};
@@ -547,6 +704,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
+    }
     std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
     double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
     double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));

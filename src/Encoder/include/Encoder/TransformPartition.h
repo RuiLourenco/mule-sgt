@@ -23,6 +23,17 @@
 
 class MultiScaleTransfrom;
 
+enum class SearchMethodType {
+    STRUCTURE_TENSOR,
+    LOGDET,
+    GRID_SEARCH,
+    COVARIANCE,
+    ALL_HEURISTICS,
+    ZERO,
+    REFINE_STRUCTURE_TENSOR,
+    REFINE_GRID_SEARCH
+};
+
 class TransformPartition {
      void create_encoder_pool(size_t num_threads, 
                                                                   size_t height, 
@@ -43,6 +54,14 @@ public:
     CodingPartitionInfo mCodingPartitionInfo;
     Hierarchical4DEncoder& mEntropyCoder;
     int mDepth = 0;           /*!< Current depth in the partition tree */
+    SearchMethodType mSearchMethod;
+    double mLogdetAngleStep;
+    double mGridSearchAngleStep;
+    double mRefineStructureTensorRange;
+    double mRefineStructureTensorStep;
+    double mRefineGridSearchInitialStep;
+    double mRefineGridSearchRange;
+    double mRefineGridSearchStep;
 
     
 
@@ -64,7 +83,15 @@ public:
     int mlength_t_min, mlength_s_min;   /*!< minimum subblock size at directions t, s */
     int mlength_v_min, mlength_u_min;   /*!< minimum subblock size at directions v, u */
     TransformPartition(void);
-    TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain);
+    TransformPartition(std::array<int64_t,4> minLength, Hierarchical4DEncoder& entropyCoder,std::array<double,2> disparityRange, double transformGain, 
+                       SearchMethodType searchMethod,
+                       double logdetAngleStep = 1.0,
+                       double gridSearchAngleStep = 1.0,
+                       double refineStructureTensorRange = 10.0,
+                       double refineStructureTensorStep = 0.5,
+                       double refineGridSearchInitialStep = 1.0,
+                       double refineGridSearchRange = 0.9,
+                       double refineGridSearchStep = 0.1);
     ~TransformPartition(void);
     void RDoptimizeTransform_(Block4D_ &inputBlock, double lambda);
     double RDoptimizeTransformStep(

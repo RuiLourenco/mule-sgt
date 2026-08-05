@@ -31,7 +31,6 @@ public:
     array<int64_t,2> firstView;
     array<int64_t,2> stride = {1,1};
     array<double,2> disparityRange;
-    double preSlantTan = 0;
     string outputDirectory;
     string inputFileName;
     string configFile;
@@ -54,28 +53,38 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
         std::string command;
         parametersFile >> command;
         if(command == "-nv") {
-            parametersFile >> viewSize[0] >> viewSize[1];
-        } else if(command == "-off") {
-            parametersFile >> firstView[0] >> firstView[1];
-        } else if(command == "-stride") {
-            parametersFile >> stride[0] >> stride[1];
-        } else if(command == "-lf") {
+            parametersFile >> viewSize[0];
+        } else if(command == "-nh") {
+            parametersFile >> viewSize[1];
+        } else if(command == "-off_v") {
+            parametersFile >> firstView[0];
+        } else if(command == "-off_h") {
+            parametersFile >> firstView[1];
+        } else if(command == "-s_v") {
+            parametersFile >> stride[0];
+        } else if(command == "-s_h") {
+            parametersFile >> stride[1];
+        } else if(command == "-o") {
             parametersFile >> outputDirectory;
-        } else if(command == "-preSlantTan") {
-            parametersFile >> preSlantTan;
         } else if(command == "-i") {
             parametersFile >> inputFileName;
         } else if(command == "-lenslet13x13") {
             isLenslet13x13 = true;
-        } else if(command == "-extension-repeat") {
-        extensionMethod = REPEAT_LAST;
-        } else if(command == "-extension-cyclic") {
-        extensionMethod = CYCLIC;
-        } else if(command == "-extension-none") {
-        extensionMethod = NONE;
+        } else if(command == "-extension_repeat") {
+            extensionMethod = REPEAT_LAST;
+        } else if(command == "-extension_cyclic") {
+            extensionMethod = CYCLIC;
+        } else if(command == "-extension_none") {
+            extensionMethod = NONE;
         } else if(command == "-t_gain") {
             parametersFile >> transformGain;
-        } 
+        } else if(command == "-bt601") {
+            colorTransformType = BT601;
+        } else if(command == "-ycocg") {
+            colorTransformType = YCOCG;
+        } else if(command == "-VV") {
+            verbosity = true;
+        }
     }
 }
 
@@ -86,7 +95,6 @@ void DecoderParameters :: DisplayConfiguration() {
     cout << "stride = " << stride[0] << " " << stride[1] << endl;
     cout << "outputDirectory = " << outputDirectory << endl;
     cout << "inputFileName = " << inputFileName << endl;
-    cout << "preSlantTan = " << preSlantTan << endl;
     cout << "isLenslet13x13 = " << isLenslet13x13 << endl;
     cout << "extensionMethod = " << extensionMethod << endl;
     cout << "transformGain = " << transformGain << endl;
@@ -113,7 +121,6 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("num-views,v", po::value<vector<int64_t>>()->multitoken(), "view size")
     ("view-offset,b", po::value<vector<int64_t>>()->multitoken(), "first view")
     ("view-stride,s", po::value<vector<int64_t>>()->multitoken(), "view stride")
-    ("pre-slant-tan", po::value<double>(&par.preSlantTan), "pre slant tangent")
     ("output-dir,o", po::value<string>(&par.outputDirectory), "output directory")
     ("input-file,i", po::value<string>(&par.inputFileName), "input file")
     ("lenslet13x13", po::bool_switch()->default_value(false), "lenslet 13x13")
@@ -210,11 +217,14 @@ int main(int argc, char **argv) {
     }
     std::cout<<"DisparityRange: "<<par.disparityRange[0]<<" "<<par.disparityRange[1]<<std::endl;
 
+    int preSlantTan = BigEndianSignedIntegerRead(1, inputFileNamePointer);
+    std::cout<<"Pre-Slant Tangent: "<<preSlantTan<<std::endl;
+
     int PGMScale =BigEndianUnsignedIntegerRead( 2, inputFileNamePointer);
     std::cout<<"PGMScale: "<<PGMScale<<std::endl;
     hdt.StartDecoder(inputFileNamePointer);
     LightField outputLF(lfSize);
-    outputLF.preSlantTan = par.preSlantTan;
+    outputLF.preSlantTan = preSlantTan;
     outputLF.mPGMScale = PGMScale;
     Block4D_ lfBlock, yBlock,cbBlock,crBlock, rBlock, gBlock, bBlock; 
 

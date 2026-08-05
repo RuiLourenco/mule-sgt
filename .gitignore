@@ -20,4 +20,4 @@ __pycache__/
 *.csv
 *.txt
 *.comp
-*_info.json
+*info.json
