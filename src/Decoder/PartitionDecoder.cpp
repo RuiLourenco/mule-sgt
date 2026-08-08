@@ -189,6 +189,9 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
             
             dec_out << "Block Position: " << entropyDecoder.mSubbandLF.lightFieldPosition[0] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[1] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[2] << " " << entropyDecoder.mSubbandLF.lightFieldPosition[3] << "\n";
             dec_out << "Block Size: " << entropyDecoder.mSubbandLF.size[0] << " " << entropyDecoder.mSubbandLF.size[1] << " " << entropyDecoder.mSubbandLF.size[2] << " " << entropyDecoder.mSubbandLF.size[3] << "\n";
+            dec_out << "Length: " << length[0] << " " << length[1] << " " << length[2] << " " << length[3] << "\n";
+            dec_out << "Partition Data Size: " << mPartitionData.data.size(0) << " " << mPartitionData.data.size(1) << " " << mPartitionData.data.size(2) << " " << mPartitionData.data.size(3) << "\n";
+            dec_out << "Transform Gain: " << gain << "\n";
             
             dec_out << "SSI RhoS: " << ssi.getRhoS() << " RhoT: " << ssi.getRhoT() 
                     << " RhoU: " << ssi.getRhoU() << " RhoV: " << ssi.getRhoV() << "\n";

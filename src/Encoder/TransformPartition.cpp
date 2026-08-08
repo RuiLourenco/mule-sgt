@@ -1403,6 +1403,23 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
         currentBlock.ssi.print();
         mEntropyCoder.EncodeSSI_(currentBlock.ssi);
 
+        {
+            std::string channelStr = "";
+            if (mSpectralComponent == 0) channelStr = "Y";
+            else if (mSpectralComponent == 1) channelStr = "Cb";
+            else if (mSpectralComponent == 2) channelStr = "Cr";
+
+            static bool first_time[3] = {true, true, true};
+            std::string out_name = g_outputFileName + "_encoder_matrices_" + channelStr + ".txt";
+            std::ios_base::openmode mode = first_time[mSpectralComponent] ? std::ios::out : std::ios::app;
+            first_time[mSpectralComponent] = false;
+            std::ofstream enc_out(out_name, mode);
+
+            enc_out << "Block Position: " << currentBlock.lightFieldPosition[0] << " " << currentBlock.lightFieldPosition[1] << " " << currentBlock.lightFieldPosition[2] << " " << currentBlock.lightFieldPosition[3] << "\n";
+            enc_out << "Block Size: " << currentBlock.size[0] << " " << currentBlock.size[1] << " " << currentBlock.size[2] << " " << currentBlock.size[3] << "\n";
+            enc_out << "Transform Gain: " << this->totalTransformGain() << "\n";
+            enc_out << "----------------------------------------\n";
+        }
 
         // Set the entropy coder's active subband
         mEntropyCoder.mSubbandLF_ = currentBlock;
@@ -1640,6 +1657,7 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
     } 
     else if (flag == INTRAVIEWSPLITFLAG) {
         // --- SPATIAL SPLIT NODE ---
+        std::cout<<"Intra View Split (Encode)"<<std::endl;
         mEntropyCoder.EncodePartitionFlag(INTRAVIEWSPLITFLAGSYMBOL);
 
         // Recurse in the same order as your RDO (TL, TR, BR, BL)
@@ -1650,6 +1668,7 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
     }
     else if (flag == INTERVIEWSPLITFLAG) {
         // --- VIEW SPLIT NODE ---
+        std::cout<<"Inter View Split (Encode)"<<std::endl;
         mEntropyCoder.EncodePartitionFlag(INTERVIEWSPLITFLAGSYMBOL);
 
         // Recurse in the same order as your RDO (TL, TR, BR, BL)

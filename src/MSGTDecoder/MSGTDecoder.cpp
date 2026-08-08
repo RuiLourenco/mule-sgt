@@ -260,6 +260,8 @@ int main(int argc, char **argv) {
 
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
+                    //if (verticalView != 0 || horizontalView != 0 || viewLine != 336 || viewColumn != 256) continue;
+
                     for(int spectralComponent = 0; spectralComponent < 3; spectralComponent++){
                         if(par.verbosity > 0) cout<<"decoding spectral component "<<spectralComponent<<endl;
                         std::array<int64_t,5> currLfPosition = {verticalView,horizontalView,viewLine,viewColumn,spectralComponent};

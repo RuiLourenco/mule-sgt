@@ -594,7 +594,7 @@ int main(int argc, char **argv) {
                         printf("transforming the 4D block at position (%d %d %d %d)\n", verticalView, horizontalView, viewLine, viewColumn);
                     std::array<int64_t,4> blockPosition = {verticalView,horizontalView,viewLine,viewColumn};
 
-                    //if (verticalView != 0 || horizontalView != 0 || viewLine != 1152 || viewColumn != 0) continue;
+                    //if (verticalView != 0 || horizontalView != 0 || viewLine != 336 || viewColumn != 256) continue;
 
                     Block4D_ rBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,0);
                     Block4D_ gBlock = inputLF.ReadBlock4DfromLightField_(par.maxPartitionSize,blockPosition,1);
