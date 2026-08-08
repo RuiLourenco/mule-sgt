@@ -79,12 +79,17 @@ double TransformPartition::GetExactPartitionFlagCost(int symbol, const Probabili
     double totalBits = 0.0;
     ProbabilityModelCollection isolatedModels = baselineState;
 
-    if (symbol == INTRAVIEWSPLITFLAGSYMBOL) { // symbol == 1
+    if (symbol == INTRAVIEWSPLITFLAGSYMBOL || symbol == INTRAVIEWSPLITFLAG) { // symbol == 1 or 'S'
         // Matches the 1, 0 sequence exactly
         totalBits += isolatedModels[0].Rate(1); isolatedModels[0].UpdateModel(1);
         totalBits += isolatedModels[0].Rate(0);
     }
-    else if (symbol == NOSPLITFLAGSYMBOL) { // symbol == 0
+    else if (symbol == INTERVIEWSPLITFLAGSYMBOL || symbol == INTERVIEWSPLITFLAG) { // symbol == 2 or 'V'
+        // Matches the 1, 1 sequence exactly
+        totalBits += isolatedModels[0].Rate(1); isolatedModels[0].UpdateModel(1);
+        totalBits += isolatedModels[0].Rate(1);
+    }
+    else if (symbol == NOSPLITFLAGSYMBOL || symbol == NOSPLITFLAG) { // symbol == 0 or 'T'
         // Matches the single 0 bit
         totalBits += isolatedModels[0].Rate(0);
     }
@@ -985,7 +990,7 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         J0 = RefineStructureTensorAndRhos(block_0, cui0, currGain, state0);
     }
 
-    // 3. Evaluate SPLIT (JS)
+    // 3. Evaluate SPATIAL SPLIT (JS)
     double JS = -1.0;
     std::string partitionCodeS;
     BlockCollage transformedBlockS;
@@ -995,23 +1000,34 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         // splitInFour will recursively call RDoptimizeTransformStep and mutate mEntropyCoder
         JS = splitInFour(inputBlock, position, length, transformedBlockS, partitionCodeS);
         
-        // Capture the resulting state of the split branch
+        // Capture the resulting state of the spatial split branch
         stateS = mEntropyCoder.GetOptimizerSnapshot();
         
-        // Restore the pristine original state before we make our final decision
+        // Restore the pristine original state before we evaluate view split
+        mEntropyCoder.RestoreOptimizerState(originalState);
+    }
+
+    // 3b. Evaluate VIEW SPLIT (JV)
+    double JV = -1.0;
+    std::string partitionCodeV;
+    BlockCollage transformedBlockV;
+    ProbabilityModelCollection stateV;
+
+    bool is_top_spatial = (length[2] == inputBlock.size[2]) && (length[3] == inputBlock.size[3]);
+    bool allow_view_split = (length[1] >= 2 * mlength_s_min) && (length[0] >= 2 * mlength_t_min) && is_top_spatial;
+
+
+    if (allow_view_split) {
+        JV = splitInFourView(inputBlock, position, length, transformedBlockV, partitionCodeV);
+        
+        // Capture the resulting state of the view split branch
+        stateV = mEntropyCoder.GetOptimizerSnapshot();
+        
+        // Restore the pristine original state before final decision
         mEntropyCoder.RestoreOptimizerState(originalState);
     }
 
     // 4. Add Flag Costs
-    // if (J0 > 0) 
-    //     J0 += GetExactPartitionFlagCost(NOSPLITFLAG, originalState) * mLambda;
-    //     // Add SSI bits using the original state baseline
-    //     double ssiBits = GetExactSSIBitCost(block_0.ssi, originalState);
-    //     J0 += ssiBits * mLambda;
-    
-    // if (JS > 0)
-    //     JS += GetExactPartitionFlagCost(INTRAVIEWSPLITFLAG, originalState) * mLambda;
-    //     4. Add Flag Costs
     double PROHIBITIVE_COST = 1e100 * mLambda;
 
     // Avoid adding flag costs to prohibitive ones
@@ -1024,38 +1040,59 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     if (JS > 0 && JS < PROHIBITIVE_COST) {
         JS += GetExactPartitionFlagCost(INTRAVIEWSPLITFLAG, originalState) * mLambda;
     }
+    if (JV > 0 && JV < PROHIBITIVE_COST) {
+        JV += GetExactPartitionFlagCost(INTERVIEWSPLITFLAG, originalState) * mLambda;
+    }
 
-    
-    // 5. Decide the Winner
-    // FORCE a split if J0 is prohibitive, and a split is actually possible (JS >= 0)
-    bool force_split = (J0 >= PROHIBITIVE_COST) && (JS >= 0);
-    bool intraview_split = force_split || (JS >= 0 && JS < J0);
-    double optimumJ = 0;
+    // 5. Decide the Winner (No Split J0, Spatial Split JS, View Split JV)
+    enum PartitionChoice { CHOICE_NOSPLIT, CHOICE_SPATIAL, CHOICE_VIEW };
+    PartitionChoice winner = CHOICE_NOSPLIT;
+    double minCost = J0;
 
-    if (intraview_split) {
-        optimumJ = JS;
-        
-        // Append flag and the sub-partition codes to the master string
+    if (JS >= 0 && JS < PROHIBITIVE_COST) {
+        if (minCost >= PROHIBITIVE_COST || JS < minCost) {
+            minCost = JS;
+            winner = CHOICE_SPATIAL;
+        }
+    }
+
+    if (JV >= 0 && JV < PROHIBITIVE_COST) {
+        if (minCost >= PROHIBITIVE_COST || JV < minCost) {
+            minCost = JV;
+            winner = CHOICE_VIEW;
+        }
+    }
+
+    // Fallback: If J0 is prohibitive, pick whichever split branch is valid (JS >= 0 or JV >= 0)
+    if (minCost >= PROHIBITIVE_COST) {
+        if (JS >= 0 && (JV < 0 || JS <= JV)) {
+            minCost = JS;
+            winner = CHOICE_SPATIAL;
+        } else if (JV >= 0) {
+            minCost = JV;
+            winner = CHOICE_VIEW;
+        }
+    }
+
+    double optimumJ = minCost;
+
+    if (winner == CHOICE_SPATIAL) {
         partitionCode += (char)INTRAVIEWSPLITFLAG;
-        partitionCode += partitionCodeS; 
-        
-        // Apply the winning Split state to the encoder
+        partitionCode += partitionCodeS;
         CommitOptimizerState(stateS);
-        
         transformedBlock = std::move(transformedBlockS);
+    } else if (winner == CHOICE_VIEW) {
+        partitionCode += (char)INTERVIEWSPLITFLAG;
+        partitionCode += partitionCodeV;
+        CommitOptimizerState(stateV);
+        transformedBlock = std::move(transformedBlockV);
     } else {
-        optimumJ = J0;   
-        
         partitionCode += (char)NOSPLITFLAG;
-        
-        // Apply the winning No-Split state to the encoder
         CommitOptimizerState(state0);
-        
         transformedBlock = BlockCollage(std::move(block_0));
+    }
 
-    }  
-    
-    return optimumJ;     
+    return optimumJ;
 }
 
 void TransformPartition :: EncodePartition_(double lambda){
@@ -1284,6 +1321,57 @@ double TransformPartition::splitInFour(
     outCollage = BlockCollage(std::move(subCollages));
 
     return totalJS;
+}
+
+double TransformPartition::solveViewQuadrant(
+    const Block4D_& inputBlock, 
+    int64_t t_off, 
+    int64_t s_off, 
+    int64_t t, 
+    int64_t s, 
+    const std::array<int64_t, 4>& parentPos, 
+    const std::array<int64_t, 4>& parentLen, 
+    BlockCollage& outCollage, 
+    std::string& outCode) 
+{
+    // Create new coordinates based on parent + offsets in view dimensions 0 and 1
+    std::array<int64_t, 4> sub_pos = parentPos;
+    std::array<int64_t, 4> sub_len = parentLen;
+
+    sub_pos[0] += t_off; sub_pos[1] += s_off;
+    sub_len[0] = t;      sub_len[1] = s;
+
+    return RDoptimizeTransformStep(inputBlock, outCollage, sub_pos, sub_len, outCode);
+}
+
+double TransformPartition::splitInFourView(
+    const Block4D_& inputBlock,
+    const std::array<int64_t, 4>& pos,
+    const std::array<int64_t, 4>& len,
+    BlockCollage& outCollage,
+    std::string& outCode) 
+{
+    double totalJV = 0.0;
+
+    // Calculate split dimensions in view directions (handling odd sizes)
+    int64_t t_top    = len[0] / 2;
+    int64_t t_bottom = len[0] - t_top;
+    int64_t s_left   = len[1] / 2;
+    int64_t s_right  = len[1] - s_left;
+
+    std::array<BlockCollage, 4> subCollages;
+    std::string pc00, pc01, pc10, pc11;
+
+    // Solve each view quadrant (0=TL, 1=TR, 2=BR, 3=BL)
+    totalJV += solveViewQuadrant(inputBlock, 0,     0,      t_top,    s_left,  pos, len, subCollages[0], pc00);
+    totalJV += solveViewQuadrant(inputBlock, 0,     s_left, t_top,    s_right, pos, len, subCollages[1], pc01);
+    totalJV += solveViewQuadrant(inputBlock, t_top, 0,      t_bottom, s_left,  pos, len, subCollages[3], pc10);
+    totalJV += solveViewQuadrant(inputBlock, t_top, s_left, t_bottom, s_right, pos, len, subCollages[2], pc11);
+
+    outCode = pc00 + pc01 + pc11 + pc10;
+    outCollage = BlockCollage(std::move(subCollages));
+
+    return totalJV;
 }
 
 
@@ -1551,8 +1639,18 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
         }
     } 
     else if (flag == INTRAVIEWSPLITFLAG) {
-        // --- SPLIT NODE ---
+        // --- SPATIAL SPLIT NODE ---
         mEntropyCoder.EncodePartitionFlag(INTRAVIEWSPLITFLAGSYMBOL);
+
+        // Recurse in the same order as your RDO (TL, TR, BR, BL)
+        EncodeStep_Recursive(collage, code, codeIdx, blockIdx); // TL
+        EncodeStep_Recursive(collage, code, codeIdx, blockIdx); // TR
+        EncodeStep_Recursive(collage, code, codeIdx, blockIdx); // BR
+        EncodeStep_Recursive(collage, code, codeIdx, blockIdx); // BL
+    }
+    else if (flag == INTERVIEWSPLITFLAG) {
+        // --- VIEW SPLIT NODE ---
+        mEntropyCoder.EncodePartitionFlag(INTERVIEWSPLITFLAGSYMBOL);
 
         // Recurse in the same order as your RDO (TL, TR, BR, BL)
         EncodeStep_Recursive(collage, code, codeIdx, blockIdx); // TL

@@ -63,6 +63,7 @@ public:
     double mRefineGridSearchRange;
     double mRefineGridSearchStep;
 
+
     
 
 
@@ -107,6 +108,8 @@ public:
     double GetExactPartitionFlagCost(int symbol, const ProbabilityModelCollection& baselineState);
     double solveQuadrant(const Block4D_& inputBlock, int64_t y_off, int64_t x_off, int64_t h, int64_t w, const std::array<int64_t, 4>& parentPos, const std::array<int64_t, 4>& parentLen, BlockCollage& outCollage, std::string& outCode);
     double splitInFour(const Block4D_& inputBlock, const std::array<int64_t, 4>& pos, const std::array<int64_t, 4>& len, BlockCollage& outCollage, std::string& outCode);
+    double solveViewQuadrant(const Block4D_& inputBlock, int64_t t_off, int64_t s_off, int64_t t, int64_t s, const std::array<int64_t, 4>& parentPos, const std::array<int64_t, 4>& parentLen, BlockCollage& outCollage, std::string& outCode);
+    double splitInFourView(const Block4D_& inputBlock, const std::array<int64_t, 4>& pos, const std::array<int64_t, 4>& len, BlockCollage& outCollage, std::string& outCode);
     void CommitOptimizerState(const ProbabilityModelCollection& winningState);
     void EncodePartition_( double lambda);
     void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);

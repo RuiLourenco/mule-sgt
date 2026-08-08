@@ -618,7 +618,7 @@ std::ostream &operator<<(std::ostream &os, std::array<int64_t,4> vec) {
 }
 std::array<int64_t,4> Block4D_::toSGTCoords(std::array<int64_t,4> coords) const{
 #if FLAT_TRANSFORM == 1
-    std::array<int64_t,4> sgtCoords = {coords[0]/size[0],coords[0]/size[0],size[0]*coords[2],size[1]*coords[3]}; //DOES NOT WORK FOR VIEW SPLITTING
+    std::array<int64_t,4> sgtCoords = {1, 1, coords[0]*coords[2], coords[1]*coords[3]};
 #else
     std::array<int64_t,4> sgtCoords = coords;
 #endif

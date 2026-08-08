@@ -21,21 +21,28 @@ void BlockCollage::logBlockSizes() const {
 
 void BlockCollage::verifyBlockSize(const std::array<BlockCollage,4>& inputCollages) const{
     int x1 = 2; int x2 = 3;
-    assert(inputCollages[0].size[x1]+inputCollages[3].size[x1] == inputCollages[1].size[x1]+inputCollages[2].size[x1] && "heights don't match" );
-    assert(inputCollages[0].size[x2]+inputCollages[1].size[x2] == inputCollages[3].size[x2]+inputCollages[2].size[x2] && "widths don't match");
+    if (inputCollages[0].size[2] == inputCollages[3].size[2] && inputCollages[0].size[3] == inputCollages[1].size[3] &&
+        (inputCollages[0].size[0] != inputCollages[3].size[0] || inputCollages[0].size[1] != inputCollages[1].size[1])) {
+        x1 = 0; x2 = 1;
+    }
+    assert(inputCollages[0].size[x1]+inputCollages[3].size[x1] == inputCollages[1].size[x1]+inputCollages[2].size[x1] && "dimension x1 doesn't match" );
+    assert(inputCollages[0].size[x2]+inputCollages[1].size[x2] == inputCollages[3].size[x2]+inputCollages[2].size[x2] && "dimension x2 doesn't match");
 }
 
 void BlockCollage::getSizeFromBlocks(const std::array<BlockCollage, 4>& inputCollages) {
     verifyBlockSize(inputCollages);
     
-    // x1 = Height (2), x2 = Width (3)
     int x1 = 2; 
     int x2 = 3;
+    if (inputCollages[0].size[2] == inputCollages[3].size[2] && inputCollages[0].size[3] == inputCollages[1].size[3] &&
+        (inputCollages[0].size[0] != inputCollages[3].size[0] || inputCollages[0].size[1] != inputCollages[1].size[1])) {
+        x1 = 0; x2 = 1;
+    }
 
     // Start with the base size from the top-left collage
     this->size = inputCollages[0].size;
     
-    // Add height from the block below (Index 2 is Bottom-Left)
+    // Add height/depth from the block below (Index 3 is Bottom-Left)
     this->size[x1] += inputCollages[3].size[x1];
     
     // Add width from the block to the right (Index 1 is Top-Right)

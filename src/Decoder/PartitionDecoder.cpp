@@ -110,8 +110,8 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
 }
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
     int flagCode = entropyDecoder.DecodePartitionFlag();
-    if(flagCode != NOSPLITFLAGSYMBOL && flagCode != INTRAVIEWSPLITFLAGSYMBOL) {std::cout<<"why? "<<flagCode<<std::endl;exit(-55);return;}
-    
+    if(flagCode != NOSPLITFLAGSYMBOL && flagCode != INTRAVIEWSPLITFLAGSYMBOL && flagCode != INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"why? "<<flagCode<<std::endl;exit(-55);return;}
+
     //std::cout << "Entered Step with size: ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
     //std::cout<<"Decoding Partition Flag"<<std::endl;
     //std::cout<<"Partition Flag Decoded: "<<flagCode<<std::endl;
@@ -271,5 +271,42 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
         return;
     }
     
-    
+    if(flagCode == INTERVIEWSPLITFLAGSYMBOL) {
+        std::cout<<"Inter View Split"<<std::endl;
+        
+        std::array<int64_t,4> new_position, new_length;
+        
+        new_position[0] = position[0];
+        new_position[1] = position[1];
+        new_position[2] = position[2];
+        new_position[3] = position[3];
+        
+        new_length[0] = length[0]/2;
+        new_length[1] = length[1]/2;
+        new_length[2] = length[2];
+        new_length[3] = length[3];
+        
+        // Decode four view subblocks (TL, TR, BR, BL)
+        DecodePartitionStep(new_position, new_length, entropyDecoder, disparityRange);
+        std::cout<<"Decoded First Inter View Split Partition"<<std::endl;
+
+        new_position[1] = position[1] + length[1]/2;
+        new_length[1] = length[1] - length[1]/2;
+        
+        DecodePartitionStep(new_position, new_length, entropyDecoder, disparityRange);
+        std::cout<<"Decoded Second Inter View Split Partition"<<std::endl;
+
+        new_position[0] = position[0] + length[0]/2;
+        new_length[0] = length[0] - length[0]/2;
+        
+        DecodePartitionStep(new_position, new_length, entropyDecoder, disparityRange);
+        std::cout<<"Decoded Third Inter View Split Partition"<<std::endl;
+
+        new_position[1] = position[1];
+        new_length[1] = length[1]/2;
+        
+        DecodePartitionStep(new_position, new_length, entropyDecoder, disparityRange);
+        std::cout<<"Decoded Last Inter View Split Partition"<<std::endl;
+        return;
+    }
 }

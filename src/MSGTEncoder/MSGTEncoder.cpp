@@ -64,6 +64,7 @@ public:
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
 
+
     void setMethod(SearchMethodType method) {
         if (searchMethodSet) {
             std::cerr << "Error: Multiple search methods specified in configuration file!" << std::endl;
@@ -253,6 +254,7 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-VV")){
             verbosity = true;
         }               
+
     }
 }
 
@@ -279,6 +281,7 @@ void EncoderParameters :: DisplayConfiguration(void) {
     cout<<"Extension Method = "<<extensionMethod<<endl;
     cout<<"Color Transform Type = "<<colorTransformType<<endl;
     cout<<"Verbosity = "<<verbosity<<endl;
+
 }
    
 
@@ -322,6 +325,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("bt601", po::bool_switch()->default_value(false),  "Sets Color Transform to YCbCr BT601")
         ("ycocg", po::bool_switch()->default_value(false),  "Sets Color Transform to YCOCG")
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
+
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
 
@@ -375,6 +379,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         std::copy(data.begin(), data.end(), par.firstView.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+
     
     // Process search methods
     std::vector<std::string> searchMethodFlags = {
@@ -567,6 +572,7 @@ int main(int argc, char **argv) {
                           par.logdetAngleStep, par.gridSearchAngleStep, par.refineStructureTensorRange,
                           par.refineStructureTensorStep, par.refineGridSearchInitialStep,
                           par.refineGridSearchRange, par.refineGridSearchStep);
+
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
 
     std::array<double,3> error = {0,0,0};
