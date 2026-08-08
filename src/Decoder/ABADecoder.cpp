@@ -1,10 +1,12 @@
 #include "Decoder/ABADecoder.h"
+#include <iostream>
 /*********************************************************************************************/
 /*                                    class ABADecoder methods                               */
 /*********************************************************************************************/
 ABADecoder :: ABADecoder(void) {
     mNumberOfBitsInBuffer = 0;
     mInputFilePointer = NULL;
+    mCumulativeEOFReads = 0;
 }
 ABADecoder :: ~ABADecoder(void) {
   
@@ -12,9 +14,10 @@ ABADecoder :: ~ABADecoder(void) {
 void ABADecoder :: InitDecoder(FILE *ifp) {
 
     mInputFilePointer = ifp;
-  
+
     mNumberOfBitsInBuffer = 0;
-  
+    mCumulativeEOFReads = 0;
+
     mLow = 0;
     mHigh = MAXINT;
     
@@ -101,8 +104,23 @@ int ABADecoder :: ReadBitFromFile(void) {
     int bit;
     mNumberOfbitsreadAfterlastBitDecoded++;
     
-    if (mNumberOfBitsInBuffer == 0) {  
-        mBitBuffer = fgetc(mInputFilePointer);
+    if (mNumberOfBitsInBuffer == 0) {
+        int byteRead = fgetc(mInputFilePointer);
+        if (byteRead == EOF) {
+            mCumulativeEOFReads += 8;
+            if (mCumulativeEOFReads > MAX_TOLERATED_EOF_READS) {
+                std::cout << "Error: ABADecoder::ReadBitFromFile read too far past end of file "
+                          << "(likely a truncated/incomplete bitstream or a decode desync). "
+                          << "Bits read past EOF so far: " << mCumulativeEOFReads
+                          << ", bits read after last decoded symbol: " << mNumberOfbitsreadAfterlastBitDecoded << std::endl;
+                exit(-58);
+            }
+            // A well-formed, complete bitstream is not padded, so decoding its final few
+            // symbols legitimately reads a little past the real end (renormalization
+            // look-ahead). Pad with neutral zero bits rather than fabricating garbage.
+            byteRead = 0;
+        }
+        mBitBuffer = byteRead;
         //mLastByte = mBitBuffer;
         mNumberOfBitsInBuffer = 8;
     }

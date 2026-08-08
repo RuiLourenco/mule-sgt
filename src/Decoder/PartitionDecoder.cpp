@@ -111,6 +111,11 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
     int flagCode = entropyDecoder.DecodePartitionFlag();
     if(flagCode != NOSPLITFLAGSYMBOL && flagCode != INTRAVIEWSPLITFLAGSYMBOL && flagCode != INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"why? "<<flagCode<<std::endl;exit(-55);return;}
+    if(length[0] <= 0 || length[1] <= 0 || length[2] <= 0 || length[3] <= 0) {
+        std::cout<<"Error: decode desynced at position ("<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]
+                 <<"), invalid length ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
+        exit(-59);
+    }
 
     //std::cout << "Entered Step with size: ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
     //std::cout<<"Decoding Partition Flag"<<std::endl;
