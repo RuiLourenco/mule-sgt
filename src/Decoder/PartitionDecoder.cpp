@@ -104,7 +104,7 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
     for(int i = 0; i < 4; i++){
         transformGain*=length[i]/sqrt(length[i]);
 
-        transformGain  *= sqrt(mPartitionData.data.size(i)/length[i]);
+        transformGain  *= sqrt((double)mPartitionData.data.size(i)/(double)length[i]);
     }
     return transformGain*mGain;
 }
