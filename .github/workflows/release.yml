@@ -4,6 +4,12 @@ name: Build and Release
 # Release whenever a tag matching v* is pushed (e.g. v1.0.0). Can also be run
 # manually against the current branch for a build-only smoke test (no tag,
 # so no release is published in that case).
+#
+# Runs on a self-hosted runner, not a GitHub-hosted one: this project's native
+# dependencies (LibTorch, OpenCV, LAPACK, OSQP, Boost) are expected to already
+# be set up on the runner exactly as documented in README.md's "How to build"
+# section (this is what CMakePresets.json / CMakeUserPresets.json target) —
+# this workflow does not attempt to install or reconstruct that environment.
 on:
   push:
     tags:
@@ -15,60 +21,23 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # OpenCV's CMake config directory is hardcoded in
-      # src/MSGTEncoder/CMakeLists.txt to the standard Debian/Ubuntu
-      # libopencv-dev install location, so it must come from apt rather
-      # than conda-forge. LAPACK is pulled in from apt too for simplicity.
-      - name: Install system dependencies (OpenCV, LAPACK)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libopencv-dev liblapack-dev
-
-      # Everything else (a matching C++20 toolchain, LibTorch, Boost, OSQP,
-      # CMake, Ninja) comes from one conda-forge environment, mirroring the
-      # dependency set documented in README.md.
-      - name: Set up build toolchain (conda-forge via micromamba)
-        uses: mamba-org/setup-micromamba@v1
-        with:
-          environment-name: build-env
-          create-args: >-
-            python=3.10
-            pytorch-cpu
-            boost-cpp
-            libboost-devel
-            osqp
-            libosqp
-            cxx-compiler
-            gxx_linux-64
-            gcc_linux-64
-            cmake
-            ninja
-
       - name: Configure
-        shell: bash -el {0}
-        run: |
-          TORCH_CMAKE_PREFIX="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${TORCH_CMAKE_PREFIX};${CONDA_PREFIX}" \
-            -DCMAKE_C_COMPILER="${CC}" \
-            -DCMAKE_CXX_COMPILER="${CXX}"
+        run: cmake --preset default-profile
 
       - name: Build MSGTEncoder and MSGTDecoder
-        shell: bash -el {0}
-        run: cmake --build build --target MSGTEncoder --target MSGTDecoder --parallel "$(nproc)"
+        run: cmake --build --preset default-profile-build --target MSGTEncoder --target MSGTDecoder
 
       - name: Package release archive
         run: |
           version="${GITHUB_REF_NAME:-dev}"
           stage="dist/mule-sgt-${version}-linux-x86_64"
           mkdir -p "$stage"
-          cp build/bin/MSGTEncoder build/bin/MSGTDecoder "$stage"/
+          cp build/new/bin/MSGTEncoder build/new/bin/MSGTDecoder "$stage"/
           cp README.md "$stage"/
           tar -C dist -czf "mule-sgt-${version}-linux-x86_64.tar.gz" "mule-sgt-${version}-linux-x86_64"
           sha256sum "mule-sgt-${version}-linux-x86_64.tar.gz" > "mule-sgt-${version}-linux-x86_64.tar.gz.sha256"
@@ -83,11 +52,9 @@ jobs:
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            mule-sgt-*-linux-x86_64.tar.gz \
-            mule-sgt-*-linux-x86_64.tar.gz.sha256 \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mule-sgt-*-linux-x86_64.tar.gz
+            mule-sgt-*-linux-x86_64.tar.gz.sha256
+          generate_release_notes: true
