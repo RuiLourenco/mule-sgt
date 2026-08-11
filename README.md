@@ -12,6 +12,7 @@ Two command-line tools are built: **`MSGTEncoder`** (light field → compressed
 
 ## Table of contents
 
+- [Running a release](#running-a-release)
 - [How to build](#how-to-build)
   - [Dependencies](#dependencies)
   - [Build steps](#build-steps)
@@ -28,6 +29,46 @@ Two command-line tools are built: **`MSGTEncoder`** (light field → compressed
 - [Example config files](#example-config-files)
 - [Repository layout](#repository-layout)
 - [Releases / CI](#releases--ci)
+
+## Running a release
+
+If you just want to run `MSGTEncoder`/`MSGTDecoder` without building from source,
+download a release tarball from the
+[Releases page](https://github.com/RuiLourenco/mule-sgt/releases) and extract it:
+
+```bash
+tar xzf mule-sgt-v1.0.0-linux-x86_64.tar.gz
+cd mule-sgt-v1.0.0-linux-x86_64
+./bin/MSGTEncoder --help
+./bin/MSGTDecoder --help
+```
+
+The archive looks like this:
+
+```
+mule-sgt-<version>-linux-x86_64/
+├── bin/
+│   ├── MSGTEncoder
+│   └── MSGTDecoder
+├── lib/           # every shared library the two binaries need
+└── README.md
+```
+
+**`bin/` and `lib/` must stay siblings of each other, exactly as extracted.** The
+binaries locate their shared libraries via a path relative to themselves
+(`$ORIGIN/../lib`, not `LD_LIBRARY_PATH` or an installed conda environment) — so
+this is not a "copy `MSGTEncoder` wherever you like" binary. Moving just the
+executable out of `bin/` (e.g. into some other directory, or onto `$PATH`) without
+its neighboring `lib/` will fail with an `error while loading shared libraries`.
+If you want a shorter invocation, symlink into the extracted `bin/` directory, or
+add that `bin/` directory itself to `$PATH` — don't copy the executable out on its
+own. Renaming the top-level `mule-sgt-<version>-linux-x86_64/` folder is fine; moving
+or renaming `bin/`/`lib/` relative to each other is not.
+
+Once extracted, see [Encoding: `MSGTEncoder`](#encoding-msgtencoder) and
+[Decoding: `MSGTDecoder`](#decoding-msgtdecoder) below for actual usage — this
+section is only about getting the tools to run at all. See
+[Releases / CI](#releases--ci) for how these archives are built.
 
 ## How to build
 
@@ -346,31 +387,16 @@ tests/                GoogleTest unit tests (fetched automatically)
 Pushing a tag matching `v*` (e.g. `v1.0.0`) triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
 `MSGTEncoder`/`MSGTDecoder` in Release mode and publishes them as a GitHub Release
-attached to that tag.
+attached to that tag. See [Running a release](#running-a-release) for the resulting
+archive's layout and how to use it.
 
-The release archive is a portable, extract-and-run bundle, produced by
-[`scripts/package_release.sh`](scripts/package_release.sh):
-
-```
-mule-sgt-<version>-linux-x86_64/
-├── bin/
-│   ├── MSGTEncoder
-│   └── MSGTDecoder
-├── lib/           # every shared library the two binaries need, resolved via ldd
-│                   # (plus Intel MKL's runtime-dispatched CPU backends, which
-│                   # ldd can't see, since they're dlopen()'d rather than linked)
-└── README.md
-```
-
-The two binaries have their `RPATH` rewritten (via `patchelf`) to `$ORIGIN/../lib`,
-so run them directly from wherever the archive is extracted — no `LD_LIBRARY_PATH`,
-conda environment, or install step needed:
-
-```bash
-tar xzf mule-sgt-v1.0.0-linux-x86_64.tar.gz
-cd mule-sgt-v1.0.0-linux-x86_64
-./bin/MSGTEncoder --help
-```
+The archive is produced by [`scripts/package_release.sh`](scripts/package_release.sh):
+it collects every shared library the two binaries resolve via `ldd`, plus Intel
+MKL's runtime-dispatched CPU backends (`libmkl_avx512.so.2` etc.), which `ldd` can't
+see since MKL `dlopen()`s the right one for the target CPU rather than linking it
+directly, into a `lib/` folder next to the binaries, then rewrites their `RPATH` to
+`$ORIGIN/../lib` via `patchelf` so the result runs standalone — no `LD_LIBRARY_PATH`,
+conda environment, or install step needed on the machine that runs it.
 
 This still assumes a Linux x86-64 target with a glibc version at least as new as the
 build machine's (the standard native-binary portability floor — glibc itself is
