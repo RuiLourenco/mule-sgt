@@ -347,3 +347,32 @@ Pushing a tag matching `v*` (e.g. `v1.0.0`) triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
 `MSGTEncoder`/`MSGTDecoder` in Release mode and publishes them as a GitHub Release
 attached to that tag.
+
+The release archive is a portable, extract-and-run bundle, produced by
+[`scripts/package_release.sh`](scripts/package_release.sh):
+
+```
+mule-sgt-<version>-linux-x86_64/
+├── bin/
+│   ├── MSGTEncoder
+│   └── MSGTDecoder
+├── lib/           # every shared library the two binaries need, resolved via ldd
+│                   # (plus Intel MKL's runtime-dispatched CPU backends, which
+│                   # ldd can't see, since they're dlopen()'d rather than linked)
+└── README.md
+```
+
+The two binaries have their `RPATH` rewritten (via `patchelf`) to `$ORIGIN/../lib`,
+so run them directly from wherever the archive is extracted — no `LD_LIBRARY_PATH`,
+conda environment, or install step needed:
+
+```bash
+tar xzf mule-sgt-v1.0.0-linux-x86_64.tar.gz
+cd mule-sgt-v1.0.0-linux-x86_64
+./bin/MSGTEncoder --help
+```
+
+This still assumes a Linux x86-64 target with a glibc version at least as new as the
+build machine's (the standard native-binary portability floor — glibc itself is
+deliberately *not* bundled, since doing so is fragile and can break more than it
+fixes).

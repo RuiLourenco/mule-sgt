@@ -6,10 +6,14 @@ name: Build and Release
 # so no release is published in that case).
 #
 # Runs on a self-hosted runner, not a GitHub-hosted one: this project's native
-# dependencies (LibTorch, OpenCV, LAPACK, OSQP, Boost) are expected to already
-# be set up on the runner exactly as documented in README.md's "How to build"
-# section (this is what CMakePresets.json / CMakeUserPresets.json target) —
-# this workflow does not attempt to install or reconstruct that environment.
+# dependencies (LibTorch, LAPACK, OSQP, Boost) are expected to already be set
+# up on the runner exactly as documented in README.md's "How to build" section
+# (this is what CMakePresets.json / CMakeUserPresets.json target) — this
+# workflow does not attempt to install or reconstruct that environment. It
+# does additionally require `patchelf` on PATH (e.g. `conda install -c
+# conda-forge patchelf`), used by scripts/package_release.sh to produce a
+# portable, extract-and-run archive — see that script and the "Releases / CI"
+# section of README.md for what the resulting archive layout looks like.
 on:
   push:
     tags:
@@ -35,12 +39,10 @@ jobs:
       - name: Package release archive
         run: |
           version="${GITHUB_REF_NAME:-dev}"
-          stage="dist/mule-sgt-${version}-linux-x86_64"
-          mkdir -p "$stage"
-          cp build/new/bin/MSGTEncoder build/new/bin/MSGTDecoder "$stage"/
-          cp README.md "$stage"/
-          tar -C dist -czf "mule-sgt-${version}-linux-x86_64.tar.gz" "mule-sgt-${version}-linux-x86_64"
-          sha256sum "mule-sgt-${version}-linux-x86_64.tar.gz" > "mule-sgt-${version}-linux-x86_64.tar.gz.sha256"
+          name="mule-sgt-${version}-linux-x86_64"
+          scripts/package_release.sh build/new/bin "dist/${name}"
+          tar -C dist -czf "${name}.tar.gz" "${name}"
+          sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
