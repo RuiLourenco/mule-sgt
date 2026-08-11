@@ -3,7 +3,7 @@
 #include <boost/range/algorithm.hpp>
 #include <boost/range/algorithm_ext.hpp>
 #include <boost/range/numeric.hpp>
-#include <opencv2/opencv.hpp>
+// #include <opencv2/opencv.hpp> // OpenCV removed: was only used by the debug-image helpers below (torchToCv/write_image/write_tensor)
 #include "osqp.h"
 
 
@@ -89,6 +89,8 @@ void saveTensorAsMatlabScript(at::Tensor tensor,std::string name){
 #endif
 }
 
+// OpenCV removed: torchToCv/write_image were only used to render debug PNGs from write_tensor below.
+/*
 cv::Mat torchToCv(const torch::Tensor& tensor) {
     // Get tensor shape
     auto sizes = tensor.sizes();
@@ -108,13 +110,13 @@ cv::Mat torchToCv(const torch::Tensor& tensor) {
     return image;
 }
 
-void write_image(const cv::Mat& image,std::string path,std::array<double,2> valueRange = {1,1}, bool useColorMap = true){ 
+void write_image(const cv::Mat& image,std::string path,std::array<double,2> valueRange = {1,1}, bool useColorMap = true){
     cv::Mat display_image;
-    double min_val; 
-    double max_val; 
-    cv::Point min_loc; 
+    double min_val;
+    double max_val;
+    cv::Point min_loc;
     cv::Point max_loc;
-    if(valueRange[0] == valueRange[1]){ 
+    if(valueRange[0] == valueRange[1]){
         minMaxLoc( image, &min_val, &max_val, &min_loc, &max_loc );
     }
     else{
@@ -137,11 +139,9 @@ void write_image(const cv::Mat& image,std::string path,std::array<double,2> valu
         cv::imwrite(path, display_image);
     }
 }
+*/
 void write_tensor(torch::Tensor tensor, std::string path, std::array<double,2> valueRange, bool useColorMap){
-#if DEBUG == 1
-  cv::Mat mat = torchToCv(tensor);
-  write_image(mat,path,valueRange,useColorMap);
-#endif
+    // OpenCV removed: this was a debug-image dump (see torchToCv/write_image above), now a no-op.
 }
 
 

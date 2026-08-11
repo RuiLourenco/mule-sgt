@@ -42,7 +42,6 @@ The build is C++20 and uses CMake with the Ninja generator. It links against:
 | A C++20 compiler | | Tested with GCC 10.4 (conda-forge `gxx_linux-64`). |
 | [LibTorch](https://pytorch.org/) (PyTorch's C++ library) | tensor storage/ops throughout `LightField`, `Encoder`, `Decoder` | Found via `find_package(Torch REQUIRED)`; the CMake `CMAKE_PREFIX_PATH` must point at the `torch/share/cmake` directory of a PyTorch install (CPU build is sufficient — nothing here uses CUDA). The easiest way to get this is `pip install torch` or `conda install pytorch-cpu`. |
 | LAPACK | linear algebra (`find_package(LAPACK REQUIRED)`) | e.g. `liblapack-dev` on Debian/Ubuntu, or conda-forge `lapack`. |
-| [OpenCV](https://opencv.org/) 4.x | image I/O in `LightField`/`MSGTEncoder` | **Its CMake config directory is hardcoded** — see [caveats](#known-machine-specific-caveats) below. |
 | [OSQP](https://osqp.org/) | quadratic-programming solver used by `LightField` | No apt package on Debian/Ubuntu; use conda-forge (`osqp`/`libosqp`) or build from source. |
 | Boost | `program_options` (CLI parsing), `iostreams`, `filesystem`, header-only components | conda-forge's `boost-cpp`/`libboost-devel`, or `libboost-program-options-dev libboost-iostreams-dev libboost-filesystem-dev` on Debian/Ubuntu. |
 | OpenMP | parallel RD-cost search in `Encoder` | Usually ships with the compiler (`libgomp`). |
@@ -50,17 +49,19 @@ The build is C++20 and uses CMake with the Ninja generator. It links against:
 | [GoogleTest](https://github.com/google/googletest) | unit tests under `tests/` | Fetched automatically by CMake `FetchContent` — no manual install needed. |
 
 This exact set of C++ dependencies (LibTorch, LAPACK, OSQP, Boost, plus a matching
-GCC 10 toolchain) is readily available as a single conda-forge environment; OpenCV is
-installed separately via the system package manager because of the hardcoded path
-below. A known-working recipe:
+GCC 10 toolchain) is readily available as a single conda-forge environment. A
+known-working recipe:
 
 ```bash
 conda create -n mule-sgt -c conda-forge \
     python=3.10 pytorch-cpu lapack osqp libboost-devel boost-cpp \
     cxx-compiler gxx_linux-64 gcc_linux-64 cmake ninja
 conda activate mule-sgt
-sudo apt-get install -y libopencv-dev   # Debian/Ubuntu; see caveat below
 ```
+
+(OpenCV was previously a dependency, used only to write optional debug PNGs from
+`Block4D_::write_tensor`; it has been removed — that function is now a no-op, and
+none of the executables link OpenCV any more.)
 
 ### Build steps
 
@@ -93,15 +94,9 @@ repo root (see `CMakeLists.txt`) — this only happens once per build directory.
 
 ### Known machine-specific caveats
 
-- **`src/MSGTEncoder/CMakeLists.txt` hardcodes
-  `set(OpenCV_DIR /usr/lib/x86_64-linux-gnu/cmake/opencv4/)`** — the standard install
-  location for `apt install libopencv-dev` on Debian/Ubuntu x86_64. This line
-  overrides anything else on `CMAKE_PREFIX_PATH`, so if your OpenCV lives elsewhere
-  (a different distro, a conda-installed OpenCV, macOS, etc.) you must edit that line
-  to point at your `OpenCVConfig.cmake` directory.
 - Presets aside, nothing in the build depends on a specific filesystem layout beyond
-  the two points above — dependency discovery otherwise goes through normal CMake
-  `find_package` calls.
+  the compiler-path point above — dependency discovery otherwise goes through normal
+  CMake `find_package` calls.
 
 ## Quick start
 
