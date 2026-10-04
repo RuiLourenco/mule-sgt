@@ -10,6 +10,7 @@
 #include <fstream>
 #include <array>
 #include <algorithm>
+#include <filesystem>
 
 
 using namespace std;
@@ -39,6 +40,7 @@ public:
     ColorTransformType colorTransformType = BT601; 
     double transformGain;
     bool verbosity;
+    PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Winner;
     void ReadConfigurationFile(string parametersFileName);
     void DisplayConfiguration();
 };
@@ -84,6 +86,10 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
             colorTransformType = YCOCG;
         } else if(command == "-VV") {
             verbosity = true;
+        } else if(command == "-partition_info" || command == "-partition-info") {
+            std::string level;
+            parametersFile >> level;
+            partitionInfoLevel = partitionInfoLevelFromString(level);
         }
     }
 }
@@ -130,6 +136,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("bt601", po::bool_switch()->default_value(false), "bt601")
     ("ycocg", po::bool_switch()->default_value(false), "ycocg")
     ("t_gain", po::value<double>(&par.transformGain), "transform gain")
+    ("partition-info", po::value<string>(), "partition info recording: winner (default) or off; full is treated as winner")
     ("verbosity,V", po::bool_switch()->default_value(false), "verbosity");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv,desc),vm);
@@ -169,6 +176,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
         std::copy(data.begin(), data.end(), par.stride.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<string>());
     return 0;
 }
 
@@ -240,6 +248,11 @@ int main(int argc, char **argv) {
         extensionLength[n] = lfSize[n] % maxPartitionSize[n];
     }
     PartitionDecoder pd(par.transformGain);
+    pd.mInfoLevel = par.partitionInfoLevel;
+    hdt.mEntropyDecoder.mTrackInformation = (par.partitionInfoLevel != PartitionInfoLevel::Off);
+    PartitionInfoFile partitionInfo;
+    partitionInfo.producer = "decoder";
+    partitionInfo.level = (par.partitionInfoLevel == PartitionInfoLevel::Off) ? PartitionInfoLevel::Off : PartitionInfoLevel::Winner;
 
     at::Tensor lfEntropy = at::zeros(lfSize,at::kDouble);
     
@@ -273,6 +286,7 @@ int main(int argc, char **argv) {
                         hdt.RestartProbabilisticModel();
                         pd.mSpectralComponent = spectralComponent;
                         pd.DecodePartition(hdt,par.disparityRange);
+                        if(par.partitionInfoLevel != PartitionInfoLevel::Off) partitionInfo.partitions.push_back(pd.mPartitionInfo);
                                       
                 
         
@@ -392,6 +406,19 @@ int main(int argc, char **argv) {
     }
     outputLF.OpenLightFieldPPM_(par.outputDirectory, "", 'w', par.firstView, par.stride);
     fclose(inputFileNamePointer);
+
+    if(par.partitionInfoLevel != PartitionInfoLevel::Off){
+        partitionInfo.metadata = {
+            {"inputFile", par.inputFileName},
+            {"transformGain", par.transformGain},
+            {"disparityRange", par.disparityRange},
+            {"maxPartitionSize", maxPartitionSize},
+            {"lightFieldSize", lfSize},
+        };
+        std::string infoPath = (std::filesystem::path(par.outputDirectory) / "decoded_info.json").string();
+        partitionInfo.save(infoPath);
+        std::cout << "Partition info written to: " << infoPath << std::endl;
+    }
 }
 
 void ExtendBlock4D(Block4D_ &extendedBlock, ExtensionType extensionMethod, int extensionLength, char direction) {

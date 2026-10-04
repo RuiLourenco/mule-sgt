@@ -88,13 +88,16 @@ void PartitionDecoder :: DecodePartition(Hierarchical4DDecoder &entropyDecoder,s
     length[3] = mPartitionData.data.size(3);
     entropyDecoder.mSkipMatrix = at::zeros({1,1,length[0]*length[2],length[1]*length[3]});
 
-    //std::cout<<"Moofoofoo"<<std::endl;
-
+    const double bitsBefore = entropyDecoder.mEntropyDecoder.mInformationBits;
+    mPartitionInfo = CodingPartitionInfo(mPartitionData.lightFieldPosition, mPartitionData.size, mSpectralComponent);
     
     entropyDecoder.mInferiorBitPlane = entropyDecoder.DecodeInteger(MINIMUM_BITPLANE_PRECISION);
     std::cout<<"Minimum Bit Plane: "<<entropyDecoder.mInferiorBitPlane<<std::endl;
 
     DecodePartitionStep(position, length, entropyDecoder,disparityRange);
+    if (mInfoLevel != PartitionInfoLevel::Off) {
+        mPartitionInfo.setTotalBits(entropyDecoder.mEntropyDecoder.mInformationBits - bitsBefore);
+    }
     std::cout<<"Skipped "<<entropyDecoder.mSkipCount<<" blocks"<<std::endl;
     std::cout<<"finished partition decoding"<<std::endl;
 }
@@ -109,12 +112,17 @@ double PartitionDecoder :: transformGain(std::array<int64_t,4> length){
     return transformGain*mGain;
 }
 void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std::array<int64_t,4>length, Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange) {
+    const double bitsBefore = entropyDecoder.mEntropyDecoder.mInformationBits;
     int flagCode = entropyDecoder.DecodePartitionFlag();
     if(flagCode != NOSPLITFLAGSYMBOL && flagCode != INTRAVIEWSPLITFLAGSYMBOL && flagCode != INTERVIEWSPLITFLAGSYMBOL) {std::cout<<"why? "<<flagCode<<std::endl;exit(-55);return;}
     if(length[0] <= 0 || length[1] <= 0 || length[2] <= 0 || length[3] <= 0) {
         std::cout<<"Error: decode desynced at position ("<<position[0]<<" "<<position[1]<<" "<<position[2]<<" "<<position[3]
                  <<"), invalid length ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
         exit(-59);
+    }
+    if (mInfoLevel != PartitionInfoLevel::Off) {
+        constexpr char FLAGS[3] = {'T', 'S', 'V'}; // same letters as the encoder's partition code
+        mPartitionInfo.appendSplitFlag(FLAGS[flagCode]);
     }
 
     //std::cout << "Entered Step with size: ("<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<")"<<std::endl;
@@ -221,6 +229,13 @@ void PartitionDecoder :: DecodePartitionStep(std::array<int64_t,4> position, std
                 torch::save(sgtMatrixH, g_inputFileName + "_1032_416_dec_H_" + channelStr + ".pt");
                 torch::save(sgtMatrixV, g_inputFileName + "_1032_416_dec_V_" + channelStr + ".pt");
             }
+        }
+
+        if (mInfoLevel != PartitionInfoLevel::Off) {
+            CodingUnitInfo unit(newLFPosition, length);
+            unit.setChosen(ssi);
+            unit.setBits(entropyDecoder.mEntropyDecoder.mInformationBits - bitsBefore);
+            mPartitionInfo.appendCodingUnitInfo(std::move(unit));
         }
 
         entropyDecoder.mSubbandLF.isgtTransform(gain,ssi);

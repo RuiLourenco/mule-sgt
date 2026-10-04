@@ -4,6 +4,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include <map>
 #include "LightField/Block4D_.h"
 #include "LightField/BlockCollage.h"
 #include "DebugTools/CodingUnitInfo.h"
@@ -40,7 +41,23 @@ class TransformPartition {
                                                                   size_t width);
     std::vector<std::unique_ptr<Hierarchical4DEncoder>> m_encoder_pool;
     void getOptimalMinimumBitPlane(Block4D_& inputBlock);
+
+    // --- Partition info recording ---
+    PartitionInfoLevel mInfoLevel = PartitionInfoLevel::Full;
+    // Search trace of every block evaluated without splitting during the current
+    // RDoptimizeTransform_ call, keyed by position and size. Only the entries of
+    // blocks that end up as leaves are ever read.
+    std::map<std::array<int64_t, 8>, CodingUnitInfo> mSearchTrace;
+    // Filled by EncodePartition: one record per coded leaf.
+    CodingPartitionInfo mCodingPartitionInfo;
+    static std::array<int64_t, 8> searchTraceKey(const Block4D_& block);
+    void recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion);
 public:  
+    void setPartitionInfoLevel(PartitionInfoLevel level);
+    PartitionInfoLevel getPartitionInfoLevel() const { return mInfoLevel; }
+    // What the last EncodePartition call coded. Empty when the level is Off.
+    const CodingPartitionInfo& getPartitionInfo() const { return mCodingPartitionInfo; }
+
     // --- THE FIX: MAKE THE MANAGER CLASS NON-COPYABLE/MOVABLE ---
     // Because this class owns a pool of non-copyable encoders,
     // the class itself cannot be safely copied or moved.
@@ -49,9 +66,6 @@ public:
     TransformPartition(TransformPartition&&) = delete;
     TransformPartition& operator=(TransformPartition&&) = delete;
     std::array<double,2> mDisparityRange;
-    std::vector<SgtSideInfo> mSsiBuffer;
-    std::vector<CodingUnitInfo> mCuiBuffer;
-    CodingPartitionInfo mCodingPartitionInfo;
     Hierarchical4DEncoder& mEntropyCoder;
     int mDepth = 0;           /*!< Current depth in the partition tree */
     SearchMethodType mSearchMethod;
@@ -70,9 +84,7 @@ public:
     double mGain = 1;
     double mLambda = 0;
     double totalTransformGain(void);
-    int mCodingUnitIndex = 0;
     std::string mPartitionCode;       // Was char*
-    int mPartitionCodeIndex;            /*!< Scan index for the partition tree code string */
     double mLagrangianCost;             /*!< Lagrangian cost of the chosen partition */
     int mEvaluateOptimumBitPlane;       /*!< Toggles the optimum bit plane evaluation procedure on and off */
     Block4D mPartitionData;             /*!< DCT of all subblocks of the partition */
@@ -111,8 +123,6 @@ public:
     double solveViewQuadrant(const Block4D_& inputBlock, int64_t t_off, int64_t s_off, int64_t t, int64_t s, const std::array<int64_t, 4>& parentPos, const std::array<int64_t, 4>& parentLen, BlockCollage& outCollage, std::string& outCode);
     double splitInFourView(const Block4D_& inputBlock, const std::array<int64_t, 4>& pos, const std::array<int64_t, 4>& len, BlockCollage& outCollage, std::string& outCode);
     void CommitOptimizerState(const ProbabilityModelCollection& winningState);
-    void EncodePartition_( double lambda);
-    void EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4> length, double lambda);
     void EncodePartition();
     void EncodeStep_Recursive(const BlockCollage& collage, const std::string& code, size_t& codeIdx, size_t& blockIdx);
     double EvaluatePartition_(Hierarchical4DEncoder& encoder,Block4D_ &block_0, double currGain , ProbabilityModelCollection& outModel);

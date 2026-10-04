@@ -277,6 +277,7 @@ void Hierarchical4DEncoder::build_from_node(uint32_t current_node_idx,std::array
 }
 
 void Hierarchical4DEncoder::encodeSubblockFromPool(std::array<int64_t,4> length, std::array<int64_t,4> position, int bitplane, double lambda){
+    mDistortion = 0;
     if(length[0] * length[1] * length [2] * length[3] == 0){
         //std::cout<<"Correctly skipping empty subblock encoding"<<std::endl;
         return; // Nothing to encode
@@ -300,6 +301,8 @@ void Hierarchical4DEncoder::iterateEncoding(uint32_t current_node_idx, std::arra
     }
     
     if(mProcessingContext.nodePool[current_node_idx].decision == 'L'){
+        // Below the minimum bitplane: the decoder reconstructs zeros.
+        mDistortion += mProcessingContext.nodePool[current_node_idx].costResults.signalEnergy;
         return;
     }
     if(mProcessingContext.nodePool[current_node_idx].decision == 'T'){
@@ -352,6 +355,8 @@ void Hierarchical4DEncoder::iterateEncoding(uint32_t current_node_idx, std::arra
     }
     if(mProcessingContext.nodePool[current_node_idx].decision == '2') {
         EncodeSegmentationFlag(2, bitplane);
+        // Whole region zeroed out.
+        mDistortion += mProcessingContext.nodePool[current_node_idx].costResults.signalEnergy;
         return;
     }
 }
@@ -386,7 +391,7 @@ void Hierarchical4DEncoder :: EncodeCoefficient(int coefficient, int bitplane) {
         quantizedMagnitude += (1 << mInferiorBitPlane)/2;
     }
     double D = magnitude-quantizedMagnitude;
-    //std::cout<<"magnitude = "<<magnitude<<" quantizedMagnitude = "<<quantizedMagnitude<<" D = "<<D<<std::endl; 
+    mDistortion += D*D;
 }
 
 void Hierarchical4DEncoder :: EncodeSegmentationFlag(int flag, int bitplane) {

@@ -47,6 +47,11 @@ int ABADecoder :: DecodeBit(ProbabilityModel &mPmodel) {
          mLow = mLow + length_0;
     }
 
+    if(mTrackInformation) {
+        double symbolFrequency = (bitDecoded == 0) ? acumFreq_0 : acumFreq_1 - acumFreq_0;
+        mInformationBits -= log2(symbolFrequency / acumFreq_1);
+    }
+
     mNumberOfbitsreadAfterlastBitDecoded = 0;
     while(((mLow & MSB_MASK) == (mHigh & MSB_MASK)) || ((mLow >= SECOND_MSB_MASK) && (mHigh < (MSB_MASK + SECOND_MSB_MASK)))) {
         

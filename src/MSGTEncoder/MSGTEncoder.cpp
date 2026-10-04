@@ -63,6 +63,7 @@ public:
     double refineGridSearchInitialStep = 1.0;
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
+    PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
 
 
     void setMethod(SearchMethodType method) {
@@ -254,6 +255,11 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-VV")){
             verbosity = true;
         }               
+        if(!command.compare("-partition_info") || !command.compare("-partition-info")){
+            std::string level;
+            parametersFile>>level;
+            partitionInfoLevel = partitionInfoLevelFromString(level);
+        }
 
     }
 }
@@ -295,6 +301,20 @@ void conflicting_options(const boost::program_options::variables_map & vm,
                                opt1 + "' and '" + opt2 + "'.");
     }
 }
+static const char* searchMethodName(SearchMethodType method) {
+    switch (method) {
+        case SearchMethodType::STRUCTURE_TENSOR: return "structure_tensor";
+        case SearchMethodType::LOGDET: return "logdet";
+        case SearchMethodType::GRID_SEARCH: return "grid_search";
+        case SearchMethodType::COVARIANCE: return "covariance";
+        case SearchMethodType::ALL_HEURISTICS: return "all_heuristics";
+        case SearchMethodType::ZERO: return "zero";
+        case SearchMethodType::REFINE_STRUCTURE_TENSOR: return "refine_structure_tensor";
+        case SearchMethodType::REFINE_GRID_SEARCH: return "refine_grid_search";
+    }
+    return "unknown";
+}
+
 int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
     namespace po = boost::program_options;
       po::options_description options;
@@ -326,6 +346,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("ycocg", po::bool_switch()->default_value(false),  "Sets Color Transform to YCOCG")
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
 
+        ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
 
@@ -379,6 +400,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         std::copy(data.begin(), data.end(), par.firstView.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<std::string>());
 
     
     // Process search methods
@@ -567,13 +589,14 @@ int main(int argc, char **argv) {
 
 
     //cout<<"mPGM scale = "<<inputLF.mPGMScale<<endl;
-    std::vector<CodingPartitionInfo> codingPartitionInfos;
+    PartitionInfoFile partitionInfo;
     TransformPartition tp(par.minPartitionSize,hdt,par.disparityRange,par.transformGain,par.searchMethod,
                           par.logdetAngleStep, par.gridSearchAngleStep, par.refineStructureTensorRange,
                           par.refineStructureTensorStep, par.refineGridSearchInitialStep,
                           par.refineGridSearchRange, par.refineGridSearchStep);
 
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
+    tp.setPartitionInfoLevel(par.partitionInfoLevel);
 
     std::array<double,3> error = {0,0,0};
     bool second_half = false;
@@ -690,13 +713,15 @@ int main(int argc, char **argv) {
                         }
                                                                                               
 
-                        tp.mCodingPartitionInfo = CodingPartitionInfo(lfBlock.lightFieldPosition,lfBlock.size);
                         tp.mSpectralComponent = spectralComponent;
                         tp.RDoptimizeTransform_(lfBlock, par.Lambda);
                         tp.EncodePartition();
-                        error[spectralComponent] += tp.mCodingPartitionInfo.getTotalDistortion();
-                        size += tp.mCodingPartitionInfo.getTotalSize();
-                        //std::cout<<"Size Channel "<<spectralComponent<<": "<<tp.mCodingPartitionInfo.getTotalSize()<<std::endl;
+                        if(par.partitionInfoLevel != PartitionInfoLevel::Off){
+                            const CodingPartitionInfo& coded = tp.getPartitionInfo();
+                            error[spectralComponent] += coded.getTotalSse().value_or(0.0);
+                            size += coded.getTotalBits();
+                            partitionInfo.partitions.push_back(coded);
+                        }
                         
                         std::cout<<"Encoding Successful!"<<std::endl;
                         // std::cout<<"Encoded"<<std::endl;
@@ -705,25 +730,43 @@ int main(int argc, char **argv) {
                         
                         std::cout<<"Block Size: "<<sizeH<<" "<<sizeV<<std::endl;
                         
-                        codingPartitionInfos.push_back(tp.mCodingPartitionInfo);
                     }
                 }
             }
         }
     }
-    std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
-    double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-    double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-    double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+    if(par.partitionInfoLevel != PartitionInfoLevel::Off){
+        std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
+        double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+        double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+        double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
 
-    double PSNR_Y = 10*log10((1024*1024)/mseY);
-    double PSNR_Cb = 10*log10((1024*1024)/mseCb);
-    double PSNR_Cr = 10*log10((1024*1024)/mseCr);
-    std::cout<<"Predicted PSNR-Y: "<<PSNR_Y<<std::endl;
-    std::cout<<"Predicted PSNR-YUV:"<<(6*PSNR_Y+PSNR_Cb+PSNR_Cr)/8<<std::endl;
-    std::cout<<"Total Rate: "<<size<<std::endl;
-
-    CodingPartitionInfo::printVectorToJsonFile(codingPartitionInfos,infoPath);           
+        double PSNR_Y = 10*log10((1024*1024)/mseY);
+        double PSNR_Cb = 10*log10((1024*1024)/mseCb);
+        double PSNR_Cr = 10*log10((1024*1024)/mseCr);
+        std::cout<<"Predicted PSNR-Y: "<<PSNR_Y<<std::endl;
+        std::cout<<"Predicted PSNR-YUV:"<<(6*PSNR_Y+PSNR_Cb+PSNR_Cr)/8<<std::endl;
+        std::cout<<"Total Rate: "<<size<<" bits"<<std::endl;
+    
+        partitionInfo.producer = "encoder";
+        partitionInfo.level = par.partitionInfoLevel;
+        partitionInfo.metadata = {
+            {"lambda", par.Lambda / (par.transformGain * par.transformGain)}, // as given, before gain scaling
+            {"transformGain", par.transformGain},
+            {"searchMethod", searchMethodName(par.searchMethod)},
+            {"disparityRange", par.disparityRange},
+            {"preSlantTan", par.preSlantTan},
+            {"maxPartitionSize", par.maxPartitionSize},
+            {"minPartitionSize", par.minPartitionSize},
+            {"viewSize", par.viewSize},
+            {"firstView", par.firstView},
+            {"lightFieldSize", {inputLF.data.size(0), inputLF.data.size(1), inputLF.data.size(2), inputLF.data.size(3)}},
+            {"inputDirectory", par.inputDirectory},
+            {"outputFile", par.outputFileName},
+        };
+        partitionInfo.save(infoPath);
+        std::cout<<"Partition info written to: "<<infoPath<<std::endl;
+    }
 
     //write_tensor(hdt.ignored[0][0],"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt/ignored.png");
     // std::ofstream energy;

@@ -27,6 +27,7 @@ Two command-line tools are built: **`MSGTEncoder`** (light field → compressed
   - [Config-file token reference](#decoder-config-file-token-reference)
 - [What must match between encode and decode](#what-must-match-between-encode-and-decode)
 - [Example config files](#example-config-files)
+- [Partition info files](#partition-info-files)
 - [Repository layout](#repository-layout)
 - [Releases / CI](#releases--ci)
 
@@ -155,7 +156,8 @@ $DECODER -c 02_ResultsTemplate/Greek/GridSearchTight/GREEK_0.02_decode.conf
 The encoder reads a directory of `TTT_SSS.ppm` view images (one per `T,S` view
 position — see `-d`), writes one `.comp` bitstream, and also writes an `info.json`
 next to it describing the chosen partition tree. The decoder reads that `.comp` file
-and writes one `U_V.ppm` per decoded view into its output directory.
+and writes one `U_V.ppm` per decoded view into its output directory, plus a
+`decoded_info.json` (see [Partition info files](#partition-info-files)).
 
 Light fields are expected as directories of 16-bit PPM images named
 `<row>_<col>.ppm` (e.g. `000_000.ppm`, `000_001.ppm`, ...), one file per view.
@@ -208,6 +210,7 @@ seem to take effect.
 | `--bt601` | flag | on (default) | Use BT.601 RGB→YCbCr color transform. Mutually exclusive with `--ycocg` (specifying both is an error). |
 | `--ycocg` | flag | off | Use YCoCg color transform instead of BT.601. |
 | `--verbosity`, `-V` | flag | off | Print detailed per-block progress/diagnostics to stdout while encoding. |
+| `--partition-info` | `full` / `winner` / `off` | `full` | What to record in `info.json`: every search candidate, only the chosen one, or nothing (no file, no predicted PSNR/rate printout). Never changes the bitstream. See [Partition info files](#partition-info-files). |
 
 **Rate-distortion search method** — exactly one of the following may be given (giving
 more than one raises `std::logic_error: Conflicting options: Multiple search methods
@@ -254,6 +257,7 @@ section.
 | `-bt601` | — | BT.601 color transform |
 | `-ycocg` | — | YCoCg color transform |
 | `-VV` | — | Verbose output |
+| `-partition_info` | `full` / `winner` / `off` | Partition info recording level |
 | `-structure_tensor` | — | Search method: structure tensor |
 | `-logdet [angleStep]` | optional 1 float | Search method: logdet |
 | `-grid_search [angleStep]` | optional 1 float | Search method: grid search |
@@ -290,6 +294,7 @@ file with its own token vocabulary) as the encoder.
 | `--bt601` / `--ycocg` | flag | *(none — see warning)* | **Must match** the encoder's color-transform choice; not stored in the bitstream. |
 | `--t_gain` | 1 float | *(none — see warning)* | **Must match** the encoder's `--transform-gain`/`-g`. |
 | `--verbosity`, `-V` | flag | off | Verbose per-block decode diagnostics. |
+| `--partition-info` | `winner` / `off` | `winner` | Write `decoded_info.json` into the output directory, or not. `full` is accepted and treated as `winner`, since the bitstream only carries the chosen configuration. |
 
 > **Always pass an extension flag, a color-transform flag, and `--t_gain` explicitly.**
 > Unlike the encoder, `DecoderParameters` has no compiled-in default for
@@ -315,6 +320,7 @@ file with its own token vocabulary) as the encoder.
 | `-t_gain` | 1 float | Transform gain (must match encoder) |
 | `-bt601` / `-ycocg` | — | Color transform (must match encoder) |
 | `-VV` | — | Verbose output |
+| `-partition_info` | `winner` / `off` | Partition info recording level |
 
 Unlike the encoder's config parser, the decoder's tokens above are used consistently
 (hyphen vs. underscore) across every shipped example config — copy them as-is.
@@ -364,6 +370,54 @@ with a `metrics_QM.py` script for computing PSNR/SSIM against the original views
 `GridSearchTightViewSplit`, `-m`) — compare a whole sweep's files to see how λ maps to
 rate/quality for a given light field.
 
+## Partition info files
+
+Each encode writes `info.json` next to the bitstream, and each decode writes
+`decoded_info.json` into its output directory. Both use the same JSON format
+(`"format": "mule-sgt-partition-info"`, `"version": 2`):
+
+- One entry per **partition**, i.e. per maximum-size block and colour channel, in
+  coding order. Each holds the channel, position, size, the split code (`T` leaf,
+  `S` spatial split, `V` view split) and the bits spent on it.
+- One entry per **coding unit** (leaf of the tree), holding its position and size, the
+  coded side information, the bits it cost (partition flag, side information and
+  coefficients) and, for the encoder only, its pixel-domain squared error (`sse`).
+- With `--partition-info full`, every unit also lists every configuration the RD search
+  evaluated as `[method, angleV, angleH, rhoS, rhoT, rhoU, rhoV, cost]`, and
+  `chosenCandidate` points at the one that was coded. With `winner`, only that one is kept.
+
+Bits are the ideal code length of each coded symbol under the adaptive model, so they
+add up to the bitstream size minus the file header. The encoder's
+`Predicted PSNR` and `Total Rate` printouts are computed from these records.
+
+`scripts/partition_info.py` reads these files (numpy only; matplotlib for plots):
+
+```bash
+python3 scripts/partition_info.py summary info.json
+```
+
+```bash
+python3 scripts/partition_info.py compare info.json decoded/decoded_info.json
+```
+
+```bash
+python3 scripts/partition_info.py map info.json --field psnr --channel Y --view 4 4 -o psnr.png
+```
+
+| Command | What it does |
+|---|---|
+| `summary` | Bits, bits per sample and PSNR per channel; split-flag, unit-size and chosen-method counts. |
+| `compare` | Checks that the decoder parsed the same tree, side information and bit counts as the encoder wrote. Exits non-zero and lists the first mismatches otherwise, which is the quickest way to locate a desync. |
+| `map` | Heat map of a per-unit field (`bpp`, `psnr`, `angleH`, `rhoT`, `method`, ...) over one view, with unit boundaries. |
+| `grid` | Draws unit boundaries over a view image (original or decoded). |
+| `candidates` | Plots search cost against angle, and against rho for rho searches, for the unit covering a pixel. |
+| `gap` | Angle error and cost gap between a heuristic's best candidate and the grid-search optimum, per unit size. |
+| `coarse-grid` | Whether a coarse grid plus local refinement would have found the fine-grid optimum. |
+
+The module can also be imported (`load`, `rasterize`, `FIELDS`). On the C++ side,
+`PartitionInfoFile::load` and `rasterize` in `DebugTools/CodingPartitionInfo.h` do the same.
+Files written before version 2 are rejected.
+
 ## Repository layout
 
 ```
@@ -375,10 +429,11 @@ src/
   LightField/     4D light-field/block representation, SGT transform, PPM I/O, pre-slant/padding
   ProbabilityModel/  Adaptive binary probability model used by the arithmetic coder
   IO/             Low-level file/collection I/O helpers
-  DebugTools/     JSON reporting for per-run partition info (info.json)
+  DebugTools/     Partition info records and their JSON format (info.json, decoded_info.json)
   OldDCT/         Legacy transform code retained for comparison
 01_TemplateFolder/    Template experiment layout, copied into results/ on first CMake configure
 02_ResultsTemplate/   Per-light-field experiment sweeps (config files + eval scripts)
+scripts/partition_info.py  Reads, summarizes, compares and plots partition info files
 tests/                GoogleTest unit tests (fetched automatically)
 ```
 

@@ -1,4 +1,5 @@
 #include "Decoder/Hierarchical4DDecoder.h"
+#include "DebugTools/CodingPartitionInfo.h"
 #include <math.h>
 #include <string.h>
 
@@ -22,6 +23,9 @@ public:
     Block4D_ mPartitionData;             /*!< DCT of all subblocks of the partition */
     int mSpectralComponent = 0;
     double mGain = 1;                   /*!< Gain of the transform */
+    // Full is treated like Winner: the bitstream only carries the chosen configuration.
+    PartitionInfoLevel mInfoLevel = PartitionInfoLevel::Winner;
+    CodingPartitionInfo mPartitionInfo; /*!< What the last DecodePartition call decoded */
     PartitionDecoder(double mGain = 1);
     double calcEntropy(at::Tensor &data);
     void DecodePartition(Hierarchical4DDecoder &entropyDecoder,std::array<double,2> disparityRange);

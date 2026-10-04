@@ -145,8 +145,7 @@ void TransformPartition :: RDoptimizeTransform_(Block4D_ &inputBlock, double lam
     }
     this->mMaxSize = inputBlock.size;
     inputBlock.data = inputBlock.data.contiguous();
-    if(!mSsiBuffer.empty()) mSsiBuffer.clear();
-    if(!mCuiBuffer.empty()) mCuiBuffer.clear();
+    mSearchTrace.clear();
 
     mPartitionCode.clear();
     mEvaluateOptimumBitPlane = 1;
@@ -316,8 +315,9 @@ double TransformPartition::RDtestAngle(double angle, Block4D_& block_0, CodingUn
 }
 
 double TransformPartition::RDtestZero(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
-    cui0.setAngleHeuristicUsed(AngleHeuristic::ZERO);
-    return RDtestAngle(0, block_0, cui0, currGain, outModel);
+    double J0 = RDtestAngle(0, block_0, cui0, currGain, outModel);
+    cui0.addCandidate(CandidateMethod::Zero, block_0.ssi, J0);
+    return J0;
 }
 
 double TransformPartition::RDgridSearchAndRhos(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
@@ -369,18 +369,13 @@ double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitIn
     for (int i = 0; i < 3; i++) {
         double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
         
-        if(i == 0) cui0.setStructureTensorHorizontal({temp_block_0.ssi.getAngleH(), J0_curr});
-        if(i == 1) cui0.setStructureTensorVertical({temp_block_0.ssi.getAngleH(), J0_curr});
-        if(i == 2) cui0.setStructureTensorAverage({temp_block_0.ssi.getAngleH(), J0_curr});
+        constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
+        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
         
         if (J0_curr < J0) {
             J0 = J0_curr;
             block_0 = temp_block_0;
             outModel = currModel; // Just a simple struct copy!
-            
-            if(i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_HORIZONTAL);
-            if(i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_VERTICAL);
-            if(i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::STRUCTURE_TENSOR_AVERAGE);
         }
         temp_block_0 = blockOrig;
     }
@@ -404,18 +399,13 @@ double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& c
     for (int i = 0; i < 3; i++) {
         double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
         
-        if (i == 0) cui0.setCovarianceHorizontal({temp_block_0.ssi.getAngleH(), J0_curr});
-        if (i == 1) cui0.setCovarianceVertical({temp_block_0.ssi.getAngleH(), J0_curr});
-        if (i == 2) cui0.setCovarianceAverage({temp_block_0.ssi.getAngleH(), J0_curr});
+        constexpr CandidateMethod methods[3] = {CandidateMethod::CovarianceH, CandidateMethod::CovarianceV, CandidateMethod::CovarianceAvg};
+        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
         
         if (J0_curr < J0) {
             J0 = J0_curr;
             block_0 = temp_block_0;
             outModel = currModel; // Simple struct copy saves the state
-
-            if (i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::COVARIANCE_HORIZONTAL);
-            if (i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::COVARIANCE_VERTICAL);
-            if (i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::COVARIANCE_AVERAGE);
         }
         temp_block_0 = blockOrig; // Reset block for the next iteration
     }
@@ -440,18 +430,13 @@ double TransformPartition::RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0,
     for (int i = 0; i < 3; i++) {
         double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
         
-        if (i == 0) cui0.setLogdetHorizontal({temp_block_0.ssi.getAngleH(), J0_curr});
-        if (i == 1) cui0.setLogdetVertical({temp_block_0.ssi.getAngleH(), J0_curr});
-        if (i == 2) cui0.setLogdetAverage({temp_block_0.ssi.getAngleH(), J0_curr});
+        constexpr CandidateMethod methods[3] = {CandidateMethod::LogdetH, CandidateMethod::LogdetV, CandidateMethod::LogdetAvg};
+        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
         
         if (J0_curr < J0) {
             J0 = J0_curr;
             block_0 = temp_block_0;
             outModel = currModel; // Simple struct copy saves the state
-            
-            if (i == 0) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_HORIZONTAL);
-            if (i == 1) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_VERTICAL);
-            if (i == 2) cui0.setAngleHeuristicUsed(AngleHeuristic::LOGDET_AVERAGE);
         }
         
         temp_block_0 = blockOrig; // Reset block for the next iteration
@@ -533,10 +518,8 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
     
     // Just copy the winning struct to the output reference!
     outModel = all_models[best_index]; 
-    cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
-
     for (int i = 0; i < numSteps; ++i) {
-        cui0.addGridSearchAngle(all_angles[i], all_J_values[i]);
+        cui0.addCandidate(CandidateMethod::GridSearch, all_blocks[i].ssi, all_J_values[i]);
     }
     // No delete[] loop needed! The vector cleans itself up entirely automatically.
     
@@ -641,7 +624,9 @@ double TransformPartition::parallelRhoSearch(
     // 4. Copy the winning state out to the caller
     outModel = all_models[best_index]; 
     
-    cui0.setAngleHeuristicUsed(AngleHeuristic::GRID_SEARCH);
+    for (int i = 0; i < numSteps; ++i) {
+        cui0.addCandidate(CandidateMethod::RhoSearch, all_blocks[i].ssi, all_J_values[i]);
+    }
 
     // 5. No cleanup loop needed here. 
     // The vector of ProbabilityModelCollections goes out of scope and cleans itself perfectly.
@@ -784,6 +769,7 @@ double TransformPartition::RDtestAllAngleHeuristics(Block4D_& block_0, CodingUni
     // 5. LS Rho
     blockTemp = blockOrig;
     J = EvaluatePartitionLSRho(mEntropyCoder, blockTemp, currGain, block_0.ssi.getAngleV(), block_0.ssi.getAngleH(), tempModel);
+    cui0.addCandidate(CandidateMethod::LeastSquaresRho, blockTemp.ssi, J);
     if(J < J0) {
         J0 = J;
         block_0 = blockTemp;
@@ -968,7 +954,7 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     // 2. Evaluate NO SPLIT (J0) 
     // We pass our state collection directly in. Thanks to the sandbox, mEntropyCoder remains untouched!
     ProbabilityModelCollection state0;
-    CodingUnitInfo cui0(block_0.size,block_0.lightFieldPosition); 
+    CodingUnitInfo cui0(block_0.lightFieldPosition, block_0.size); 
     double J0 = 0;
     
     if (mSearchMethod == SearchMethodType::STRUCTURE_TENSOR) {
@@ -988,6 +974,10 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         J0 = RefineGridSearchAndRhos(block_0, cui0, currGain, state0);
     } else {
         J0 = RefineStructureTensorAndRhos(block_0, cui0, currGain, state0);
+    }
+    if (mInfoLevel != PartitionInfoLevel::Off) {
+        // Looked up again in EncodeStep_Recursive if this block ends up as a leaf.
+        mSearchTrace.insert_or_assign(searchTraceKey(block_0), std::move(cui0));
     }
 
     // 3. Evaluate SPATIAL SPLIT (JS)
@@ -1093,179 +1083,6 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     }
 
     return optimumJ;
-}
-
-void TransformPartition :: EncodePartition_(double lambda){
-
-    double scaledLambda = lambda;
-    std::array<int64_t,4> length;
-
-    for(int i = 0; i < 4; ++i){
-        length[i] = mPartitionData_.size[i];
-        scaledLambda*=length[i];
-    }
-
-    mLambda = scaledLambda;
-    
-    std::array<int64_t,4> position = {0,0,0,0};    
-    mPartitionCodeIndex = 0;
-      
-    mEntropyCoder.EncodeInteger(mEntropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
-    //std::cout<<"Minimum Bit Plane: "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
-
-    //std::cout<<"first few elements: "<<mPartitionData_.data.index({at::indexing::Slice(),at::indexing::Slice(),0,at::indexing::Slice(0,10)})<<std::endl;
-    EncodePartitionStep_(position, length, scaledLambda);
-}
-
-void TransformPartition :: EncodePartitionStep_(std::array<int64_t,4> position, std::array<int64_t,4>length,  double lambda) {
-    //std::cout<<mPartitionCode[mPartitionCodeIndex]<<" "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
-    if(mPartitionCode[mPartitionCodeIndex] == NOSPLITFLAG) {
-        std::cout<<"Size: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
-        std::cout<<"Position: "<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] mPartitionCodeIndex: " << mPartitionCodeIndex << ", mCodingUnitIndex: " << mCodingUnitIndex << std::endl;
-#endif
-
-        mPartitionCodeIndex++;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Encoding partition flag" << std::endl;
-#endif
-        mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
-        
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Accessing mSsiBuffer[" << mCodingUnitIndex << "]. Size: " << mSsiBuffer.size() << std::endl;
-#endif
-        mSsiBuffer[mCodingUnitIndex].print();
-        //mCuiBuffer[mCodingUnitIndex].getSgtSideInfo().print();
-        //std::cout<<"1"<<std::endl;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Encoding SSI" << std::endl;
-#endif
-        mEntropyCoder.EncodeSSI_(mSsiBuffer[mCodingUnitIndex]);
-                //std::cout<<"2"<<std::endl;
-
-        //std::cout<<"Length:"<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
-        //std::cout<<"Position:"<<position[0]<<"x"<<position[1]<<"x"<<position[2]<<"x"<<position[3]<<std::endl;
-        //std::array<int64_t,4> positionTransform = {0,0,position[2]*length[0],position[3]*length[1]};
-        
-        //std::cout<<"3"<<std::endl;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Copying subblock" << std::endl;
-#endif
-        mEntropyCoder.mSubbandLF_ = mPartitionData_.copySubblock(length,position);
-        //if(length[3] == 32) std::cout<<mEntropyCoder.mSubbandLF_.validPositions.valid_positions_h % length[3];
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Initializing trueLength" << std::endl;
-#endif
-        std::array<int64_t,4> trueLength = {mEntropyCoder.mSubbandLF_.data.size(0), mEntropyCoder.mSubbandLF_.data.size(1), mEntropyCoder.mSubbandLF_.data.size(2), mEntropyCoder.mSubbandLF_.data.size(3)};
-        //std::cout<<"first few elements block: "<<mPartitionData_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
-
-        //std::cout<<"first few elements subblock: "<<mEntropyCoder.mSubbandLF_.data.index({at::indexing::Slice(0),at::indexing::Slice(0),0,at::indexing::Slice(0,3)})<<std::endl;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Printing sizes" << std::endl;
-#endif
-        std::cout<<"mPartitionData_.size: "<<mPartitionData_.data.size(0)<<"x"<<mPartitionData_.data.size(1)<<"x"<<mPartitionData_.data.size(2)<<"x"<<mPartitionData_.data.size(3)<<std::endl;
-        std::cout<<"mEntropyCoder.mSubbandLF_.size: "<<mEntropyCoder.mSubbandLF_.data.size(0)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(1)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(2)<<"x"<<mEntropyCoder.mSubbandLF_.data.size(3)<<std::endl;
-        std::cout<<"length: "<<length[0]<<"x"<<length[1]<<"x"<<length[2]<<"x"<<length[3]<<std::endl;
-        std::cout<<"trueLength: "<<trueLength[0]<<"x"<<trueLength[1]<<"x"<<trueLength[2]<<"x"<<trueLength[3]<<std::endl;
-        std::cout<<"lf position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[0]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[1]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
-        //std::cout<<"4"<<std::endl;
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] encodingSubblockFromPool" << std::endl;
-#endif
-        if(trueLength[2] * trueLength[3] > 0) mEntropyCoder.encodeSubblockFromPool(trueLength, {0,0,0,0},mEntropyCoder.mSuperiorBitPlane,mLambda);
-        //std::cout<<"5"<<std::endl;
-
-        //mEntropyCoder.EncodeSubblock_(lambda);
-        
-        
-        //std::cout<<"Light Field Position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
-
-        // if(mEntropyCoder.mSubbandLF_.lightFieldPosition[2] <=  512 && mEntropyCoder.mSubbandLF_.lightFieldPosition[3] <= 432){
-        //     //if(length[2] == 16){
-        //         std::cout<<"ENCODED"<<std::endl;
-        //         std::cout<<"Light Field Position: "<<mEntropyCoder.mSubbandLF_.lightFieldPosition[2]<<"x"<<mEntropyCoder.mSubbandLF_.lightFieldPosition[3]<<std::endl;
-        //         mSsiBuffer[mCodingUnitIndex].print();
-        //     //}
-        // }
-        
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Incrementing distortion and size" << std::endl;
-#endif
-        double weight = totalTransformGain();
-        double distortion = (double) mEntropyCoder.mDistortion/(weight*weight);
-        mCodingPartitionInfo.incrementTotalDistortion(distortion);
-        double mse = distortion/(length[0]*length[1]*length[2]*length[3]);
-        mCodingPartitionInfo.incrementTotalSize(mEntropyCoder.mRate * (length[0]*length[1]*length[2]*length[3]));
-        //std::cout<<mCodingPartitionInfo.getTotalDistortion()<<" "<<mCodingPartitionInfo.getTotalSize()<<std::endl;
-        //std::cout<<"mRate = "<<mEntropyCoder.mRate<<" mDistortion: "<<(double) mEntropyCoder.mDistortion/(weight*weight)<<std::endl;
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Accessing mCuiBuffer[" << mCodingUnitIndex << "]. Size: " << mCuiBuffer.size() << std::endl;
-#endif
-        double psnr = 10 * log10((1024*1024)/mse);
-        mCuiBuffer[mCodingUnitIndex].setPSNR(psnr);
-        mCuiBuffer[mCodingUnitIndex].setRate(mEntropyCoder.mRate);
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Appending CodingUnitInfo" << std::endl;
-#endif
-        mCodingPartitionInfo.appendCodingUnitInfo(mCuiBuffer[mCodingUnitIndex]);
-        //std::cout<<"stA: "<<mCuiBuffer[mCodingUnitIndex].getStructureTensorAverageAngle()<<std::endl;
-        //std::cout<<"ldA: "<<mCuiBuffer[mCodingUnitIndex].getLogdetAverageAngle()<<std::endl;
-
-        mCodingUnitIndex++;
-
-#ifdef DEBUG_TRANSFORM_PARTITION
-        std::cout << "[DEBUG_TP] Finished NOSPLITFLAG block" << std::endl;
-#endif
-        //std::cout<<"Weight = "<<weight<<std::endl;
-
-        //std::cout<<"Position: = "<<position[0]<<","<<position[1]<<","<<position[2]/9<<","<<position[3]/9<<" Length = "<<length[0]+8<<","<<length[1]+8<<","<<length[2]/9<<","<<length[3]/9<<" "<<(mEntropyCoder.currCost/(double)size)<< std::endl;
-
-        return;
-    }
-    if(mPartitionCode[mPartitionCodeIndex] == INTRAVIEWSPLITFLAG) {
-        
-        mPartitionCodeIndex++;
-        
-        mEntropyCoder.EncodePartitionFlag(INTRAVIEWSPLITFLAGSYMBOL);
-        
-        std::array<int64_t,4> new_position, new_length;
-        
-        new_position[0] = position[0];
-        new_position[1] = position[1];
-        new_position[2] = position[2];
-        new_position[3] = position[3];
-        
-        new_length[0] = length[0];
-        new_length[1] = length[1];
-        new_length[2] = length[2]/2;
-        new_length[3] = length[3]/2;
-        
-        //Encode four spatial subblocks 
-        EncodePartitionStep_(new_position, new_length, lambda);
-
-        new_position[3] = position[3] + length[3]/2;
-        new_length[3] = length[3] - length[3]/2;
-        
-        EncodePartitionStep_(new_position, new_length, lambda);
-
-        new_position[2] = position[2] + length[2]/2;
-        new_length[2] = length[2] - length[2]/2;
-        
-        EncodePartitionStep_(new_position, new_length, lambda);
-        
-        new_position[3] = position[3];
-        new_length[3] = length[3]/2;
-        
-        EncodePartitionStep_(new_position, new_length, lambda);
-        return;
-    }
 }
 
 double TransformPartition::solveQuadrant(
@@ -1379,12 +1196,46 @@ void TransformPartition::EncodePartition() {
     // 1. Reset state
     size_t codeIdx = 0;
     size_t blockIdx = 0;
+    const double bitsBefore = mEntropyCoder.mEntropyCoder.mInformationBits;
+    mCodingPartitionInfo = CodingPartitionInfo(mInputBlock.lightFieldPosition, mInputBlock.size, mSpectralComponent);
     
     // 2. Encode the initial bitplane precision (legacy)
     mEntropyCoder.EncodeInteger(mEntropyCoder.mInferiorBitPlane, MINIMUM_BITPLANE_PRECISION);
     // 3. Start the recursive walkthrough
     mPartitionCollage.logBlockSizes();
     EncodeStep_Recursive(mPartitionCollage, mPartitionCode, codeIdx, blockIdx);
+
+    if (mInfoLevel != PartitionInfoLevel::Off) {
+        mCodingPartitionInfo.setSplitCode(mPartitionCode);
+        mCodingPartitionInfo.setTotalBits(mEntropyCoder.mEntropyCoder.mInformationBits - bitsBefore);
+    }
+    mSearchTrace.clear();
+}
+
+void TransformPartition::setPartitionInfoLevel(PartitionInfoLevel level) {
+    mInfoLevel = level;
+    mEntropyCoder.mEntropyCoder.mTrackInformation = (level != PartitionInfoLevel::Off);
+}
+
+std::array<int64_t, 8> TransformPartition::searchTraceKey(const Block4D_& block) {
+    const auto& p = block.lightFieldPosition;
+    const auto& s = block.size;
+    return {p[0], p[1], p[2], p[3], s[0], s[1], s[2], s[3]};
+}
+
+void TransformPartition::recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion) {
+    CodingUnitInfo unit(leaf.lightFieldPosition, leaf.size);
+    auto trace = mSearchTrace.find(searchTraceKey(leaf));
+    if (trace != mSearchTrace.end()) {
+        unit = std::move(trace->second);
+        mSearchTrace.erase(trace);
+    }
+    unit.setChosen(leaf.ssi);
+    if (mInfoLevel == PartitionInfoLevel::Winner) unit.keepOnlyChosenCandidate();
+    unit.setBits(bits);
+    const double gain = totalTransformGain();
+    unit.setSse(transformDistortion / (gain * gain));
+    mCodingPartitionInfo.appendCodingUnitInfo(std::move(unit));
 }
 
 
@@ -1393,6 +1244,8 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
 
     if (flag == NOSPLITFLAG) {
         // --- LEAF NODE ---
+        const double bitsBefore = mEntropyCoder.mEntropyCoder.mInformationBits;
+        mEntropyCoder.mDistortion = 0;
         mEntropyCoder.EncodePartitionFlag(NOSPLITFLAGSYMBOL);
 
  
@@ -1653,6 +1506,11 @@ void TransformPartition::EncodeStep_Recursive(const BlockCollage& collage, const
                 mEntropyCoder.mSuperiorBitPlane, 
                 mLambda
             );
+        }
+        if (mInfoLevel != PartitionInfoLevel::Off) {
+            recordCodingUnit(currentBlock,
+                             mEntropyCoder.mEntropyCoder.mInformationBits - bitsBefore,
+                             mEntropyCoder.mDistortion);
         }
     } 
     else if (flag == INTRAVIEWSPLITFLAG) {

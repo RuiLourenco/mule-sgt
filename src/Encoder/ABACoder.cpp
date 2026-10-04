@@ -33,6 +33,11 @@ void ABACoder :: EncodeBit(int inputbit, ProbabilityModel &mPmodel) {
     unsigned long int acumFreq_1 = mPmodel.mCumulativeFrequency[1];
     unsigned long int length_0 = (((mHigh - mLow + 1) * acumFreq_0)/acumFreq_1);
 
+    if(mTrackInformation) {
+        double symbolFrequency = (inputbit == 0) ? acumFreq_0 : acumFreq_1 - acumFreq_0;
+        mInformationBits -= log2(symbolFrequency / acumFreq_1);
+    }
+
     if(inputbit == 0) {
         mHigh = mLow + length_0 - 1;
     }

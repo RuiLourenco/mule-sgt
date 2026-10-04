@@ -1,99 +1,88 @@
 #ifndef CODING_PARTITION_INFO_H
 #define CODING_PARTITION_INFO_H
 
-#include <vector>
 #include <array>
+#include <cstdint>
+#include <functional>
+#include <optional>
 #include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
 #include <torch/torch.h>
-#include <functional>
+#include "DebugTools/CodingUnitInfo.h"
 
+// How much the codec records about each partition.
+//   Off    - nothing is recorded and no info file is written.
+//   Winner - one record per coded unit, holding only the chosen candidate.
+//   Full   - one record per coded unit, holding every candidate the search tried.
+enum class PartitionInfoLevel { Off, Winner, Full };
 
-class CodingUnitInfo; // Forward declaration
+const char* toString(PartitionInfoLevel level);
+PartitionInfoLevel partitionInfoLevelFromString(const std::string& name);
 
+// One maximum-size block of one colour channel, i.e. one call to the partition
+// optimizer. Its coding units are the leaves of the partition tree, in coding order.
 class CodingPartitionInfo {
 public:
     CodingPartitionInfo() = default;
-    // Constructor
-    CodingPartitionInfo(std::array<int64_t,4> lightFieldPosition, std::array<int64_t,4> size, const std::vector<CodingUnitInfo>& codingUnitInfos);
-    // Constructor with empty codingUnitInfos
-    CodingPartitionInfo(std::array<int64_t,4> lightFieldPosition, std::array<int64_t,4> size);
-    void incrementTotalSize(double rate);
-    void incrementTotalDistortion(double psnr);
-    double getTotalSize() const;
-    double getTotalDistortion() const;
-    static int countUnitsWithin10Degrees(int delta, const std::vector<CodingPartitionInfo>& partitionInfos, const std::string& outputDirectory);
+    CodingPartitionInfo(const std::array<int64_t, 4>& lightFieldPosition,
+                        const std::array<int64_t, 4>& size,
+                        int channel);
 
+    const std::array<int64_t, 4>& getLightFieldPosition() const { return lightFieldPosition; }
+    const std::array<int64_t, 4>& getSize() const { return size; }
+    int getChannel() const { return channel; }
 
-    // Method to convert the object to JSON
+    // Partition tree flags in coding order: 'T' leaf, 'S' spatial split, 'V' view split.
+    void setSplitCode(const std::string& code) { splitCode = code; }
+    void appendSplitFlag(char flag) { splitCode += flag; }
+    const std::string& getSplitCode() const { return splitCode; }
+
+    // Every bit spent on this partition, including the minimum-bitplane header
+    // and the split flags that are not attributed to any single unit.
+    void setTotalBits(double bits) { totalBits = bits; }
+    double getTotalBits() const { return totalBits; }
+    // Sum of unit SSEs, or nothing if any unit has no distortion measurement.
+    std::optional<double> getTotalSse() const;
+
+    void appendCodingUnitInfo(CodingUnitInfo unit) { codingUnitInfos.push_back(std::move(unit)); }
+    const std::vector<CodingUnitInfo>& getCodingUnitInfos() const { return codingUnitInfos; }
+
     nlohmann::json toJson() const;
-
-
-    // Method to print the object to a JSON file
-    void printToJsonFile(const std::string& filename) const;
-    // New static method to print a vector of CodingPartitionInfo to a JSON file
-    static void printVectorToJsonFile(const std::vector<CodingPartitionInfo>& partitionInfos, const std::string& filename);
-
-    // New static method to parse a JSON file and return a vector of CodingPartitionInfo
-    static std::vector<CodingPartitionInfo> fromJsonFile(const std::string& filename);
-
-    // New static method to get an image of angles chosen.
-    static at::Tensor getStructureTensorHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getStructureTensorVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getStructureTensorAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getCovarianceHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getCovarianceVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getCovarianceAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getLogdetHorizontal(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getLogdetVertical(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getLogdetAverage(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getRate(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getPSNR(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getMSE(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    double getTotalRate() const;
-
-    static at::Tensor getAngleHeuristicUsed(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getChosenAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestStructureTensorAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestStructureTensorCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestCovarianceAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestCovarianceCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestGridSearchAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestLogdetAngle(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestLogdetCost(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getBestGridSearchCost (const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getStructureTensorError(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getStructureTensorCostDiff(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getLogdetError(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getLogdetCostDiff(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    static at::Tensor getTensorFromInfo(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize, std::function<double(const CodingUnitInfo&)> getData);
-    static at::Tensor getStructureTensorConfidence(const std::vector<CodingPartitionInfo>& partitionInfos,std::array<int64_t,2> totalSize);
-    // Method to append a CodingUnitInfo to the vector
-    void appendCodingUnitInfo(const CodingUnitInfo& codingUnitInfo);
-    // Getter methods
-    std::array<int64_t,4> getLightFieldPosition() const;
-    std::array<int64_t,4> getSize() const;
-    const std::vector<CodingUnitInfo>& getCodingUnitInfos() const;
-    static void findLargestAngleDifferenceAndGeneratePlot(
-        const std::vector<CodingPartitionInfo>& partitionInfos,
-        const std::string& outputDirectory);
-    static void generatePlotsForAngleDifferencesBelowThreshold(
-        const std::vector<CodingPartitionInfo>& partitionInfos,
-        const std::string& outputDirectory,
-        double threshold = 10.0);
-    
-    static CodingPartitionInfo findPartitionInfoByPosition(
-        const std::vector<CodingPartitionInfo>& partitionInfos,
-        const std::array<int64_t, 4>& lightFieldPosition);
-
-    void generatePythonScriptsForPartition(const std::string& outputDirectory) const;
+    static CodingPartitionInfo fromJson(const nlohmann::json& j);
 
 private:
-    std::array<int64_t,4> lightFieldPosition;
-    std::array<int64_t,4> size;
-    double totalDistortion = 0.0; // Total error for the partition
-    double totalBitsize = 0.0; // Total size for the partition in bits
+    std::array<int64_t, 4> lightFieldPosition{};
+    std::array<int64_t, 4> size{};
+    int channel = 0;
+    std::string splitCode;
+    double totalBits = 0.0;
     std::vector<CodingUnitInfo> codingUnitInfos;
 };
+
+// Contents of an info JSON file.
+struct PartitionInfoFile {
+    static constexpr int VERSION = 2;
+
+    std::string producer;                 // "encoder" or "decoder"
+    PartitionInfoLevel level = PartitionInfoLevel::Full;
+    nlohmann::json metadata = nlohmann::json::object(); // free-form run parameters
+    std::vector<CodingPartitionInfo> partitions;
+
+    nlohmann::json toJson() const;
+    static PartitionInfoFile fromJson(const nlohmann::json& j);
+    void save(const std::string& filename) const;
+    static PartitionInfoFile load(const std::string& filename);
+};
+
+// Paints a per-unit value onto one view of one channel.
+//
+// The image covers the bounding box of all partitions of that channel, so cropped
+// light fields work without knowing the crop offset. Pixels not covered by a unit
+// that contains view (t, s) are NaN. Units whose `field` returns nothing stay NaN.
+at::Tensor rasterize(const std::vector<CodingPartitionInfo>& partitions,
+                     int channel,
+                     std::array<int64_t, 2> view,
+                     const std::function<std::optional<double>(const CodingUnitInfo&)>& field);
 
 #endif // CODING_PARTITION_INFO_H

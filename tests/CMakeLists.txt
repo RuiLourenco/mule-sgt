@@ -8,4 +8,5 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 add_subdirectory(IO)
 add_subdirectory(Encoder)
+add_subdirectory(DebugTools)
 

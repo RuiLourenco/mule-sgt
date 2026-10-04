@@ -167,7 +167,7 @@ public:
 
     ProcessingContext mProcessingContext;
     double mLambda = 0;
-    double mRate  = 0;
+    // Transform-domain squared error of the last block coded by encodeSubblockFromPool.
     double mDistortion = 0;
     std::array<uint64_t,4> size;
     Block4D_ mSubbandLF_;   

@@ -34,6 +34,8 @@ public:
   //unsigned char mLastByte;
   int mNumberOfbitsreadAfterlastBitDecoded;
   int mCumulativeEOFReads;             /*!< total bits read past end-of-file across the whole decode session */
+  bool mTrackInformation = true;       /*!< accumulate mInformationBits while decoding */
+  double mInformationBits = 0.0;       /*!< ideal code length of every symbol decoded so far, in bits */
   ABADecoder(void);
   ~ABADecoder(void);
   void InitDecoder(FILE *ifp);

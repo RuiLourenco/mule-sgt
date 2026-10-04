@@ -2,106 +2,102 @@
 #define CODING_UNIT_INFO_H
 
 #include <array>
-#include <tuple>
-#include <LightField/Block4D_.h> // Include the header for SgtSideInfo
-#include <map> // Include map header
-#include <nlohmann/json.hpp> // Include the nlohmann/json library
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
+#include <vector>
+#include <nlohmann/json.hpp>
+#include <LightField/Block4D_.h> // SgtSideInfo
 
-
-class SgtSideInfo; // Forward declaration of SgtSideInfo
-
-enum AngleHeuristic {
-    GRID_SEARCH = 0,
-    STRUCTURE_TENSOR_HORIZONTAL = 1,
-    STRUCTURE_TENSOR_VERTICAL = 2,
-    STRUCTURE_TENSOR_AVERAGE = 3,
-    LOGDET_HORIZONTAL = 4,
-    LOGDET_VERTICAL = 5,
-    LOGDET_AVERAGE = 6,
-    COVARIANCE_HORIZONTAL = 7,
-    COVARIANCE_VERTICAL = 8,
-    COVARIANCE_AVERAGE = 9,
-    ZERO = 10
+// Which angle/rho estimator produced a search candidate.
+enum class CandidateMethod : uint8_t {
+    Zero,
+    StructureTensorH,
+    StructureTensorV,
+    StructureTensorAvg,
+    CovarianceH,
+    CovarianceV,
+    CovarianceAvg,
+    LogdetH,
+    LogdetV,
+    LogdetAvg,
+    GridSearch,
+    RhoSearch,
+    LeastSquaresRho,
+    Unknown
 };
 
+const char* toString(CandidateMethod method);
+CandidateMethod candidateMethodFromString(const std::string& name);
+
+// One configuration the RD search evaluated for a coding unit.
+// `cost` is the Lagrangian J = D + lambda*R returned by the search, before the
+// partition-flag and side-information bits are added.
+struct SearchCandidate {
+    CandidateMethod method = CandidateMethod::Unknown;
+    SgtSideInfo ssi;
+    double cost = 0.0;
+};
+
+// A leaf of the partition tree: one block that was transformed and entropy coded.
+//
+// Encoder records hold the search trace, the chosen side information and the
+// measured bits/distortion. Decoder records hold geometry, side information and
+// bits only (the decoder has no original to measure distortion against).
 class CodingUnitInfo {
 public:
-    CodingUnitInfo(const std::array<int64_t, 4>& size, const std::array<int64_t, 4>& lightFieldPosition);
-    std::array<int64_t, 4> getLightFieldPosition() const;
-    std::array<int64_t,4> getSize() const;
-    std::array<double, 2> getStructureTensorHorizontal() const;
-    std::array<double, 2> getStructureTensorVertical() const;
-    std::array<double, 2> getStructureTensorAverage() const;
-    std::array<double, 2> getCovarianceHorizontal() const;
-    std::array<double, 2> getCovarianceVertical() const;
-    std::array<double, 2> getCovarianceAverage() const;
-    double getStructureTensorHorizontalAngle() const;
-    double getStructureTensorVerticalAngle() const;
-    double getStructureTensorAverageAngle() const;
-    double getCovarianceHorizontalAngle() const;
-    double getCovarianceVerticalAngle() const;
-    double getCovarianceAverageAngle() const;
-    std::array<double, 2> getLogdetHorizontal() const;
-    std::array<double, 2> getLogdetVertical() const;
-    std::array<double, 2> getLogdetAverage() const;
-    double getLogdetHorizontalAngle() const;
-    double getLogdetVerticalAngle() const;
-    double getLogdetAverageAngle() const;
-    double getBestGridSearchAngle() const;
-    double getBestGridSearchCost() const;
-    double getChosenAngle() const;
-    double getBestStructureTensorAngle() const;
-    double getBestStructureTensorCost() const;  
-    double getBestCovarianceAngle() const;
-    double getBestCovarianceCost() const;  
-    double getBestLogdetCost() const ;
-    double getBestLogdetAngle() const;
-    void generatePythonScriptForGridSearchAngle(const std::string& filename) const;
+    CodingUnitInfo() = default;
+    CodingUnitInfo(const std::array<int64_t, 4>& lightFieldPosition, const std::array<int64_t, 4>& size);
 
+    // --- Geometry -----------------------------------------------------------
+    const std::array<int64_t, 4>& getLightFieldPosition() const { return lightFieldPosition; }
+    const std::array<int64_t, 4>& getSize() const { return size; }
+    int64_t numSamples() const;
 
+    // --- Search trace (encoder only) ----------------------------------------
+    void addCandidate(CandidateMethod method, const SgtSideInfo& ssi, double cost);
+    const std::vector<SearchCandidate>& getCandidates() const { return candidates; }
+    // Lowest-cost candidate among those whose method passes `filter`.
+    std::optional<SearchCandidate> bestCandidate(const std::function<bool(CandidateMethod)>& filter) const;
+    std::optional<SearchCandidate> bestCandidate(CandidateMethod method) const;
 
-    double getRate() const;
-    double getPSNR() const;
-    double getMSE() const;
-    int getAngleHeuristicUsed() const;
-    std::map<double, double> getGridSearchAngle() const; // Changed to std::map
-    SgtSideInfo getSgtSideInfo() const;
-    void setGridSearchAngle(const std::map<double, double>& gridSearchAngle); // Changed to std::map
-    void setStructureTensorHorizontal(const std::array<double, 2>& structureTensorHorizontal);
-    void setStructureTensorVertical(const std::array<double, 2>& structureTensorVertical);
-    void setStructureTensorAverage(const std::array<double, 2>& structureTensorAverage);
-    void setCovarianceHorizontal(const std::array<double, 2>& covarianceHorizontal);
-    void setCovarianceVertical(const std::array<double, 2>& covarianceVertical);
-    void setCovarianceAverage(const std::array<double, 2>& covarianceAverage);
-    void setLogdetHorizontal(const std::array<double, 2>& logdetHorizontal);
-    void setLogdetVertical(const std::array<double, 2>& logdetVertical);
-    void setLogdetAverage(const std::array<double, 2>& logdetAverage);
-    void setRate(double rate);
-    void setPSNR(double PSNR);
-    void setAngleHeuristicUsed(int angleHeuristicUsed);
-    void setSgtSideInfo(const SgtSideInfo& sgtSideInfo);
-    void addGridSearchAngle(double angle, double cost);
-    std::tuple<double, double, bool,double, double> analyzeGridSearchAngle(int delta) const;
+    // --- Outcome --------------------------------------------------------------
+    // Stores the side information that was actually coded and links it to the
+    // candidate that produced it (matched on the quantized side-information codes).
+    void setChosen(const SgtSideInfo& ssi);
+    const std::optional<SgtSideInfo>& getSgtSideInfo() const { return chosenSsi; }
+    // The candidate that produced the coded side information, if it was recorded.
+    std::optional<SearchCandidate> chosenCandidate() const;
+    // Drops every candidate except the chosen one ("winner" recording level).
+    void keepOnlyChosenCandidate();
+
+    // --- Measurements ---------------------------------------------------------
+    // Bits spent on this unit: partition flag + side information + coefficients.
+    void setBits(double bits) { this->bits = bits; }
+    double getBits() const { return bits; }
+    double getBitsPerSample() const;
+
+    // Sum of squared errors in the pixel domain (transform-domain SSE / gain^2).
+    void setSse(double sse) { this->sse = sse; }
+    std::optional<double> getSse() const { return sse; }
+    std::optional<double> getMse() const;
+    std::optional<double> getPsnr(double peak = 1024.0) const;
 
     nlohmann::json toJson() const;
     static CodingUnitInfo fromJson(const nlohmann::json& j);
 
+    // Column order of each serialized candidate (stored as a compact array).
+    static const std::vector<std::string>& candidateFields();
+
 private:
-    std::array<int64_t, 4> size;
-    std::array<int64_t, 4> lightFieldPosition;
-    std::map<double, double> gridSearchAngle; // Changed to std::map
-    std::array<double, 2> structureTensorHorizontal;
-    std::array<double, 2> structureTensorVertical;
-    std::array<double, 2> structureTensorAverage;
-    std::array<double, 2> logdetHorizontal;
-    std::array<double, 2> logdetVertical;
-    std::array<double, 2> logdetAverage;
-    std::array<double, 2> covarianceHorizontal;
-    std::array<double, 2> covarianceVertical;
-    std::array<double, 2> covarianceAverage;
-    double rate; // Rate in BPP
-    double PSNR; // PSNR in dB
-    int angleHeuristicUsed;
-    SgtSideInfo sgtSideInfo;
+    std::array<int64_t, 4> lightFieldPosition{};
+    std::array<int64_t, 4> size{};
+    std::vector<SearchCandidate> candidates;
+    std::optional<SgtSideInfo> chosenSsi;
+    int chosenIndex = -1; // index into `candidates`, -1 if not recorded
+    double bits = 0.0;
+    std::optional<double> sse;
 };
+
 #endif // CODING_UNIT_INFO_H

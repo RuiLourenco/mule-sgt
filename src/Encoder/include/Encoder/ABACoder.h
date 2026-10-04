@@ -25,6 +25,8 @@ public:
   FILE *mOutputFilePointer;        /*!< pointer to output file */
   unsigned int mLow;               /*!< interval lower limit */
   unsigned int mHigh;              /*!< interval upper limit */
+  bool mTrackInformation = true;   /*!< accumulate mInformationBits while encoding */
+  double mInformationBits = 0.0;   /*!< ideal code length of every symbol encoded so far, in bits */
   ABACoder(void);
   ~ABACoder(void);
   void InitEncoder(FILE *ofp);
