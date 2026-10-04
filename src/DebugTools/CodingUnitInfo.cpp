@@ -16,6 +16,9 @@ constexpr MethodName METHOD_NAMES[] = {
     {CandidateMethod::StructureTensorH, "structure_tensor_h"},
     {CandidateMethod::StructureTensorV, "structure_tensor_v"},
     {CandidateMethod::StructureTensorAvg, "structure_tensor_avg"},
+    {CandidateMethod::StructureTensorPooled, "structure_tensor_pooled"},
+    {CandidateMethod::StructureTensorPerDirection, "structure_tensor_per_direction"},
+    {CandidateMethod::StructureTensorEigen4D, "structure_tensor_eigen4d"},
     {CandidateMethod::CovarianceH, "covariance_h"},
     {CandidateMethod::CovarianceV, "covariance_v"},
     {CandidateMethod::CovarianceAvg, "covariance_avg"},
@@ -50,6 +53,25 @@ SgtSideInfo ssiFromValues(double angleV, double angleH, double rhoS, double rhoT
     return ssi;
 }
 
+nlohmann::json candidatesToJson(const std::vector<SearchCandidate>& list) {
+    nlohmann::json out = nlohmann::json::array();
+    for (const auto& c : list) {
+        out.push_back({toString(c.method), c.ssi.getAngleV(), c.ssi.getAngleH(), c.ssi.getRhoS(),
+                       c.ssi.getRhoT(), c.ssi.getRhoU(), c.ssi.getRhoV(), c.cost});
+    }
+    return out;
+}
+
+std::vector<SearchCandidate> candidatesFromJson(const nlohmann::json& list) {
+    std::vector<SearchCandidate> out;
+    for (const auto& c : list) {
+        out.push_back({candidateMethodFromString(c.at(0).get<std::string>()),
+                       ssiFromValues(c.at(1), c.at(2), c.at(3), c.at(4), c.at(5), c.at(6)),
+                       c.at(7).is_null() ? std::numeric_limits<double>::quiet_NaN() : c.at(7).get<double>()});
+    }
+    return out;
+}
+
 template <typename T>
 std::array<T, 4> array4(const nlohmann::json& j) {
     return {j.at(0).get<T>(), j.at(1).get<T>(), j.at(2).get<T>(), j.at(3).get<T>()};
@@ -80,6 +102,10 @@ int64_t CodingUnitInfo::numSamples() const {
 
 void CodingUnitInfo::addCandidate(CandidateMethod method, const SgtSideInfo& ssi, double cost) {
     candidates.push_back({method, ssi, cost});
+}
+
+void CodingUnitInfo::addProbe(CandidateMethod method, const SgtSideInfo& ssi, double cost) {
+    probes.push_back({method, ssi, cost});
 }
 
 std::optional<SearchCandidate> CodingUnitInfo::bestCandidate(const std::function<bool(CandidateMethod)>& filter) const {
@@ -160,12 +186,10 @@ nlohmann::json CodingUnitInfo::toJson() const {
     j["searchCost"] = chosen ? nlohmann::json(chosen->cost) : nlohmann::json(nullptr);
     j["chosenCandidate"] = chosenIndex >= 0 ? nlohmann::json(chosenIndex) : nlohmann::json(nullptr);
 
-    nlohmann::json list = nlohmann::json::array();
-    for (const auto& c : candidates) {
-        list.push_back({toString(c.method), c.ssi.getAngleV(), c.ssi.getAngleH(), c.ssi.getRhoS(),
-                        c.ssi.getRhoT(), c.ssi.getRhoU(), c.ssi.getRhoV(), c.cost});
-    }
-    j["candidates"] = std::move(list);
+    j["candidates"] = candidatesToJson(candidates);
+    // Diagnostic fields are only written when recorded, to keep ordinary files small.
+    if (!probes.empty()) j["probes"] = candidatesToJson(probes);
+    if (structureTensor) j["structureTensor"] = *structureTensor;
     return j;
 }
 
@@ -177,13 +201,10 @@ CodingUnitInfo CodingUnitInfo::fromJson(const nlohmann::json& j) {
         const auto& s = j["ssi"];
         unit.chosenSsi = ssiFromValues(s.at("angleV"), s.at("angleH"), s.at("rhoS"), s.at("rhoT"), s.at("rhoU"), s.at("rhoV"));
     }
-    if (j.contains("candidates")) {
-        for (const auto& c : j["candidates"]) {
-            unit.candidates.push_back({candidateMethodFromString(c.at(0).get<std::string>()),
-                                       ssiFromValues(c.at(1), c.at(2), c.at(3), c.at(4), c.at(5), c.at(6)),
-                                       c.at(7).is_null() ? std::numeric_limits<double>::quiet_NaN()
-                                                         : c.at(7).get<double>()});
-        }
+    if (j.contains("candidates")) unit.candidates = candidatesFromJson(j["candidates"]);
+    if (j.contains("probes")) unit.probes = candidatesFromJson(j["probes"]);
+    if (j.contains("structureTensor") && !j["structureTensor"].is_null()) {
+        unit.structureTensor = j["structureTensor"].get<std::array<double, 16>>();
     }
     if (j.contains("chosenCandidate") && !j["chosenCandidate"].is_null()) {
         int index = j["chosenCandidate"].get<int>();

@@ -64,6 +64,8 @@ public:
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
+    StructureTensorMode structureTensorMode = StructureTensorMode::Pooled;
+    bool probeStructureTensor = false;
 
 
     void setMethod(SearchMethodType method) {
@@ -260,6 +262,14 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
             parametersFile>>level;
             partitionInfoLevel = partitionInfoLevelFromString(level);
         }
+        if(!command.compare("-st_estimator") || !command.compare("-st-estimator")){
+            std::string mode;
+            parametersFile>>mode;
+            structureTensorMode = structureTensorModeFromString(mode);
+        }
+        if(!command.compare("-probe_st_estimators") || !command.compare("-probe-st-estimators")){
+            probeStructureTensor = true;
+        }
 
     }
 }
@@ -347,6 +357,8 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
 
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
+        ("st-estimator", po::value<std::string>(), "Structure tensor angle estimator: pooled (default), per-direction, eigen4d or legacy")
+        ("probe-st-estimators", po::bool_switch()->default_value(false), "Record the angle and RD cost of every structure tensor estimator for each block in info.json (analysis only, needs --partition-info full or winner)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
 
@@ -400,6 +412,8 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         std::copy(data.begin(), data.end(), par.firstView.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    if(vm.count("st-estimator")) par.structureTensorMode = structureTensorModeFromString(vm["st-estimator"].as<std::string>());
+    if(vm["probe-st-estimators"].as<bool>()) par.probeStructureTensor = true;
     if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<std::string>());
 
     
@@ -597,6 +611,8 @@ int main(int argc, char **argv) {
 
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
     tp.setPartitionInfoLevel(par.partitionInfoLevel);
+    tp.setStructureTensorMode(par.structureTensorMode);
+    tp.setProbeStructureTensor(par.probeStructureTensor);
 
     std::array<double,3> error = {0,0,0};
     bool second_half = false;
@@ -754,6 +770,11 @@ int main(int argc, char **argv) {
             {"lambda", par.Lambda / (par.transformGain * par.transformGain)}, // as given, before gain scaling
             {"transformGain", par.transformGain},
             {"searchMethod", searchMethodName(par.searchMethod)},
+            {"structureTensorEstimator", toString(par.structureTensorMode)},
+            {"probeStructureTensorEstimators", par.probeStructureTensor},
+            {"refineStructureTensor", {par.refineStructureTensorRange, par.refineStructureTensorStep}},
+            {"refineGridSearch", {par.refineGridSearchInitialStep, par.refineGridSearchRange, par.refineGridSearchStep}},
+            {"gridSearchAngleStep", par.gridSearchAngleStep},
             {"disparityRange", par.disparityRange},
             {"preSlantTan", par.preSlantTan},
             {"maxPartitionSize", par.maxPartitionSize},

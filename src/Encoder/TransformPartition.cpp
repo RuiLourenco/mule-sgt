@@ -355,31 +355,110 @@ double TransformPartition::RDtestStructureTensorAndRhos(Block4D_& block_0, Codin
     }
     return J0;
 }
+const char* toString(StructureTensorMode mode) {
+    switch (mode) {
+        case StructureTensorMode::Pooled: return "pooled";
+        case StructureTensorMode::PerDirection: return "per-direction";
+        case StructureTensorMode::Eigen4D: return "eigen4d";
+        case StructureTensorMode::Legacy: return "legacy";
+    }
+    return "pooled";
+}
+
+StructureTensorMode structureTensorModeFromString(const std::string& name) {
+    if (name == "pooled") return StructureTensorMode::Pooled;
+    if (name == "per-direction" || name == "per_direction") return StructureTensorMode::PerDirection;
+    if (name == "eigen4d") return StructureTensorMode::Eigen4D;
+    if (name == "legacy") return StructureTensorMode::Legacy;
+    throw std::invalid_argument("Unknown structure tensor estimator '" + name +
+                                "' (expected pooled, per-direction, eigen4d or legacy)");
+}
+
+namespace {
+
+struct EstimatorEntry {
+    Block4D_::StructureTensorEstimator estimator;
+    CandidateMethod method;
+};
+
+constexpr EstimatorEntry ESTIMATORS[3] = {
+    {Block4D_::StructureTensorEstimator::Pooled, CandidateMethod::StructureTensorPooled},
+    {Block4D_::StructureTensorEstimator::PerDirection, CandidateMethod::StructureTensorPerDirection},
+    {Block4D_::StructureTensorEstimator::Eigen4D, CandidateMethod::StructureTensorEigen4D},
+};
+
+const EstimatorEntry& estimatorFor(StructureTensorMode mode) {
+    switch (mode) {
+        case StructureTensorMode::PerDirection: return ESTIMATORS[1];
+        case StructureTensorMode::Eigen4D: return ESTIMATORS[2];
+        default: return ESTIMATORS[0];
+    }
+}
+
+} // namespace
+
 double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
+    if (mStructureTensorMode == StructureTensorMode::Legacy) {
+        Block4D_ blockOrig = block_0.clone();
+        Block4D_ temp_block_0 = block_0;
+
+        double J0 = RDtestZero(block_0, cui0, currGain, outModel);
+
+        std::array<double, 2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
+        std::array<double, 3> anglesToTest = {angles[0], angles[1], (angles[0]+angles[1])/2};
+
+        ProbabilityModelCollection currModel;
+
+        for (int i = 0; i < 3; i++) {
+            double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
+
+            constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
+            cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
+
+            if (J0_curr < J0) {
+                J0 = J0_curr;
+                block_0 = temp_block_0;
+                outModel = currModel;
+            }
+            temp_block_0 = blockOrig;
+        }
+        return J0;
+    }
+
+    const EstimatorEntry& entry = estimatorFor(mStructureTensorMode);
     Block4D_ blockOrig = block_0.clone();
-    Block4D_ temp_block_0 = block_0;
+    Block4D_ temp_block_0 = blockOrig.clone();
 
     double J0 = RDtestZero(block_0, cui0, currGain, outModel);
-    
-    std::array<double, 2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
-    std::array<double, 3> anglesToTest = {angles[0], angles[1], (angles[0]+angles[1])/2};
-    
+
+    double angle = blockOrig.computeAngleFromStructureTensor(mDisparityRange, entry.estimator);
     ProbabilityModelCollection currModel;
-    
-    for (int i = 0; i < 3; i++) {
-        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
-        
-        constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
-        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
-        
-        if (J0_curr < J0) {
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            outModel = currModel; // Just a simple struct copy!
-        }
-        temp_block_0 = blockOrig;
+    double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, angle, angle, currModel);
+    cui0.addCandidate(entry.method, temp_block_0.ssi, J0_curr);
+
+    if (J0_curr < J0) {
+        J0 = J0_curr;
+        block_0 = temp_block_0;
+        outModel = currModel;
     }
     return J0;
+}
+
+void TransformPartition::probeStructureTensorEstimators(const Block4D_& block, double currGain, CodingUnitInfo& cui) {
+    at::Tensor T = block.structureTensor();
+    std::array<double, 16> flat;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            flat[4 * i + j] = T[i][j].item<double>();
+    cui.setStructureTensor(flat);
+
+    for (const auto& entry : ESTIMATORS) {
+        double angle = Block4D_::angleFromStructureTensor(T, entry.estimator, mDisparityRange);
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel; // EvaluatePartition_ leaves the encoder state untouched
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
+        cui.addProbe(entry.method, probe.ssi, J);
+    }
 }
 
 double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
@@ -956,6 +1035,9 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     ProbabilityModelCollection state0;
     CodingUnitInfo cui0(block_0.lightFieldPosition, block_0.size); 
     double J0 = 0;
+    if (mProbeStructureTensor && mInfoLevel != PartitionInfoLevel::Off) {
+        probeStructureTensorEstimators(block_0, currGain, cui0);
+    }
     
     if (mSearchMethod == SearchMethodType::STRUCTURE_TENSOR) {
         J0 = RDtestStructureTensor(block_0, cui0, currGain, state0);

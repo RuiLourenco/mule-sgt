@@ -210,6 +210,8 @@ seem to take effect.
 | `--bt601` | flag | on (default) | Use BT.601 RGB→YCbCr color transform. Mutually exclusive with `--ycocg` (specifying both is an error). |
 | `--ycocg` | flag | off | Use YCoCg color transform instead of BT.601. |
 | `--verbosity`, `-V` | flag | off | Print detailed per-block progress/diagnostics to stdout while encoding. |
+| `--st-estimator` | `pooled` / `per-direction` / `eigen4d` / `legacy` | `pooled` | How the structure-tensor heuristic turns the 4D structure tensor into a candidate angle. `pooled` uses one 2D tensor pooled over the horizontal and vertical EPIs. `per-direction` averages the two EPI estimates. `eigen4d` averages the angles read from the principal 4D eigenvector. `legacy` is the previous behaviour, which RD-tests the horizontal, vertical and mean eigenvector angles. |
+| `--probe-st-estimators` | flag | off | For every block the search evaluates, records the structure tensor and the angle and RD cost (default rhos) of all three estimators in `info.json`. Analysis only: it never changes the bitstream, but it slows encoding. |
 | `--partition-info` | `full` / `winner` / `off` | `full` | What to record in `info.json`: every search candidate, only the chosen one, or nothing (no file, no predicted PSNR/rate printout). Never changes the bitstream. See [Partition info files](#partition-info-files). |
 
 **Rate-distortion search method** — exactly one of the following may be given (giving
@@ -258,6 +260,8 @@ section.
 | `-ycocg` | — | YCoCg color transform |
 | `-VV` | — | Verbose output |
 | `-partition_info` | `full` / `winner` / `off` | Partition info recording level |
+| `-st_estimator` | `pooled` / `per-direction` / `eigen4d` / `legacy` | Structure tensor angle estimator |
+| `-probe_st_estimators` | — | Record every estimator's angle and RD cost per block |
 | `-structure_tensor` | — | Search method: structure tensor |
 | `-logdet [angleStep]` | optional 1 float | Search method: logdet |
 | `-grid_search [angleStep]` | optional 1 float | Search method: grid search |
@@ -386,6 +390,10 @@ Each encode writes `info.json` next to the bitstream, and each decode writes
   evaluated as `[method, angleV, angleH, rhoS, rhoT, rhoU, rhoV, cost]`, and
   `chosenCandidate` points at the one that was coded. With `winner`, only that one is kept.
 
+With `--probe-st-estimators`, units also carry `structureTensor` (the 4×4 tensor, axes
+t, s, v, u, row-major) and `probes`, the angle and RD cost of each structure-tensor
+estimator in the same compact format. Probes are never coded and never chosen.
+
 Bits are the ideal code length of each coded symbol under the adaptive model, so they
 add up to the bitstream size minus the file header. The encoder's
 `Predicted PSNR` and `Total Rate` printouts are computed from these records.
@@ -414,6 +422,12 @@ python3 scripts/partition_info.py map info.json --field psnr --channel Y --view 
 | `gap` | Angle error and cost gap between a heuristic's best candidate and the grid-search optimum, per unit size. |
 | `coarse-grid` | Whether a coarse grid plus local refinement would have found the fine-grid optimum. |
 
+`scripts/orientation_ablation.py` runs the orientation-estimation ablation on top of these
+files: a synthetic controlled experiment using the codec's gradient operator, a check of its
+estimators and gradients against recorded tensors, estimator accuracy against the
+grid-search optimum, the encodes for one light field, and BD-rate with relative encoding
+time. Its module docstring lists the commands.
+
 The module can also be imported (`load`, `rasterize`, `FIELDS`). On the C++ side,
 `PartitionInfoFile::load` and `rasterize` in `DebugTools/CodingPartitionInfo.h` do the same.
 Files written before version 2 are rejected.
@@ -434,6 +448,7 @@ src/
 01_TemplateFolder/    Template experiment layout, copied into results/ on first CMake configure
 02_ResultsTemplate/   Per-light-field experiment sweeps (config files + eval scripts)
 scripts/partition_info.py  Reads, summarizes, compares and plots partition info files
+scripts/orientation_ablation.py  Structure-tensor estimator ablation (synthetic, accuracy, BD-rate)
 tests/                GoogleTest unit tests (fetched automatically)
 ```
 

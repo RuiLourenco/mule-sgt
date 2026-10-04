@@ -145,6 +145,19 @@ public:
     at::Tensor sgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV, const at::Tensor& eigValsH, const at::Tensor& eigValsV) ;
     static at::Tensor isgt(const at::Tensor& flatBlock,const at::Tensor& sgtMatrixH, const at::Tensor& sgtMatrixV) ;
     std::array<double,2> computeAnglesFromStructureTensor(std::array<double,2> disparityRange) const;
+    // Single EPI orientation atan(disparity), in degrees, estimated from the 4D
+    // structure tensor T = structureTensor() (axes t, s, v, u) and clamped to the angle
+    // range of `disparityRange`:
+    //   Pooled       - smallest-eigenvalue orientation of the 2x2 tensor pooled over the
+    //                  horizontal (s,u) and vertical (t,v) EPIs.
+    //   PerDirection - the same 2x2 estimate for each EPI direction separately, averaged.
+    //   Eigen4D      - -atan(e_s/e_u) and -atan(e_t/e_v) from the principal eigenvector
+    //                  e of T, averaged.
+    enum class StructureTensorEstimator { Pooled, PerDirection, Eigen4D };
+    double computeAngleFromStructureTensor(std::array<double,2> disparityRange,
+                                           StructureTensorEstimator estimator = StructureTensorEstimator::Pooled) const;
+    static double angleFromStructureTensor(const at::Tensor& T, StructureTensorEstimator estimator,
+                                           std::array<double,2> disparityRange);
     at::Tensor fetchBlockGradient(int64_t dimension) const;
     LightField* lightField = nullptr;
     at::Tensor autoCorr(bool isHorizontal);

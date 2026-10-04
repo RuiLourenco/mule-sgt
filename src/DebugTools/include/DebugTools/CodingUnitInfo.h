@@ -16,6 +16,9 @@ enum class CandidateMethod : uint8_t {
     StructureTensorH,
     StructureTensorV,
     StructureTensorAvg,
+    StructureTensorPooled,
+    StructureTensorPerDirection,
+    StructureTensorEigen4D,
     CovarianceH,
     CovarianceV,
     CovarianceAvg,
@@ -62,6 +65,15 @@ public:
     std::optional<SearchCandidate> bestCandidate(const std::function<bool(CandidateMethod)>& filter) const;
     std::optional<SearchCandidate> bestCandidate(CandidateMethod method) const;
 
+    // --- Diagnostics (encoder, --probe-st-estimators) ---------------------------
+    // Configurations evaluated only for analysis. They never influence the coding
+    // decision and are not candidates for setChosen.
+    void addProbe(CandidateMethod method, const SgtSideInfo& ssi, double cost);
+    const std::vector<SearchCandidate>& getProbes() const { return probes; }
+    // 4D structure tensor of the block (axes t, s, v, u), row-major.
+    void setStructureTensor(const std::array<double, 16>& tensor) { structureTensor = tensor; }
+    const std::optional<std::array<double, 16>>& getStructureTensor() const { return structureTensor; }
+
     // --- Outcome --------------------------------------------------------------
     // Stores the side information that was actually coded and links it to the
     // candidate that produced it (matched on the quantized side-information codes).
@@ -94,6 +106,8 @@ private:
     std::array<int64_t, 4> lightFieldPosition{};
     std::array<int64_t, 4> size{};
     std::vector<SearchCandidate> candidates;
+    std::vector<SearchCandidate> probes;
+    std::optional<std::array<double, 16>> structureTensor;
     std::optional<SgtSideInfo> chosenSsi;
     int chosenIndex = -1; // index into `candidates`, -1 if not recorded
     double bits = 0.0;

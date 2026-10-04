@@ -24,6 +24,14 @@
 
 class MultiScaleTransfrom;
 
+// How RDtestStructureTensor turns the structure tensor into candidate angles.
+//   Pooled / PerDirection / Eigen4D - one estimate (see Block4D_::StructureTensorEstimator).
+//   Legacy - the previous behaviour: horizontal, vertical and mean angles from the 4D
+//            eigenvector with log-det disambiguation, each RD-tested.
+enum class StructureTensorMode { Pooled, PerDirection, Eigen4D, Legacy };
+const char* toString(StructureTensorMode mode);
+StructureTensorMode structureTensorModeFromString(const std::string& name);
+
 enum class SearchMethodType {
     STRUCTURE_TENSOR,
     LOGDET,
@@ -52,7 +60,15 @@ class TransformPartition {
     CodingPartitionInfo mCodingPartitionInfo;
     static std::array<int64_t, 8> searchTraceKey(const Block4D_& block);
     void recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion);
+    // Records every estimator's angle and RD cost (default rhos) for a block, for analysis.
+    void probeStructureTensorEstimators(const Block4D_& block, double currGain, CodingUnitInfo& cui);
+
+    StructureTensorMode mStructureTensorMode = StructureTensorMode::Pooled;
+    bool mProbeStructureTensor = false;
 public:  
+    void setStructureTensorMode(StructureTensorMode mode) { mStructureTensorMode = mode; }
+    // Requires a partition info level other than Off to have any effect.
+    void setProbeStructureTensor(bool enabled) { mProbeStructureTensor = enabled; }
     void setPartitionInfoLevel(PartitionInfoLevel level);
     PartitionInfoLevel getPartitionInfoLevel() const { return mInfoLevel; }
     // What the last EncodePartition call coded. Empty when the level is Off.
