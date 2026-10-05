@@ -317,17 +317,19 @@ The reference was re-encoded with the same encoder.
 
 ### 8.1 Coding performance
 
-BD-rate against the grid search, PSNR-YUV:
+BD-rate against the grid search, PSNR-YUV. Refinement is given as range and step; the default
+is ±10° at 0.5°.
 
-| Method | ±10°, zero padding | ±10°, replicate padding | ±2°, zero padding |
-|---|---|---|---|
-| Current method | +1.78% | +1.47% | +3.59% |
-| Pooled | +1.73% | +0.97% | +5.61% |
-| Pooled + H/V | +1.33% | **+0.72%** | +2.96% |
+| Method | ±10° at 0.5°, zero padding | ±10° at 0.5°, replicate padding | ±10° at 0.1°, zero padding | ±2° at 0.5°, zero padding |
+|---|---|---|---|---|
+| Current method | +1.78% | +1.47% | +0.77% | +3.59% |
+| Pooled | +1.73% | +0.97% | +1.10% | +5.61% |
+| Pooled + H/V | +1.33% | +0.72% | **+0.58%** | +2.96% |
 
 With PSNR-Y the ordering at ±10° with zero padding is the same (current 1.81%, pooled 2.04%,
 pooled + H/V 1.05%), but replicate padding helps pooled (2.04% → 1.49%) and slightly hurts
-pooled + H/V (1.05% → 1.14%).
+pooled + H/V (1.05% → 1.14%). With the 0.1° step, PSNR-Y gives current 1.08%, pooled 1.59% and
+pooled + H/V 0.76%.
 
 ![BD-rate after the fixes](figures/bdrate_after_fixes.png)
 
@@ -338,10 +340,20 @@ pooled + H/V (1.05% → 1.14%).
   and pooled matches the current method.
 - **Pooled + H/V is the best structure-tensor search in every configuration.** It needs no 4D
   eigendecomposition and no log-det evaluation.
-- **The refinement range hides estimator quality.** Narrowing the refinement from ±10° to ±2°
-  doubles the current method's loss (1.78% → 3.59%) and more than triples pooled's
-  (1.73% → 5.61%). Pooled + H/V degrades least (1.33% → 2.96%). The ±10° window makes the
-  estimators look closer than they are, so it understates the value of better estimates.
+- **The refinement range hides gross estimator errors.** Narrowing the refinement from ±10° to
+  ±2° doubles the current method's loss (1.78% → 3.59%) and more than triples pooled's
+  (1.73% → 5.61%). Pooled + H/V degrades least (1.33% → 2.96%). A wide window rescues
+  estimates that are several degrees off.
+- **The refinement step costs every method about as much as the estimator choice.** Refining
+  the same ±10° window in 0.1° steps (the angle coding precision) instead of 0.5° cuts the loss
+  of the current method from 1.78% to 0.77%, of pooled from 1.73% to 1.10% and of
+  pooled + H/V from 1.33% to 0.58%. The 0.5° lattice is anchored at the estimate, so every
+  method can end up to 0.25° from the best angle it would otherwise find. The finer step does
+  not make the estimator differences larger: pooled + H/V's lead over the current method shrinks
+  from 0.45 to 0.19 points, and single-angle pooled falls behind the current method (0.33
+  points), presumably because with a fine step the remaining loss comes from blocks whose
+  estimate lands in the wrong basin, where testing several angles helps. The fine step costs
+  about as many RD evaluations per block as the grid search itself (201 against about 167).
 - **Replicate padding helps a little** on PSNR-YUV for all three methods (0.3 to 0.8 points).
   It introduced no visible errors here, but this crop uses no pre-slant, and earlier problems
   with replicate padding may have involved pre-slant's invalid corners.

@@ -220,19 +220,21 @@ def bdrate_figure(runs: Path, out: Path) -> None:
                           [p["bpp"] for p in test], [p["psnr_yuv"] for p in test])
 
     methods = ["legacy", "pooled", "pooled_hv"]
-    configs = [("", r"$\pm10^\circ$ refinement, zero padding"),
-               ("@rep", r"$\pm10^\circ$ refinement, replicate padding"),
-               ("@r2", r"$\pm2^\circ$ refinement, zero padding")]
+    configs = [("", r"$\pm10^\circ$ at $0.5^\circ$, zero padding"),
+               ("@rep", r"$\pm10^\circ$ at $0.5^\circ$, replicate padding"),
+               ("@f01", r"$\pm10^\circ$ at $0.1^\circ$, zero padding"),
+               ("@r2", r"$\pm2^\circ$ at $0.5^\circ$, zero padding")]
+    configs = [c for c in configs if all((m + c[0]) in points for m in methods)]
     values = [[bd(m + tag) for m in methods] for tag, _ in configs]
     groups = ["current", "pooled", "pooledhv"]
 
     plt = _pyplot()
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(8, 4.2))
     x = np.arange(len(methods))
-    width = 0.26
+    width = 0.8 / len(configs)
     for i, ((_, label), vals) in enumerate(zip(configs, values)):
-        bars = ax.bar(x + (i - 1) * width, vals, width,
-                      label=label.replace(r"$\pm", "±").replace(r"^\circ$", "°"))
+        plain = label.replace("$", "").replace(r"\pm", "±").replace(r"^\circ", "°")
+        bars = ax.bar(x + (i - (len(configs) - 1) / 2) * width, vals, width, label=plain)
         ax.bar_label(bars, fmt="%.2f", fontsize=8)
     ax.set_xticks(x)
     ax.set_xticklabels(["Current method", "Pooled", "Pooled + H/V"])
