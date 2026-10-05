@@ -1,5 +1,6 @@
 #include "LightField/LightField.h"
 #include "LightField/Block4D_.h"
+#include "LightField/Reproducibility.h"
 #include "Encoder/Hierarchical4DEncoder.h"
 #include "Encoder/TransformPartition.h"
 #include <boost/program_options.hpp>
@@ -460,9 +461,8 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 
 int main(int argc, char **argv) {
     
+    enableReproducibleMath(); // single-threaded tensor ops and MKL strict CNR; parallelism comes from the RD search pool
     torch::InferenceMode guard;
-    // Blocks are too small for intra-op threading to pay off; parallelism comes from the RD search pool instead
-    at::set_num_threads(1);
     //DEFAULT Encoder
     EncoderParameters par;
 

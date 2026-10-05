@@ -1,5 +1,6 @@
 #include "LightField/LightField.h"
 #include "LightField/Block4D_.h"
+#include "LightField/Reproducibility.h"
 #include "Decoder/Hierarchical4DDecoder.h"
 #include "Decoder/PartitionDecoder.h"
 #include <boost/program_options.hpp>
@@ -181,8 +182,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
 }
 
 int main(int argc, char **argv) {
-    // Same as the encoder: per-block tensor ops are too small for intra-op threading
-    at::set_num_threads(1);
+    enableReproducibleMath(); // must match the encoder's numerics
 
     DecoderParameters par;
     int v = readProgramOptions(argc, argv, par);

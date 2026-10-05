@@ -8,4 +8,4 @@ FetchContent_MakeAvailable(json)
 
 target_include_directories(LightField PUBLIC include)
 
-target_link_libraries(LightField PUBLIC nlohmann_json::nlohmann_json torch osqp::osqp IO)
+target_link_libraries(LightField PUBLIC nlohmann_json::nlohmann_json torch osqp::osqp IO ${CMAKE_DL_LIBS})
