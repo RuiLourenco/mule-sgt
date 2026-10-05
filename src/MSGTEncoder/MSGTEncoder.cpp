@@ -535,6 +535,8 @@ int main(int argc, char **argv) {
     string pattern = R"((?P<U>.*)_(?P<V>.*)\.ppm)";
     inputLF.OpenLightFieldPPM_(par.inputDirectory,pattern,par.firstView,par.viewSize);  
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;     
+    // Slanting pads each view; only the original pixels carry coded distortion, so PSNR is normalised by this count
+    const double unslantedPixels = (double)inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3);
     inputLF.slantLightField(par.preSlantTan);
     std::cout<<"LightField Size: "<<inputLF.data.sizes()<<std::endl;  
     std::array<int64_t,2> stride = {2,3};
@@ -744,9 +746,9 @@ int main(int argc, char **argv) {
     }
     if(par.partitionInfoLevel != PartitionInfoLevel::Off){
         std::cout<<"Total Distortion: "<<error[0]<<" "<<error[1]<<" "<<error[2]<<std::endl;
-        double mseY = error[0]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-        double mseCb = error[1]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
-        double mseCr = error[2]/(inputLF.data.size(0)*inputLF.data.size(1)*inputLF.data.size(2)*inputLF.data.size(3));
+        double mseY = error[0]/unslantedPixels;
+        double mseCb = error[1]/unslantedPixels;
+        double mseCr = error[2]/unslantedPixels;
 
         double PSNR_Y = 10*log10((1024*1024)/mseY);
         double PSNR_Cb = 10*log10((1024*1024)/mseCb);

@@ -1,5 +1,6 @@
 #include "Encoder/TransformPartition.h"
 #include <omp.h>
+#include <exception>
 #include <vector>
 #include <numeric>   // For std::iota
 #include <algorithm> // For std::min_element
@@ -499,16 +500,24 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
         all_angles[i] = minAngle + i * angleStep;
     }
 
+    // An exception must not escape the OpenMP region (that calls terminate and loses the message): keep the first, rethrow after
+    std::exception_ptr firstError;
     #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
     for (int i = 0; i < numSteps; ++i) {
-        int thread_id = omp_get_thread_num();
-        auto& localEncoderPtr = m_encoder_pool[thread_id];
-        Block4D_& current_block = all_blocks[i];
-        double angle = all_angles[i];
+        try {
+            int thread_id = omp_get_thread_num();
+            auto& localEncoderPtr = m_encoder_pool[thread_id];
+            Block4D_& current_block = all_blocks[i];
+            double angle = all_angles[i];
 
-        // Evaluate puts the result straight into our vector slot
-        all_J_values[i] = EvaluatePartitionFixedRho(*localEncoderPtr, current_block, currGain, angle, angle, all_models[i]);
+            // Evaluate puts the result straight into our vector slot
+            all_J_values[i] = EvaluatePartitionFixedRho(*localEncoderPtr, current_block, currGain, angle, angle, all_models[i]);
+        } catch (...) {
+            #pragma omp critical
+            if (!firstError) firstError = std::current_exception();
+        }
     }
+    if (firstError) std::rethrow_exception(firstError);
 
     // --- Phase 3: Reduce ---
     auto min_iterator = std::min_element(all_J_values.begin(), all_J_values.end());
@@ -580,38 +589,46 @@ double TransformPartition::parallelRhoSearch(
     }
 
     // --- Phase 2: Map (Parallel Evaluation) ---
+    // Same as RDtestGridSearch: never let an exception escape the OpenMP region
+    std::exception_ptr firstError;
     #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
     for (int i = 0; i < numSteps; ++i) {
-        int thread_id = omp_get_thread_num();
-        auto& localEncoderPtr = m_encoder_pool[thread_id];
+        try {
+            int thread_id = omp_get_thread_num();
+            auto& localEncoderPtr = m_encoder_pool[thread_id];
         
-        Block4D_& current_block = all_blocks[i];
-        double rho_space;
-        double rho_angle;
+            Block4D_& current_block = all_blocks[i];
+            double rho_space;
+            double rho_angle;
         
-        if (searchSpace) {
-            rho_space = all_rhos[i];
-            rho_angle = fixedRho;
-        } else {
-            rho_angle = all_rhos[i];
-            rho_space = fixedRho;
-        }
+            if (searchSpace) {
+                rho_space = all_rhos[i];
+                rho_angle = fixedRho;
+            } else {
+                rho_angle = all_rhos[i];
+                rho_space = fixedRho;
+            }
 
-        // 3. Evaluate the cost and capture the resulting models directly into this thread's designated slot!
-        // Because of the sandbox in EvaluatePartition_, *localEncoderPtr is left completely unharmed.
-        double J0_curr = EvaluatePartitionArbitraryRho(
-            *localEncoderPtr, 
-            current_block, 
-            currGain, 
-            angle, 
-            rho_angle, 
-            rho_space, 
-            all_models[i] // <-- Passes the exact struct we want populated
-        );
+            // 3. Evaluate the cost and capture the resulting models directly into this thread's designated slot!
+            // Because of the sandbox in EvaluatePartition_, *localEncoderPtr is left completely unharmed.
+            double J0_curr = EvaluatePartitionArbitraryRho(
+                *localEncoderPtr, 
+                current_block, 
+                currGain, 
+                angle, 
+                rho_angle, 
+                rho_space, 
+                all_models[i] // <-- Passes the exact struct we want populated
+            );
         
-        // Store the result
-        all_J_values[i] = J0_curr;
+            // Store the result
+            all_J_values[i] = J0_curr;
+        } catch (...) {
+            #pragma omp critical
+            if (!firstError) firstError = std::current_exception();
+        }
     } // --- End of parallel region ---
+    if (firstError) std::rethrow_exception(firstError);
 
     // --- Phase 3: Reduce (Serial Selection) ---
     auto min_iterator = std::min_element(all_J_values.begin(), all_J_values.end());

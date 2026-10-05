@@ -760,7 +760,8 @@ std::vector<int64_t> Block4D_::copyValidSubblockPositions(std::array<int64_t,4> 
         for(int n = sourceOffset[spatialCoord]; n < sourceOffset[spatialCoord] + subblockLength[spatialCoord]; n++){
             if(n< 0 || n >= this->size[spatialCoord]) throw std::runtime_error("Invalid sourceOffset for Block4D_ copy");
             int64_t oldPosition = l * this->size[spatialCoord] + n;
-            int64_t position = l * subblockLength[spatialCoord] + n - sourceOffset[spatialCoord];
+            // Re-index relative to the subblock in both coordinates (view splits move the angular offset too)
+            int64_t position = (l - sourceOffset[angleCoord]) * subblockLength[spatialCoord] + n - sourceOffset[spatialCoord];
             
             
             auto it = std::find(data, end, oldPosition);
@@ -1042,7 +1043,10 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
         
         auto mask4D = validMask.reshape({size[0],size[2],size[1],size[3]}).permute({0,2,1,3});
         at::Tensor validGradients = blockGradient.masked_select(mask4D.to(at::kBool));
-        if ((validGradients.abs() > 900000.0).any().item<bool>()) {
+        // The derivative taps sum to +-1, so a real gradient is bounded by the pixel range and a product by its square;
+        // only fill poison (~1e6 per pixel) can exceed that. A fixed 9e5 threshold tripped on genuine full-range edges.
+        const double maxGradientProduct = 1.01 * lightField->mPGMScale * lightField->mPGMScale;
+        if ((validGradients.abs() > maxGradientProduct).any().item<bool>()) {
             throw std::runtime_error("POISON LEAKED INTO VALID PIXELS IN computeGradientSum!");
         }
         
@@ -3911,7 +3915,8 @@ at::Tensor Block4D_::get_valid_position(double adjustment_d,std::array<int64_t,4
             //std::cout<<blk_n_start<<" "<<blk_n_end<<" "<<block_start[spatial_coordinate]<<" "<<block_shape[spatial_coordinate]<<std::endl;
 
             if (blk_n_end - blk_n_start < 1) continue;
-            indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*l_).to(at::kLong);
+            // View index relative to the block: view-split blocks do not start at view 0
+            indexes = (at::range(blk_n_start,blk_n_end-1,1)+block_shape[spatial_coordinate]*(l_ - block_start[view_coordinate])).to(at::kLong);
         }
         padding_coordinates.push_back(indexes);
          
@@ -4034,7 +4039,7 @@ double Block4D_::getOrientationFromCovariance(double precision, std::array<doubl
         //std::cout<<theta<<": "<<result<<std::endl;
         if (result > max){
             max = result;
-            chosenAngle = atan(alpha) * 180.0 / M_PI;
+            chosenAngle = alpha * 180.0 / M_PI; // alpha is already atan(disparity)
         }
     }
 
