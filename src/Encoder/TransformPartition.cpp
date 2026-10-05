@@ -1127,8 +1127,10 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         // Capture the resulting state of the spatial split branch
         stateS = mEntropyCoder.GetOptimizerSnapshot();
         
-        // Restore the pristine original state before we evaluate view split
-        mEntropyCoder.RestoreOptimizerState(originalState);
+        // Restore the pristine original state before we evaluate view split. The thread
+        // pool must be restored too: grid and rho searches evaluate on it, and the split
+        // branch left it holding the state committed by its last sub-block.
+        CommitOptimizerState(originalState);
     }
 
     // 3b. Evaluate VIEW SPLIT (JV)
@@ -1147,8 +1149,8 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         // Capture the resulting state of the view split branch
         stateV = mEntropyCoder.GetOptimizerSnapshot();
         
-        // Restore the pristine original state before final decision
-        mEntropyCoder.RestoreOptimizerState(originalState);
+        // Restore the pristine original state (main encoder and pool) before final decision
+        CommitOptimizerState(originalState);
     }
 
     // 4. Add Flag Costs
