@@ -210,6 +210,7 @@ seem to take effect.
 | `--bt601` | flag | on (default) | Use BT.601 RGB→YCbCr color transform. Mutually exclusive with `--ycocg` (specifying both is an error). |
 | `--ycocg` | flag | off | Use YCoCg color transform instead of BT.601. |
 | `--verbosity`, `-V` | flag | off | Print detailed per-block progress/diagnostics to stdout while encoding. |
+| `--threads` | int | `8` | Worker threads for the parallel grid and rho searches. Tensor operations always run single-threaded, so the bitstream does not depend on this value or on the machine's core count. |
 | `--partition-info` | `full` / `winner` / `off` | `full` | What to record in `info.json`: every search candidate, only the chosen one, or nothing (no file, no predicted PSNR/rate printout). Never changes the bitstream. See [Partition info files](#partition-info-files). |
 
 **Rate-distortion search method** — exactly one of the following may be given (giving
@@ -258,6 +259,7 @@ section.
 | `-ycocg` | — | YCoCg color transform |
 | `-VV` | — | Verbose output |
 | `-partition_info` | `full` / `winner` / `off` | Partition info recording level |
+| `-threads` | 1 int | Worker threads for the parallel grid and rho searches (default 8) |
 | `-structure_tensor` | — | Search method: structure tensor |
 | `-logdet [angleStep]` | optional 1 float | Search method: logdet |
 | `-grid_search [angleStep]` | optional 1 float | Search method: grid search |

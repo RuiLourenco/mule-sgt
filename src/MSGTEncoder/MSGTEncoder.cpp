@@ -64,6 +64,7 @@ public:
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
+    int threads = 8; // workers for the parallel grid/rho searches; tensor ops themselves run single-threaded
 
 
     void setMethod(SearchMethodType method) {
@@ -260,6 +261,9 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
             parametersFile>>level;
             partitionInfoLevel = partitionInfoLevelFromString(level);
         }
+        if(!command.compare("-threads")){
+            parametersFile>>threads;
+        }
 
     }
 }
@@ -287,6 +291,7 @@ void EncoderParameters :: DisplayConfiguration(void) {
     cout<<"Extension Method = "<<extensionMethod<<endl;
     cout<<"Color Transform Type = "<<colorTransformType<<endl;
     cout<<"Verbosity = "<<verbosity<<endl;
+    cout<<"Threads = "<<threads<<endl;
 
 }
    
@@ -346,6 +351,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("ycocg", po::bool_switch()->default_value(false),  "Sets Color Transform to YCOCG")
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
 
+        ("threads", po::value<int>(&par.threads), "Worker threads for the parallel grid/rho searches (default 8)")
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
@@ -455,8 +461,8 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 int main(int argc, char **argv) {
     
     torch::InferenceMode guard;
-    // torch::set_num_threads(1);
-    // at::set_num_threads(1);
+    // Blocks are too small for intra-op threading to pay off; parallelism comes from the RD search pool instead
+    at::set_num_threads(1);
     //DEFAULT Encoder
     EncoderParameters par;
 
@@ -595,6 +601,7 @@ int main(int argc, char **argv) {
                           par.refineStructureTensorStep, par.refineGridSearchInitialStep,
                           par.refineGridSearchRange, par.refineGridSearchStep);
 
+    tp.setNumThreads(par.threads);
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
     tp.setPartitionInfoLevel(par.partitionInfoLevel);
 

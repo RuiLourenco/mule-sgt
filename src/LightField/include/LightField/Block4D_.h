@@ -160,6 +160,9 @@ public:
     void ikltTransform(double scale,at::Tensor covH, at::Tensor covV);
 
     at::Tensor getSgtTransformMatrix(const at::Tensor& cov, bool isHorizontal,at::Tensor& eigVals) const;
+    // Both bases at once; when the H and V covariances are identical the eigendecomposition is done once
+    void getSgtTransformMatrices(const at::Tensor& covH, const at::Tensor& covV, at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV,
+                                 at::Tensor& eigValsH, at::Tensor& eigValsV) const;
     static at::Tensor orderSGTByMonotony( at::Tensor epiTransform,at::Tensor sgtTransform,at::Tensor& order);
 
     static std::vector<std::array<int64_t,4>> treeOrderedCoefficientPositions(std::array<int64_t,4> size);

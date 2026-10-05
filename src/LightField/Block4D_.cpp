@@ -874,30 +874,25 @@ at::Tensor Block4D_::getSgtTransformMatrix(const at::Tensor& cov, bool isHorizon
 
     at::Tensor transform = klt(cov,eigVals);
 
-    
-    at::Tensor normalizedTransform = transform.clone();
+    // Flip each column so that its first entry with |x| > eps is positive (columns with none are left as is)
     double eps = 1/sqrt(transform.size(0)) *1e-5;
-    //std::cout<<transform.sizes()<<std::endl;
-    // auto indexVec = transform[0] < - eps;
-    // transform.index({at::indexing::Slice(),indexVec}) = -transform.index({at::indexing::Slice(),indexVec});
-    for(int i = 0; i < transform.size(1); i++){
-        int bias = 0;
-        while(bias < transform.size(0)){
-
-            double reference = transform[bias][i].item<double>();
-            if(abs(reference) > eps){
-        
-                if(reference < 0){
-                    transform.index({at::indexing::Slice(),i}) =  -1 * transform.index({at::indexing::Slice(),i});   
-                }          
-                break;
-            }
-
-            bias++;
-
-        }
-    }
+    at::Tensor significant = transform.abs() > eps;
+    at::Tensor firstSignificant = (significant.cumsum(0) == 0).sum(0).clamp_max(transform.size(0) - 1);
+    at::Tensor reference = transform.gather(0, firstSignificant.unsqueeze(0)).squeeze(0);
+    at::Tensor flip = (reference < 0).logical_and(significant.any(0));
+    transform.mul_((1 - 2 * flip.to(transform.scalar_type())).unsqueeze(0));
     return transform;
+}
+void Block4D_::getSgtTransformMatrices(const at::Tensor& covH, const at::Tensor& covV, at::Tensor& sgtMatrixH, at::Tensor& sgtMatrixV,
+                                       at::Tensor& eigValsH, at::Tensor& eigValsV) const{
+    sgtMatrixH = getSgtTransformMatrix(covH,true,eigValsH);
+    if(at::equal(covH, covV)){
+        sgtMatrixV = sgtMatrixH;
+        eigValsV = eigValsH;
+    }
+    else{
+        sgtMatrixV = getSgtTransformMatrix(covV,false,eigValsV);
+    }
 }
   at::Tensor Block4D_::batchedCovMatrix(bool isHorizontal) const {
 
@@ -1404,8 +1399,8 @@ void Block4D_::sgtTransform(double scale){
         this->sgtDomain = true;
         return;
     }
-    at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
-    at::Tensor sgtMatrixV =   getSgtTransformMatrix(modelCovMatV,false,eigValsV);
+    at::Tensor sgtMatrixH, sgtMatrixV;
+    getSgtTransformMatrices(modelCovMatH, modelCovMatV, sgtMatrixH, sgtMatrixV, eigValsH, eigValsV);
 
     //saveTensorAsMatlabScript(sgtMatrixH,"sgtMatrixH_n47");
     
@@ -2112,8 +2107,8 @@ at::Tensor Block4D_::isgtTransformData(double scale, SgtSideInfo ssi) {
     at::Tensor modelCovMatH = this->calcModelCovMatrix(ssi,true);
     at::Tensor modelCovMatV = this->calcModelCovMatrix(ssi,false);  
     at::Tensor eigValsH,eigValsV; 
-    at::Tensor sgtMatrixH   = getSgtTransformMatrix(modelCovMatH,true,eigValsH);
-    at::Tensor sgtMatrixV = getSgtTransformMatrix(modelCovMatV,false,eigValsV);
+    at::Tensor sgtMatrixH, sgtMatrixV;
+    getSgtTransformMatrices(modelCovMatH, modelCovMatV, sgtMatrixH, sgtMatrixV, eigValsH, eigValsV);
     
     // DEBUG: Capture inverse transform matrices
     this->isgtMatrixH = sgtMatrixH;

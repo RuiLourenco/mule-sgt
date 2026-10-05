@@ -40,6 +40,7 @@ class TransformPartition {
                                                                   size_t height, 
                                                                   size_t width);
     std::vector<std::unique_ptr<Hierarchical4DEncoder>> m_encoder_pool;
+    int mNumThreads;
     void getOptimalMinimumBitPlane(Block4D_& inputBlock);
 
     // --- Partition info recording ---
@@ -53,6 +54,8 @@ class TransformPartition {
     static std::array<int64_t, 8> searchTraceKey(const Block4D_& block);
     void recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion);
 public:  
+    // Rebuilds the encoder pool; the parallel searches use exactly this many threads
+    void setNumThreads(int numThreads);
     void setPartitionInfoLevel(PartitionInfoLevel level);
     PartitionInfoLevel getPartitionInfoLevel() const { return mInfoLevel; }
     // What the last EncodePartition call coded. Empty when the level is Off.

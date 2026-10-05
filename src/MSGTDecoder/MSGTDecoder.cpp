@@ -181,6 +181,8 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
 }
 
 int main(int argc, char **argv) {
+    // Same as the encoder: per-block tensor ops are too small for intra-op threading
+    at::set_num_threads(1);
 
     DecoderParameters par;
     int v = readProgramOptions(argc, argv, par);

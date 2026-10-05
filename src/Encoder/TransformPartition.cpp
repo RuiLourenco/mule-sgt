@@ -33,7 +33,8 @@ TransformPartition :: TransformPartition(std::array<int64_t,4> minLength, Hierar
       mRefineStructureTensorRange(refineStructureTensorRange), mRefineStructureTensorStep(refineStructureTensorStep),
       mRefineGridSearchInitialStep(refineGridSearchInitialStep), mRefineGridSearchRange(refineGridSearchRange), mRefineGridSearchStep(refineGridSearchStep) {
     
-    create_encoder_pool(omp_get_max_threads(),mEntropyCoder.mProcessingContext.image_height ,mEntropyCoder.mProcessingContext.image_width);
+    mNumThreads = omp_get_max_threads();
+    create_encoder_pool(mNumThreads,mEntropyCoder.mProcessingContext.image_height ,mEntropyCoder.mProcessingContext.image_width);
     //std::cout<<"Using "<<m_encoder_pool.size()<<" threads for encoding."<<std::endl;
     //std::cout<<"MBP : "<<mEntropyCoder.mInferiorBitPlane<<std::endl;
 
@@ -498,7 +499,7 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
         all_angles[i] = minAngle + i * angleStep;
     }
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
     for (int i = 0; i < numSteps; ++i) {
         int thread_id = omp_get_thread_num();
         auto& localEncoderPtr = m_encoder_pool[thread_id];
@@ -579,7 +580,7 @@ double TransformPartition::parallelRhoSearch(
     }
 
     // --- Phase 2: Map (Parallel Evaluation) ---
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
     for (int i = 0; i < numSteps; ++i) {
         int thread_id = omp_get_thread_num();
         auto& localEncoderPtr = m_encoder_pool[thread_id];
@@ -1212,6 +1213,11 @@ void TransformPartition::EncodePartition() {
     mSearchTrace.clear();
 }
 
+void TransformPartition::setNumThreads(int numThreads) {
+    mNumThreads = std::max(1, numThreads);
+    m_encoder_pool.clear();
+    create_encoder_pool(mNumThreads, mEntropyCoder.mProcessingContext.image_height, mEntropyCoder.mProcessingContext.image_width);
+}
 void TransformPartition::setPartitionInfoLevel(PartitionInfoLevel level) {
     mInfoLevel = level;
     mEntropyCoder.mEntropyCoder.mTrackInformation = (level != PartitionInfoLevel::Off);
