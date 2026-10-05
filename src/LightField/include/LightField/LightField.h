@@ -14,8 +14,9 @@ public:
     LightField(std::string rooth_path,std::string pattern);
     LightField(std::array<int64_t,5> sizes);
     void computeGradients();
-    void computeTopHalfGradients();
-    void computeBottomHalfGradients();
+    // blockSize: encoder block size along dim 2, so the split never cuts a block
+    void computeTopHalfGradients(int blockSize);
+    void computeBottomHalfGradients(int blockSize);
     void changePadding(std::string mode, double fill_value = 0.0);
     int preSlantTan = 0;
     int mPGMScale;                      /*!< scale of the pgm files*/

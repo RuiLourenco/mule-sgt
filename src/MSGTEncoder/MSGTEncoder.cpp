@@ -536,7 +536,7 @@ int main(int argc, char **argv) {
     // std::cout << "Press Enter to continue..." << std::endl;
     // std::cin.get();
     write_tensor(inputLF.data.index({inputLF.data.size(0)/2,at::indexing::Slice(),inputLF.data.size(2)/2,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
-    inputLF.computeTopHalfGradients();
+    inputLF.computeTopHalfGradients(par.maxPartitionSize[2]);
 
     //inputLF.computeBottomHalfGradients();
     //inputLF.computeGradients();
@@ -609,7 +609,7 @@ int main(int argc, char **argv) {
                         if(!inputLF.secondHalfGradientsComputed){
                             std::cout<<"Starting Bottom Half Gradient Computation"<<std::endl;
                             inputLF.changePadding("RepeatBorders");
-                            inputLF.computeBottomHalfGradients();
+                            inputLF.computeBottomHalfGradients(par.maxPartitionSize[2]);
                             //inputLF.changePadding("Fill", 999999.0);
                         }
                     }

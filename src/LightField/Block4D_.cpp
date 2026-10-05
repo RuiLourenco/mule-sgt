@@ -988,6 +988,12 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
         }
     }
     if (valid) {
+        // The gradient buffer only holds one half of dim 2; a block straddling the split would be silently truncated
+        if (gradientPosition[2] < 0 || gradientPosition[2] + trueSize[2] > lightField->gradients.size(2)) {
+            throw std::runtime_error("fetchBlockGradient: block rows [" + std::to_string(lightFieldPosition[2]) + ", " +
+                                     std::to_string(lightFieldPosition[2] + trueSize[2]) + ") are outside the computed gradient half (bias " +
+                                     std::to_string(lightField->secondHalfBias) + ", " + std::to_string(lightField->gradients.size(2)) + " rows)");
+        }
         at::Tensor slicedGradient = lightField->gradients.index({at::indexing::Slice({gradientPosition[0],gradientPosition[0]+trueSize[0]}),
                                                                 at::indexing::Slice({gradientPosition[1],gradientPosition[1]+trueSize[1]}),
                                                                 at::indexing::Slice({gradientPosition[2],gradientPosition[2]+trueSize[2]}),

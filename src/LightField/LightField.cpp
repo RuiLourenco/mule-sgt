@@ -563,7 +563,7 @@ void compute_second_half_gradients_inplace(
 /*******************************************************************************/
 /*                        LightField class methods                             */
 /*******************************************************************************/
-void LightField::computeTopHalfGradients(){
+void LightField::computeTopHalfGradients(int blockSize){
     const int KERNEL_SIZE = 5;
     const int CHUNK_SIZE = 128; // Your tunable parameter, applied along dim 2
     const int SPLIT_DIM = 2;   // The crucial change: we are splitting spatially!
@@ -571,26 +571,25 @@ void LightField::computeTopHalfGradients(){
         torch::indexing::Slice(), "...", 0
         }).to(torch::kFloat32);
     std::cout << "\n--- Computing gradients for FIRST half of dimension " << SPLIT_DIM << " ---" << std::endl;
-    this->gradients = compute_first_half_gradients(y_channel_slice, SPLIT_DIM, 128, KERNEL_SIZE, 1.0, CHUNK_SIZE);
+    this->gradients = compute_first_half_gradients(y_channel_slice, SPLIT_DIM, blockSize, KERNEL_SIZE, 1.0, CHUNK_SIZE);
     this -> secondHalfGradientsComputed = false;
     const auto full_dims = y_channel_slice.sizes();
-    this->secondHalfBias = calculate_block_aligned_split_point(full_dims[SPLIT_DIM],128);
+    this->secondHalfBias = calculate_block_aligned_split_point(full_dims[SPLIT_DIM], blockSize);
     if (this->gradients.size(SPLIT_DIM) > 0) {
         write_tensor(this->gradients.index({this->gradients.size(0)/2, this->gradients.size(1)/2, torch::indexing::Slice(), torch::indexing::Slice(), 2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/firstHalfGradients.png");
     }
 
 }
 
-void LightField::computeBottomHalfGradients(){
+void LightField::computeBottomHalfGradients(int blockSize){
     const int KERNEL_SIZE = 5;
     const int CHUNK_SIZE = 128; // Your tunable parameter, applied along dim 2
     const int SPLIT_DIM = 2;   // The crucial change: we are splitting spatially!
-    const int BLOCK_SIZE = 128; // The block size used in compression along the split dimension
     torch::Tensor y_channel_slice = this->data.index({
         torch::indexing::Slice(), "...", 0
     }).to(torch::kFloat32);
     const auto full_dims = y_channel_slice.sizes();
-    int64_t split_point = calculate_block_aligned_split_point(full_dims[SPLIT_DIM], BLOCK_SIZE);
+    int64_t split_point = calculate_block_aligned_split_point(full_dims[SPLIT_DIM], blockSize);
     int64_t second_half_size = full_dims[SPLIT_DIM] - split_point;
     
     auto second_half_dims = full_dims.vec();
@@ -599,7 +598,7 @@ void LightField::computeBottomHalfGradients(){
     gradient_dims.push_back(4);
     this->gradients = torch::zeros(gradient_dims, y_channel_slice.options()); 
 
-    compute_second_half_gradients_inplace(y_channel_slice, this->gradients, SPLIT_DIM,128, KERNEL_SIZE, 1.0, CHUNK_SIZE);
+    compute_second_half_gradients_inplace(y_channel_slice, this->gradients, SPLIT_DIM, blockSize, KERNEL_SIZE, 1.0, CHUNK_SIZE);
     this->secondHalfGradientsComputed  = true;
     this->secondHalfBias = split_point;
     if (this->gradients.size(SPLIT_DIM) > 0) {
