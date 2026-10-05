@@ -1003,10 +1003,17 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
 }
 
 double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) const{
-    int spatialBorder = 0;
     int angularBorder = 2;
-    if(lightFieldPosition[3] == 0 || lightFieldPosition[3] == lightField->data.size(3)-1 || lightFieldPosition[2] == 0 || lightFieldPosition[2] == lightField->data.size(2)-1){
-        spatialBorder = 2;
+    // The gradients are computed over the whole light field with a 5-tap filter and zero
+    // padding, so only spatial samples within GRADIENT_RADIUS of the light field's own
+    // border are corrupted. Drop exactly those, on the sides of the block that lie on that
+    // border; sides inside the light field keep all their samples.
+    constexpr int64_t GRADIENT_RADIUS = 2;
+    std::array<int64_t,4> spatialBegin{}, spatialEnd{};
+    for (int d = 2; d < 4; ++d) {
+        int64_t lfSize = lightField->data.size(d);
+        spatialBegin[d] = std::clamp<int64_t>(GRADIENT_RADIUS - lightFieldPosition[d], 0, size[d]);
+        spatialEnd[d] = std::clamp<int64_t>(lfSize - GRADIENT_RADIUS - lightFieldPosition[d], spatialBegin[d], size[d]);
     }
 
     at::Tensor grad1 = fetchBlockGradient(dimension1);
@@ -1049,7 +1056,7 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
         blockGradient = blockGradient * mask4D;
     }
 
-    blockGradient = blockGradient.index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
+    blockGradient = blockGradient.index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBegin[2],spatialEnd[2]),at::indexing::Slice(spatialBegin[3],spatialEnd[3])});
     
     return blockGradient.sum().item<double>();
 }

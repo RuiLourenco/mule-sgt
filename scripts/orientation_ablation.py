@@ -41,13 +41,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import partition_info as pinfo  # noqa: E402
 
 ESTIMATORS = ("pooled", "per_direction", "eigen4d")
+# Legacy mode RD-tests these three probed angles; its effective estimate is the cheapest.
+LEGACY_PROBES = ("structure_tensor_h", "structure_tensor_v", "structure_tensor_avg")
 PROBE_METHOD = {
     "pooled": "structure_tensor_pooled",
     "per_direction": "structure_tensor_per_direction",
     "eigen4d": "structure_tensor_eigen4d",
 }
 ENCODER_FLAG = {"pooled": "pooled", "per_direction": "per-direction", "eigen4d": "eigen4d", "legacy": "legacy"}
-LABEL = {"pooled": "Pooled", "per_direction": "Per-direction", "eigen4d": "4D eigenvector", "legacy": "Legacy"}
+LABEL = {"pooled": "Pooled", "per_direction": "Per-direction", "eigen4d": "4D eigenvector", "legacy": "Legacy (best of 3)"}
 REJECTED_COST = 1e50  # the encoder's numerically-unstable marker
 
 # --------------------------------------------------------------------------- #
@@ -162,16 +164,21 @@ def gradients(lf: np.ndarray, size: int = 5, sigma: float = 1.0) -> np.ndarray:
     return out
 
 
-def block_tensor(grads: np.ndarray, position, size, lf_spatial, angular_border: int = 2) -> np.ndarray:
-    """Mirror of Block4D_::computeGradientSum for all 16 entries (no invalid corners)."""
-    t0, s0, v0, u0 = position
-    nt, ns, nv, nu = size
-    spatial_border = 2 if (u0 == 0 or u0 == lf_spatial[1] - 1 or v0 == 0 or v0 == lf_spatial[0] - 1) else 0
-    block = grads[t0 + angular_border:t0 + nt - angular_border,
-                  s0 + angular_border:s0 + ns - angular_border,
-                  v0 + spatial_border:v0 + nv - spatial_border,
-                  u0 + spatial_border:u0 + nu - spatial_border]
-    flat = block.reshape(-1, 4)
+def block_tensor(grads: np.ndarray, position, size, lf_shape=None, angular_border: int = 2,
+                 radius: int = 2) -> np.ndarray:
+    """Mirror of Block4D_::computeGradientSum for all 16 entries (no invalid corners).
+
+    Always drops `angular_border` views on each side of the block. Spatially, drops only the
+    samples within `radius` of the light field's own border (`lf_shape`, defaulting to
+    grads.shape[:4]), on the sides of the block that lie on it."""
+    lf_shape = grads.shape[:4] if lf_shape is None else lf_shape
+    slices = [slice(position[0] + angular_border, position[0] + size[0] - angular_border),
+              slice(position[1] + angular_border, position[1] + size[1] - angular_border)]
+    for d in (2, 3):
+        begin = min(max(radius - position[d], 0), size[d])
+        end = min(max(lf_shape[d] - radius - position[d], begin), size[d])
+        slices.append(slice(position[d] + begin, position[d] + end))
+    flat = grads[tuple(slices)].reshape(-1, 4)
     return flat.T @ flat
 
 
@@ -225,7 +232,7 @@ def run_synthetic(args) -> None:
                 start = (args.size - block) // 2 - 2
                 region = lf[:, :, start:start + block + 4, start:start + block + 4]
                 grads = gradients(region)
-                T = block_tensor(grads, (0, 0, 2, 2), (9, 9, block, block), (block + 4, block + 4))
+                T = block_tensor(grads, (0, 0, 2, 2), (9, 9, block, block))
                 row = {"texture": texture, "d": float(d), "trial": trial,
                        "true": math.degrees(math.atan(d)), "coherence": coherence(T)}
                 for name in ESTIMATORS:
@@ -321,7 +328,9 @@ def run_validate(args) -> int:
     worst = 0.0
     for unit in units:
         for probe in unit.probes:
-            name = next(k for k, v in PROBE_METHOD.items() if v == probe.method)
+            name = next((k for k, v in PROBE_METHOD.items() if v == probe.method), None)
+            if name is None:
+                continue  # legacy probes need the codec's log-det cost; not mirrored here
             expected = codec_angle(unit.structure_tensor, name, disparity_range)
             worst = max(worst, abs(expected - probe.angleH))
     print(f"estimators: max |python - codec| angle over {len(units)} units = {worst:.4f} deg "
@@ -352,24 +361,21 @@ def run_validate(args) -> int:
     if args.light_field:
         lf = read_light_field(args.light_field)
         grads = gradients(lf)
-        spatial = lf.shape[2:]
         errors = []
         for unit in units:
-            p, s = unit.position, unit.size
-            interior = (p[2] >= 2 and p[3] >= 2 and p[2] + s[2] <= spatial[0] - 2 and p[3] + s[3] <= spatial[1] - 2)
-            if not interior or min(s[0], s[1]) <= 4:
-                continue
-            T = block_tensor(grads, p, s, spatial)
             ref = unit.structure_tensor
-            errors.append(np.abs(T - ref).max() / max(np.abs(ref).max(), 1e-12))
+            if np.abs(ref).max() == 0:
+                continue
+            T = block_tensor(grads, unit.position, unit.size)
+            errors.append(np.abs(T - ref).max() / np.abs(ref).max())
         if errors:
             errors = np.array(errors)
-            print(f"gradients: relative max tensor difference over {len(errors)} interior units: "
+            print(f"gradients: relative max tensor difference over {len(errors)} units: "
                   f"median {np.median(errors):.2e}, max {errors.max():.2e}")
             if np.median(errors) > 1e-3:
                 status = 1
         else:
-            print("gradients: no interior units to compare")
+            print("gradients: no units to compare")
     return status
 
 
@@ -391,8 +397,16 @@ def accuracy_rows(info: pinfo.InfoFile, channel, source: str) -> list:
                "position": "x".join(map(str, unit.position)), "size": "x".join(map(str, unit.size)),
                "spatial_size": unit.size[2], "theta_star": best.angleH, "J_star": best.cost,
                "coherence": coherence(unit.structure_tensor)}
+        legacy = [p for p in unit.probes if p.method in LEGACY_PROBES and p.cost < REJECTED_COST]
+        if legacy:  # an unstable angle just loses in a real legacy encode
+            best_legacy = min(legacy, key=lambda c: c.cost)
+            row["legacy"] = best_legacy.angleH
+            row["legacy_error"] = abs(best_legacy.angleH - best.angleH)
+            row["legacy_excess"] = (best_legacy.cost - best.cost) / best.cost if best.cost else math.nan
         for probe in unit.probes:
-            name = next(k for k, v in PROBE_METHOD.items() if v == probe.method)
+            name = next((k for k, v in PROBE_METHOD.items() if v == probe.method), None)
+            if name is None:
+                continue
             row[name] = probe.angleH
             row[name + "_error"] = abs(probe.angleH - best.angleH)
             row[name + "_excess"] = ((probe.cost - best.cost) / best.cost
@@ -425,9 +439,10 @@ def run_accuracy(args) -> None:
     for r in rows:
         r["abs_theta_star"] = abs(r["theta_star"])
 
+    names = list(ESTIMATORS) + (["legacy"] if all("legacy_error" in r for r in rows) else [])
     lines = [f"accuracy: {len(rows)} coded units from {len(args.info)} file(s), channel {args.channel}"]
     lines.append(f"  {'estimator':<16}{'median err (deg)':>18}{'mean err':>10}{'median excess':>15}{'p90 excess':>12}")
-    for name in ESTIMATORS:
+    for name in names:
         err = np.array([r[name + "_error"] for r in rows])
         exc = np.array([r[name + "_excess"] for r in rows])
         exc = exc[np.isfinite(exc)]
@@ -436,7 +451,7 @@ def run_accuracy(args) -> None:
     for key, edges, title in (("coherence", coherence_edges, "coherence"),
                               ("abs_theta_star", theta_edges, "|theta*| (deg)")):
         lines.append(f"\nby {title}: units | median angular error | median relative RD excess")
-        for name in ESTIMATORS:
+        for name in names:
             errs = _binned(rows, key, edges, name + "_error")
             excs = _binned(rows, key, edges, name + "_excess")
             cells = [f"[{lo:g},{hi:g}): n={n} {e:.2f}deg {x:.4f}" for (lo, hi, n, e), (_, _, _, x) in zip(errs, excs)]
@@ -450,7 +465,7 @@ def run_accuracy(args) -> None:
         return
     centers = (coherence_edges[:-1] + coherence_edges[1:]) / 2
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
-    for name, marker in zip(ESTIMATORS, ("o", "s", "^")):
+    for name, marker in zip(names, ("o", "s", "^", "d")):
         errs = [e for _, _, _, e in _binned(rows, "coherence", coherence_edges, name + "_error")]
         excs = [x for _, _, _, x in _binned(rows, "coherence", coherence_edges, name + "_excess")]
         axes[0].plot(centers, errs, marker=marker, label=LABEL[name])

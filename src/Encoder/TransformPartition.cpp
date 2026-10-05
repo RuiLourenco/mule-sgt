@@ -459,6 +459,20 @@ void TransformPartition::probeStructureTensorEstimators(const Block4D_& block, d
         double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
         cui.addProbe(entry.method, probe.ssi, J);
     }
+
+    // The legacy angles (horizontal, vertical and mean from the 4D eigenvector, with
+    // log-det disambiguation), so the legacy mode can be scored the same way. Legacy
+    // RD-tests all three, so its effective estimate is the cheapest of them.
+    std::array<double, 2> legacy = block.computeAnglesFromStructureTensor(mDisparityRange);
+    const std::array<double, 3> legacyAngles = {legacy[0], legacy[1], (legacy[0] + legacy[1]) / 2};
+    constexpr CandidateMethod legacyMethods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV,
+                                                  CandidateMethod::StructureTensorAvg};
+    for (int i = 0; i < 3; ++i) {
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel;
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, legacyAngles[i], legacyAngles[i], unusedModel);
+        cui.addProbe(legacyMethods[i], probe.ssi, J);
+    }
 }
 
 double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
