@@ -271,7 +271,7 @@ torch::Tensor compute_first_order_derivatives_lean(const torch::Tensor& input, i
  * The memory allocated inside this function is proportional to the chunk_size,
  * keeping the temporary memory footprint very low.
  */
-torch::Tensor process_derivative_chunk(const torch::Tensor& input_chunk, int kernel_size, float sigma) {
+torch::Tensor process_derivative_chunk(const torch::Tensor& input_chunk, int kernel_size, float sigma, bool replicatePadding = false) {
     auto options = input_chunk.options();
     const auto dims = input_chunk.sizes();
 
@@ -302,11 +302,19 @@ torch::Tensor process_derivative_chunk(const torch::Tensor& input_chunk, int ker
             // Reshape for conv1d
             permuted_src = permuted_src.reshape({-1, 1, permuted_shape.back()});
 
-            // Apply standard 1D convolution
-            torch::Tensor conv_result = torch::nn::functional::conv1d(
-                permuted_src, kernel,
-                torch::nn::functional::Conv1dFuncOptions().padding(kernel_size / 2)
-            );
+            // Apply standard 1D convolution. With replicate padding the edge samples are
+            // repeated instead of zero-filled; interior chunk boundaries are unaffected because
+            // their margins are loaded from the neighbouring data and cropped afterwards.
+            torch::Tensor conv_result;
+            if (replicatePadding) {
+                auto padded = torch::nn::functional::pad(permuted_src,
+                    torch::nn::functional::PadFuncOptions({kernel_size / 2, kernel_size / 2}).mode(torch::kReplicate));
+                conv_result = torch::nn::functional::conv1d(padded, kernel);
+            } else {
+                conv_result = torch::nn::functional::conv1d(
+                    permuted_src, kernel,
+                    torch::nn::functional::Conv1dFuncOptions().padding(kernel_size / 2));
+            }
 
             // Reshape back to 4D
             conv_result = conv_result.reshape(permuted_shape);
@@ -427,7 +435,8 @@ void compute_gradient_subvolume_into_buffer(
     int64_t range_end,
     int kernel_size,
     float sigma,
-    int chunk_size)
+    int chunk_size,
+    bool replicatePadding = false)
 {
     const auto full_dims = y_channel.sizes();
     int64_t total_slices_in_dim = full_dims[split_dim];
@@ -453,7 +462,7 @@ void compute_gradient_subvolume_into_buffer(
 
         // Get a VIEW of the input data WITH PADDING along the specified split_dim.
         auto input_chunk_with_padding = y_channel.slice(/*dim=*/split_dim, /*start=*/padded_start, /*end=*/padded_end);
-        auto gradient_chunk_with_padding = process_derivative_chunk(input_chunk_with_padding.contiguous(), kernel_size, sigma);
+        auto gradient_chunk_with_padding = process_derivative_chunk(input_chunk_with_padding.contiguous(), kernel_size, sigma, replicatePadding);
 
         // Define the region to CROP from the processed chunk.
         int64_t crop_start = chunk_start_full - padded_start;
@@ -507,7 +516,8 @@ torch::Tensor compute_first_half_gradients(
     int block_size,
     int kernel_size,
     float sigma,
-    int chunk_size)
+    int chunk_size,
+    bool replicatePadding)
 {
     const auto full_dims = y_channel.sizes();
     int64_t total_slices_in_dim = full_dims[split_dim];
@@ -522,7 +532,7 @@ torch::Tensor compute_first_half_gradients(
     torch::Tensor first_half_gradients = torch::zeros(gradient_dims, y_channel.options());
 
     if (split_point > 0) {
-        compute_gradient_subvolume_into_buffer(y_channel, first_half_gradients, split_dim, 0, split_point, kernel_size, sigma, chunk_size);
+        compute_gradient_subvolume_into_buffer(y_channel, first_half_gradients, split_dim, 0, split_point, kernel_size, sigma, chunk_size, replicatePadding);
     }
 
     return first_half_gradients;
@@ -541,7 +551,8 @@ void compute_second_half_gradients_inplace(
     int block_size,
     int kernel_size,
     float sigma,
-    int chunk_size)
+    int chunk_size,
+    bool replicatePadding)
 {
     const auto full_dims = y_channel.sizes();
     int64_t total_slices_in_dim = full_dims[split_dim];
@@ -555,7 +566,7 @@ void compute_second_half_gradients_inplace(
     TORCH_CHECK(gradient_buffer.size(split_dim) == second_half_size, "Provided buffer is not the correct size for the second half.");
 
     // Call the core engine to fill the buffer
-    compute_gradient_subvolume_into_buffer(y_channel, gradient_buffer, split_dim, second_half_start, second_half_end, kernel_size, sigma, chunk_size);
+    compute_gradient_subvolume_into_buffer(y_channel, gradient_buffer, split_dim, second_half_start, second_half_end, kernel_size, sigma, chunk_size, replicatePadding);
 }
 
 
@@ -563,15 +574,25 @@ void compute_second_half_gradients_inplace(
 /*******************************************************************************/
 /*                        LightField class methods                             */
 /*******************************************************************************/
+// BT.601 luma of an RGB light field (t, s, v, u, c), the signal the structure tensor
+// should describe. The gradients used to be taken from the red channel alone.
+static torch::Tensor gradientLuma(const torch::Tensor& rgb) {
+    using torch::indexing::Slice;
+    torch::Tensor data = rgb.to(torch::kFloat32);
+    if (data.size(4) < 3) return data.index({Slice(), Slice(), Slice(), Slice(), 0});
+    return 0.299f * data.index({Slice(), Slice(), Slice(), Slice(), 0})
+         + 0.587f * data.index({Slice(), Slice(), Slice(), Slice(), 1})
+         + 0.114f * data.index({Slice(), Slice(), Slice(), Slice(), 2});
+}
+
 void LightField::computeTopHalfGradients(){
     const int KERNEL_SIZE = 5;
     const int CHUNK_SIZE = 128; // Your tunable parameter, applied along dim 2
     const int SPLIT_DIM = 2;   // The crucial change: we are splitting spatially!
-    torch::Tensor y_channel_slice = this->data.index({
-        torch::indexing::Slice(), "...", 0
-        }).to(torch::kFloat32);
+    torch::Tensor y_channel_slice = gradientLuma(this->data);
     std::cout << "\n--- Computing gradients for FIRST half of dimension " << SPLIT_DIM << " ---" << std::endl;
-    this->gradients = compute_first_half_gradients(y_channel_slice, SPLIT_DIM, 128, KERNEL_SIZE, 1.0, CHUNK_SIZE);
+    this->gradients = compute_first_half_gradients(y_channel_slice, SPLIT_DIM, 128, KERNEL_SIZE, 1.0, CHUNK_SIZE,
+                                                   gradientPadding == GradientPadding::Replicate);
     this -> secondHalfGradientsComputed = false;
     const auto full_dims = y_channel_slice.sizes();
     this->secondHalfBias = calculate_block_aligned_split_point(full_dims[SPLIT_DIM],128);
@@ -586,9 +607,7 @@ void LightField::computeBottomHalfGradients(){
     const int CHUNK_SIZE = 128; // Your tunable parameter, applied along dim 2
     const int SPLIT_DIM = 2;   // The crucial change: we are splitting spatially!
     const int BLOCK_SIZE = 128; // The block size used in compression along the split dimension
-    torch::Tensor y_channel_slice = this->data.index({
-        torch::indexing::Slice(), "...", 0
-    }).to(torch::kFloat32);
+    torch::Tensor y_channel_slice = gradientLuma(this->data);
     const auto full_dims = y_channel_slice.sizes();
     int64_t split_point = calculate_block_aligned_split_point(full_dims[SPLIT_DIM], BLOCK_SIZE);
     int64_t second_half_size = full_dims[SPLIT_DIM] - split_point;
@@ -599,7 +618,8 @@ void LightField::computeBottomHalfGradients(){
     gradient_dims.push_back(4);
     this->gradients = torch::zeros(gradient_dims, y_channel_slice.options()); 
 
-    compute_second_half_gradients_inplace(y_channel_slice, this->gradients, SPLIT_DIM,128, KERNEL_SIZE, 1.0, CHUNK_SIZE);
+    compute_second_half_gradients_inplace(y_channel_slice, this->gradients, SPLIT_DIM,128, KERNEL_SIZE, 1.0, CHUNK_SIZE,
+                                          gradientPadding == GradientPadding::Replicate);
     this->secondHalfGradientsComputed  = true;
     this->secondHalfBias = split_point;
     if (this->gradients.size(SPLIT_DIM) > 0) {
@@ -610,7 +630,7 @@ void LightField::computeBottomHalfGradients(){
 }
 void LightField::computeGradients(){
     std::cout<<"Computing Gradients"<<std::endl;
-    this->gradients =  compute_first_order_derivatives_separable(this->data.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(), 0}),5,1.0);
+    this->gradients =  compute_first_order_derivatives_separable(gradientLuma(this->data),5,1.0);
     if (this->gradients.size(2) > 0) {
         write_tensor(this->gradients.index({this->gradients.size(0)/2, this->gradients.size(1)/2, torch::indexing::Slice(), torch::indexing::Slice(), 2}), "/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Greek/fullGradients.png");
     }

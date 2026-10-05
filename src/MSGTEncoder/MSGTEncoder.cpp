@@ -26,6 +26,12 @@ bool is_all_whitespace(const std::string& str) {
 std::string g_outputFileName = "";
 
 class EncoderParameters;
+
+static LightField::GradientPadding gradientPaddingFromString(const std::string& name) {
+    if (name == "zero") return LightField::GradientPadding::Zero;
+    if (name == "replicate") return LightField::GradientPadding::Replicate;
+    throw std::invalid_argument("Unknown gradient padding '" + name + "' (expected zero or replicate)");
+}
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
 void ExtendDCT(Matrix &extendedDCT, ExtensionType extensionMethod, int transformLength, int extensionLength);
@@ -66,6 +72,7 @@ public:
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
     StructureTensorMode structureTensorMode = StructureTensorMode::Pooled;
     bool probeStructureTensor = false;
+    LightField::GradientPadding gradientPadding = LightField::GradientPadding::Zero;
 
 
     void setMethod(SearchMethodType method) {
@@ -270,6 +277,11 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-probe_st_estimators") || !command.compare("-probe-st-estimators")){
             probeStructureTensor = true;
         }
+        if(!command.compare("-gradient_padding") || !command.compare("-gradient-padding")){
+            std::string mode;
+            parametersFile>>mode;
+            gradientPadding = gradientPaddingFromString(mode);
+        }
 
     }
 }
@@ -358,6 +370,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
         ("st-estimator", po::value<std::string>(), "Structure tensor angle estimator: pooled (default), per-direction, eigen4d or legacy")
+        ("gradient-padding", po::value<std::string>(), "Padding of the structure-tensor gradient filter at the light field edges: zero (default) or replicate")
         ("probe-st-estimators", po::bool_switch()->default_value(false), "Record the angle and RD cost of every structure tensor estimator for each block in info.json (analysis only, needs --partition-info full or winner)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
@@ -414,6 +427,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
     par.verbosity = vm["verbosity"].as<bool>();
     if(vm.count("st-estimator")) par.structureTensorMode = structureTensorModeFromString(vm["st-estimator"].as<std::string>());
     if(vm["probe-st-estimators"].as<bool>()) par.probeStructureTensor = true;
+    if(vm.count("gradient-padding")) par.gradientPadding = gradientPaddingFromString(vm["gradient-padding"].as<std::string>());
     if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<std::string>());
 
     
@@ -550,6 +564,7 @@ int main(int argc, char **argv) {
     // std::cout << "Press Enter to continue..." << std::endl;
     // std::cin.get();
     write_tensor(inputLF.data.index({inputLF.data.size(0)/2,at::indexing::Slice(),inputLF.data.size(2)/2,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
+    inputLF.gradientPadding = par.gradientPadding;
     inputLF.computeTopHalfGradients();
 
     //inputLF.computeBottomHalfGradients();
@@ -772,6 +787,8 @@ int main(int argc, char **argv) {
             {"searchMethod", searchMethodName(par.searchMethod)},
             {"structureTensorEstimator", toString(par.structureTensorMode)},
             {"probeStructureTensorEstimators", par.probeStructureTensor},
+            {"gradientPadding", par.gradientPadding == LightField::GradientPadding::Replicate ? "replicate" : "zero"},
+            {"gradientSignal", "luma"},
             {"refineStructureTensor", {par.refineStructureTensorRange, par.refineStructureTensorStep}},
             {"refineGridSearch", {par.refineGridSearchInitialStep, par.refineGridSearchRange, par.refineGridSearchStep}},
             {"gridSearchAngleStep", par.gridSearchAngleStep},

@@ -28,7 +28,8 @@ class MultiScaleTransfrom;
 //   Pooled / PerDirection / Eigen4D - one estimate (see Block4D_::StructureTensorEstimator).
 //   Legacy - the previous behaviour: horizontal, vertical and mean angles from the 4D
 //            eigenvector with log-det disambiguation, each RD-tested.
-enum class StructureTensorMode { Pooled, PerDirection, Eigen4D, Legacy };
+//   PooledHV - RD-tests the pooled angle and the horizontal and vertical EPI angles.
+enum class StructureTensorMode { Pooled, PerDirection, Eigen4D, Legacy, PooledHV };
 const char* toString(StructureTensorMode mode);
 StructureTensorMode structureTensorModeFromString(const std::string& name);
 

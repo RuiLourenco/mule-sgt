@@ -19,6 +19,8 @@ enum class CandidateMethod : uint8_t {
     StructureTensorPooled,
     StructureTensorPerDirection,
     StructureTensorEigen4D,
+    StructureTensorEpiH,
+    StructureTensorEpiV,
     CovarianceH,
     CovarianceV,
     CovarianceAvg,

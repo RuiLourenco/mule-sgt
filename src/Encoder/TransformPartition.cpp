@@ -361,6 +361,7 @@ const char* toString(StructureTensorMode mode) {
         case StructureTensorMode::PerDirection: return "per-direction";
         case StructureTensorMode::Eigen4D: return "eigen4d";
         case StructureTensorMode::Legacy: return "legacy";
+        case StructureTensorMode::PooledHV: return "pooled-hv";
     }
     return "pooled";
 }
@@ -370,8 +371,9 @@ StructureTensorMode structureTensorModeFromString(const std::string& name) {
     if (name == "per-direction" || name == "per_direction") return StructureTensorMode::PerDirection;
     if (name == "eigen4d") return StructureTensorMode::Eigen4D;
     if (name == "legacy") return StructureTensorMode::Legacy;
+    if (name == "pooled-hv" || name == "pooled_hv") return StructureTensorMode::PooledHV;
     throw std::invalid_argument("Unknown structure tensor estimator '" + name +
-                                "' (expected pooled, per-direction, eigen4d or legacy)");
+                                "' (expected pooled, per-direction, eigen4d, pooled-hv or legacy)");
 }
 
 namespace {
@@ -425,6 +427,30 @@ double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitIn
         return J0;
     }
 
+    if (mStructureTensorMode == StructureTensorMode::PooledHV) {
+        Block4D_ blockOrig = block_0.clone();
+        double J0 = RDtestZero(block_0, cui0, currGain, outModel);
+        at::Tensor T = blockOrig.epiStructureTensor(); // computed once for all three angles
+        constexpr EstimatorEntry entries[3] = {
+            {Block4D_::StructureTensorEstimator::Pooled, CandidateMethod::StructureTensorPooled},
+            {Block4D_::StructureTensorEstimator::EpiHorizontal, CandidateMethod::StructureTensorEpiH},
+            {Block4D_::StructureTensorEstimator::EpiVertical, CandidateMethod::StructureTensorEpiV},
+        };
+        for (const auto& candidate : entries) {
+            double angle = Block4D_::angleFromStructureTensor(T, candidate.estimator, mDisparityRange);
+            Block4D_ temp_block_0 = blockOrig.clone();
+            ProbabilityModelCollection currModel;
+            double J = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, angle, angle, currModel);
+            cui0.addCandidate(candidate.method, temp_block_0.ssi, J);
+            if (J < J0) {
+                J0 = J;
+                block_0 = temp_block_0;
+                outModel = currModel;
+            }
+        }
+        return J0;
+    }
+
     const EstimatorEntry& entry = estimatorFor(mStructureTensorMode);
     Block4D_ blockOrig = block_0.clone();
     Block4D_ temp_block_0 = blockOrig.clone();
@@ -456,6 +482,18 @@ void TransformPartition::probeStructureTensorEstimators(const Block4D_& block, d
         double angle = Block4D_::angleFromStructureTensor(T, entry.estimator, mDisparityRange);
         Block4D_ probe = block.clone();
         ProbabilityModelCollection unusedModel; // EvaluatePartition_ leaves the encoder state untouched
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
+        cui.addProbe(entry.method, probe.ssi, J);
+    }
+    // Single-direction EPI angles, so the pooled-hv mode can be scored too.
+    constexpr EstimatorEntry epiEntries[2] = {
+        {Block4D_::StructureTensorEstimator::EpiHorizontal, CandidateMethod::StructureTensorEpiH},
+        {Block4D_::StructureTensorEstimator::EpiVertical, CandidateMethod::StructureTensorEpiV},
+    };
+    for (const auto& entry : epiEntries) {
+        double angle = Block4D_::angleFromStructureTensor(T, entry.estimator, mDisparityRange);
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel;
         double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
         cui.addProbe(entry.method, probe.ssi, J);
     }

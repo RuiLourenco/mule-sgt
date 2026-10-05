@@ -23,6 +23,11 @@ public:
     at::Tensor gradients;              /*!< Pytorch Tensor*/
     bool secondHalfGradientsComputed = false;
     int secondHalfBias = 0;
+    // How the gradient filter treats samples beyond the light field's edges. Zero padding
+    // corrupts the outermost 2 samples (Block4D_::computeGradientSum trims them); replicate
+    // padding keeps them usable.
+    enum class GradientPadding { Zero, Replicate };
+    GradientPadding gradientPadding = GradientPadding::Zero;
     void OpenLightFieldPPM_(std::string rootPath, std::string pattern, std::array<int64_t,2> firstView, std::array<int64_t,2> viewSize);
     void OpenLightFieldPPM_(std::string path, std::string pattern, char readOrWriteLightField, std::array<int64_t,2> firstView = {0,0}, std::array<int64_t,2> stride = {1,1});
     Block4D_ ReadBlock4DfromLightField_(std::array<int64_t,4> size, std::array<int64_t,4> position_t,int64_t channel );

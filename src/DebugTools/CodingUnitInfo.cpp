@@ -19,6 +19,8 @@ constexpr MethodName METHOD_NAMES[] = {
     {CandidateMethod::StructureTensorPooled, "structure_tensor_pooled"},
     {CandidateMethod::StructureTensorPerDirection, "structure_tensor_per_direction"},
     {CandidateMethod::StructureTensorEigen4D, "structure_tensor_eigen4d"},
+    {CandidateMethod::StructureTensorEpiH, "structure_tensor_epi_h"},
+    {CandidateMethod::StructureTensorEpiV, "structure_tensor_epi_v"},
     {CandidateMethod::CovarianceH, "covariance_h"},
     {CandidateMethod::CovarianceV, "covariance_v"},
     {CandidateMethod::CovarianceAvg, "covariance_avg"},

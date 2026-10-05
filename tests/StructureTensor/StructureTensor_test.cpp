@@ -33,6 +33,15 @@ TEST(StructureTensorEstimatorTests, AllEstimatorsRecoverIsotropicTexture) {
     }
 }
 
+TEST(StructureTensorEstimatorTests, SingleDirectionEstimatorsReadTheirOwnEpi) {
+    // Different disparities per direction isolate which EPI each estimator reads.
+    at::Tensor horizontal = lambertianTensor(1.5, 1.0, 0.0, 0.0);
+    at::Tensor vertical = lambertianTensor(-0.5, 0.0, 1.0, 0.0);
+    at::Tensor T = horizontal + vertical;
+    EXPECT_NEAR(Block4D_::angleFromStructureTensor(T, Estimator::EpiHorizontal, WIDE_RANGE), trueAngle(1.5), 1e-6);
+    EXPECT_NEAR(Block4D_::angleFromStructureTensor(T, Estimator::EpiVertical, WIDE_RANGE), trueAngle(-0.5), 1e-6);
+}
+
 TEST(StructureTensorEstimatorTests, PooledIgnoresAnEmptyVerticalDirection) {
     // One-directional texture (varies along u only) plus a small isotropic noise floor:
     // the vertical EPIs carry only noise.

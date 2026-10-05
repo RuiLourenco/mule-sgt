@@ -1010,10 +1010,12 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
     // border; sides inside the light field keep all their samples.
     constexpr int64_t GRADIENT_RADIUS = 2;
     std::array<int64_t,4> spatialBegin{}, spatialEnd{};
+    // With replicate padding the edge samples are usable, so nothing is trimmed.
+    const int64_t radius = (lightField->gradientPadding == LightField::GradientPadding::Replicate) ? 0 : GRADIENT_RADIUS;
     for (int d = 2; d < 4; ++d) {
         int64_t lfSize = lightField->data.size(d);
-        spatialBegin[d] = std::clamp<int64_t>(GRADIENT_RADIUS - lightFieldPosition[d], 0, size[d]);
-        spatialEnd[d] = std::clamp<int64_t>(lfSize - GRADIENT_RADIUS - lightFieldPosition[d], spatialBegin[d], size[d]);
+        spatialBegin[d] = std::clamp<int64_t>(radius - lightFieldPosition[d], 0, size[d]);
+        spatialEnd[d] = std::clamp<int64_t>(lfSize - radius - lightFieldPosition[d], spatialBegin[d], size[d]);
     }
 
     at::Tensor grad1 = fetchBlockGradient(dimension1);
@@ -1240,6 +1242,12 @@ double Block4D_::angleFromStructureTensor(const at::Tensor& T, StructureTensorEs
             angle = meanOfFinite(epiOrientation(e(1,1), e(1,3), e(3,3)),
                                  epiOrientation(e(0,0), e(0,2), e(2,2)));
             break;
+        case StructureTensorEstimator::EpiHorizontal:
+            angle = epiOrientation(e(1,1), e(1,3), e(3,3));
+            break;
+        case StructureTensorEstimator::EpiVertical:
+            angle = epiOrientation(e(0,0), e(0,2), e(2,2));
+            break;
         case StructureTensorEstimator::Eigen4D: {
             if (t.abs().sum().item<double>() <= 0.0) break;
             auto [L, Q] = at::linalg_eigh(t, "U"); // ascending eigenvalues
@@ -1254,18 +1262,20 @@ double Block4D_::angleFromStructureTensor(const at::Tensor& T, StructureTensorEs
     return std::min(std::max(angle, angleRange[0]), angleRange[1]);
 }
 
-double Block4D_::computeAngleFromStructureTensor(std::array<double,2> disparityRange,
-                                                 StructureTensorEstimator estimator) const{
-    if (estimator == StructureTensorEstimator::Eigen4D) {
-        return angleFromStructureTensor(structureTensor(), estimator, disparityRange);
-    }
-    // The 2D estimators only need 6 of the 16 entries.
+at::Tensor Block4D_::epiStructureTensor() const{
+    // The 6 entries the 2D (EPI) estimators need; the others are left at zero.
     at::Tensor T = at::zeros({4,4}, at::kDouble);
     for (auto [i, j] : std::array<std::pair<int,int>,6>{{{0,0},{1,1},{2,2},{3,3},{1,3},{0,2}}}) {
         double value = computeGradientSum(i, j);
         T[i][j] = value;
         T[j][i] = value;
     }
+    return T;
+}
+
+double Block4D_::computeAngleFromStructureTensor(std::array<double,2> disparityRange,
+                                                 StructureTensorEstimator estimator) const{
+    at::Tensor T = (estimator == StructureTensorEstimator::Eigen4D) ? structureTensor() : epiStructureTensor();
     return angleFromStructureTensor(T, estimator, disparityRange);
 }
 

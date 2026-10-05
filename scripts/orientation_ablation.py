@@ -41,15 +41,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import partition_info as pinfo  # noqa: E402
 
 ESTIMATORS = ("pooled", "per_direction", "eigen4d")
-# Legacy mode RD-tests these three probed angles; its effective estimate is the cheapest.
-LEGACY_PROBES = ("structure_tensor_h", "structure_tensor_v", "structure_tensor_avg")
 PROBE_METHOD = {
     "pooled": "structure_tensor_pooled",
     "per_direction": "structure_tensor_per_direction",
     "eigen4d": "structure_tensor_eigen4d",
+    "epi_h": "structure_tensor_epi_h",
+    "epi_v": "structure_tensor_epi_v",
 }
-ENCODER_FLAG = {"pooled": "pooled", "per_direction": "per-direction", "eigen4d": "eigen4d", "legacy": "legacy"}
-LABEL = {"pooled": "Pooled", "per_direction": "Per-direction", "eigen4d": "4D eigenvector", "legacy": "Legacy (best of 3)"}
+# Modes that RD-test several probed angles; their effective estimate is the cheapest.
+MULTI_PROBES = {
+    "legacy": ("structure_tensor_h", "structure_tensor_v", "structure_tensor_avg"),
+    "pooled_hv": ("structure_tensor_pooled", "structure_tensor_epi_h", "structure_tensor_epi_v"),
+}
+ENCODER_FLAG = {"pooled": "pooled", "per_direction": "per-direction", "eigen4d": "eigen4d", "legacy": "legacy",
+                "pooled_hv": "pooled-hv"}
+LABEL = {"pooled": "Pooled", "per_direction": "Per-direction", "eigen4d": "4D eigenvector",
+         "legacy": "Legacy (best of 3)", "pooled_hv": "Pooled + H/V (best of 3)"}
 REJECTED_COST = 1e50  # the encoder's numerically-unstable marker
 
 # --------------------------------------------------------------------------- #
@@ -76,6 +83,10 @@ def estimate(T: np.ndarray, estimator: str) -> dict:
     if estimator == "pooled":
         angle = epi_orientation(T[1, 1] + T[0, 0], T[1, 3] + T[0, 2], T[3, 3] + T[2, 2])
         return {"angle": angle, "h": math.nan, "v": math.nan}
+    if estimator == "epi_h":
+        return {"angle": epi_orientation(T[1, 1], T[1, 3], T[3, 3]), "h": math.nan, "v": math.nan}
+    if estimator == "epi_v":
+        return {"angle": epi_orientation(T[0, 0], T[0, 2], T[2, 2]), "h": math.nan, "v": math.nan}
     if estimator == "per_direction":
         h = epi_orientation(T[1, 1], T[1, 3], T[3, 3])
         v = epi_orientation(T[0, 0], T[0, 2], T[2, 2])
@@ -138,12 +149,12 @@ def gaussian_derivative_kernel(size: int = 5, sigma: float = 1.0) -> np.ndarray:
     return k / scale if scale > 0 else k
 
 
-def _correlate_same(data: np.ndarray, kernel: np.ndarray, axis: int) -> np.ndarray:
-    """torch conv1d with padding='same' and zero padding: a cross-correlation."""
+def _correlate_same(data: np.ndarray, kernel: np.ndarray, axis: int, replicate: bool = False) -> np.ndarray:
+    """torch conv1d with 'same' output: a cross-correlation with zero or replicate padding."""
     c = len(kernel) // 2
     pad = [(0, 0)] * data.ndim
     pad[axis] = (c, c)
-    padded = np.pad(data, pad)
+    padded = np.pad(data, pad, mode="edge" if replicate else "constant")
     out = np.zeros_like(data, dtype=float)
     n = data.shape[axis]
     for i, w in enumerate(kernel):
@@ -151,7 +162,7 @@ def _correlate_same(data: np.ndarray, kernel: np.ndarray, axis: int) -> np.ndarr
     return out
 
 
-def gradients(lf: np.ndarray, size: int = 5, sigma: float = 1.0) -> np.ndarray:
+def gradients(lf: np.ndarray, size: int = 5, sigma: float = 1.0, replicate: bool = False) -> np.ndarray:
     """Gaussian-derivative gradients of a 4D array (t, s, v, u). Returns shape (..., 4)."""
     g = gaussian_kernel(size, sigma)
     dg = gaussian_derivative_kernel(size, sigma)
@@ -159,13 +170,14 @@ def gradients(lf: np.ndarray, size: int = 5, sigma: float = 1.0) -> np.ndarray:
     for dim in range(4):
         temp = lf.astype(float)
         for other in range(4):
-            temp = _correlate_same(temp, dg if other == dim else g, other)
+            temp = _correlate_same(temp, dg if other == dim else g, other, replicate)
         out[..., dim] = temp
     return out
 
 
 def block_tensor(grads: np.ndarray, position, size, lf_shape=None, angular_border: int = 2,
                  radius: int = 2) -> np.ndarray:
+    # radius 0 mirrors --gradient-padding replicate (no spatial trimming)
     """Mirror of Block4D_::computeGradientSum for all 16 entries (no invalid corners).
 
     Always drops `angular_border` views on each side of the block. Spatially, drops only the
@@ -291,8 +303,9 @@ def run_synthetic(args) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def read_light_field(directory: str, views: int = 9) -> np.ndarray:
-    """Channel 0 (as the codec uses for gradients) of AAA_BBB.ppm views, as (t, s, v, u).
+def read_light_field(directory: str, views: int = 9, luma: bool = True) -> np.ndarray:
+    """BT.601 luma (as the codec now uses for gradients; luma=False gives the old red channel)
+    of AAA_BBB.ppm views, as (t, s, v, u).
 
     The codec maps the first number of the file name to the s axis (it pairs with u in
     the horizontal EPI) and the second to t; validate confirms this against recorded tensors."""
@@ -305,7 +318,7 @@ def read_light_field(directory: str, views: int = 9) -> np.ndarray:
             image = _read_ppm_raw(os.path.join(directory, f"{s}_{t}.ppm"))
             if lf is None:
                 lf = np.empty((len(t_ids), len(s_ids)) + image.shape[:2])
-            lf[ti, si] = image[..., 0]
+            lf[ti, si] = image[..., 0] if luma is False else image @ np.array([0.299, 0.587, 0.114])
     return lf
 
 
@@ -359,14 +372,15 @@ def run_validate(args) -> int:
 
     # 3. Gradients: recompute tensors of interior blocks from the light field.
     if args.light_field:
-        lf = read_light_field(args.light_field)
-        grads = gradients(lf)
+        replicate = info.metadata.get("gradientPadding", "zero") == "replicate"
+        lf = read_light_field(args.light_field, luma=info.metadata.get("gradientSignal") == "luma")
+        grads = gradients(lf, replicate=replicate)
         errors = []
         for unit in units:
             ref = unit.structure_tensor
             if np.abs(ref).max() == 0:
                 continue
-            T = block_tensor(grads, unit.position, unit.size)
+            T = block_tensor(grads, unit.position, unit.size, radius=0 if replicate else 2)
             errors.append(np.abs(T - ref).max() / np.abs(ref).max())
         if errors:
             errors = np.array(errors)
@@ -397,12 +411,13 @@ def accuracy_rows(info: pinfo.InfoFile, channel, source: str) -> list:
                "position": "x".join(map(str, unit.position)), "size": "x".join(map(str, unit.size)),
                "spatial_size": unit.size[2], "theta_star": best.angleH, "J_star": best.cost,
                "coherence": coherence(unit.structure_tensor)}
-        legacy = [p for p in unit.probes if p.method in LEGACY_PROBES and p.cost < REJECTED_COST]
-        if legacy:  # an unstable angle just loses in a real legacy encode
-            best_legacy = min(legacy, key=lambda c: c.cost)
-            row["legacy"] = best_legacy.angleH
-            row["legacy_error"] = abs(best_legacy.angleH - best.angleH)
-            row["legacy_excess"] = (best_legacy.cost - best.cost) / best.cost if best.cost else math.nan
+        for mode, methods in MULTI_PROBES.items():
+            tried = [p for p in unit.probes if p.method in methods and p.cost < REJECTED_COST]
+            if tried:  # an unstable angle just loses in a real encode
+                chosen = min(tried, key=lambda c: c.cost)
+                row[mode] = chosen.angleH
+                row[mode + "_error"] = abs(chosen.angleH - best.angleH)
+                row[mode + "_excess"] = (chosen.cost - best.cost) / best.cost if best.cost else math.nan
         for probe in unit.probes:
             name = next((k for k, v in PROBE_METHOD.items() if v == probe.method), None)
             if name is None:
@@ -439,14 +454,19 @@ def run_accuracy(args) -> None:
     for r in rows:
         r["abs_theta_star"] = abs(r["theta_star"])
 
-    names = list(ESTIMATORS) + (["legacy"] if all("legacy_error" in r for r in rows) else [])
+    names = list(ESTIMATORS) + [m for m in MULTI_PROBES if any(m + "_error" in r for r in rows)]
+    for r in rows:  # modes with every probed angle unstable have no estimate in that unit
+        for m in names:
+            r.setdefault(m + "_error", math.nan)
+            r.setdefault(m + "_excess", math.nan)
     lines = [f"accuracy: {len(rows)} coded units from {len(args.info)} file(s), channel {args.channel}"]
-    lines.append(f"  {'estimator':<16}{'median err (deg)':>18}{'mean err':>10}{'median excess':>15}{'p90 excess':>12}")
+    lines.append(f"  {'estimator':<26}{'median err':>8}{'mean err':>10}{'median excess':>15}{'p90 excess':>12}")
     for name in names:
         err = np.array([r[name + "_error"] for r in rows])
+        err = err[np.isfinite(err)]
         exc = np.array([r[name + "_excess"] for r in rows])
         exc = exc[np.isfinite(exc)]
-        lines.append(f"  {LABEL[name]:<16}{np.median(err):>18.3f}{err.mean():>10.3f}"
+        lines.append(f"  {LABEL[name]:<26}{np.median(err):>8.3f}{err.mean():>10.3f}"
                      f"{np.median(exc):>15.5f}{np.percentile(exc, 90):>12.5f}")
     for key, edges, title in (("coherence", coherence_edges, "coherence"),
                               ("abs_theta_star", theta_edges, "|theta*| (deg)")):
@@ -499,8 +519,9 @@ def run_encodes(args) -> None:
     if args.reference and args.timing_reference:
         configs.append(("reference_timing", ["--refine-grid-search", *map(str, args.grid), "--partition-info", "winner"]))
     for name in args.estimators:
-        configs.append((name, ["--refine-structure-tensor", *map(str, args.st_refine),
-                               "--st-estimator", ENCODER_FLAG[name], "--partition-info", "winner"]))
+        configs.append((name + args.tag, ["--refine-structure-tensor", *map(str, args.st_refine),
+                                          "--st-estimator", ENCODER_FLAG[name], "--partition-info", "winner"]))
+    configs = [(name, extra + args.extra_args) for name, extra in configs]
     for lam in args.lambdas:
         for name, extra in configs:
             run_dir = out / f"{name}_{lam:g}"
@@ -572,15 +593,15 @@ def run_bdrate(args) -> None:
     lines = [f"{root.name}: anchor = grid search with full refinement ({len(anchor)} points), "
              f"metric = PSNR-{args.metric.upper()}, rate = file bits per sample",
              f"timing reference: {'reference_timing' if 'reference_timing' in points else 'reference (includes probe overhead)'}"]
-    lines.append(f"  {'method':<16}{'BD-rate (%)':>12}{'rel. time':>11}")
+    lines.append(f"  {'method':<28}{'BD-rate (%)':>12}{'rel. time':>11}")
     key = "psnr_" + args.metric
     rows = []
-    for name in [n for n in ("pooled", "per_direction", "eigen4d", "legacy") if n in points]:
+    for name in sorted(n for n in points if not n.startswith("reference")):
         test = sorted(points[name], key=lambda p: p["bpp"])
         bd = bd_rate([p["bpp"] for p in anchor], [p[key] for p in anchor],
                      [p["bpp"] for p in test], [p[key] for p in test])
         rel_time = sum(p["seconds"] for p in test) / ref_time
-        lines.append(f"  {LABEL[name]:<16}{bd:>12.2f}{rel_time:>11.3f}")
+        lines.append(f"  {LABEL.get(name, name):<28}{bd:>12.2f}{rel_time:>11.3f}")
         rows.append({"light_field": root.name, "method": name, "bd_rate": bd, "rel_time": rel_time})
     lines.append("\nRD points (bpp, PSNR-Y, PSNR-YUV, seconds):")
     for name, pts in points.items():
@@ -653,6 +674,9 @@ def main(argv=None) -> int:
     p.add_argument("--lambdas", type=float, nargs="+", default=[27, 672, 10140, 117590])
     p.add_argument("--estimators", nargs="*", default=list(ESTIMATORS), choices=list(ENCODER_FLAG),
                    help="structure-tensor searches to run (empty for none)")
+    p.add_argument("--tag", default="", help="suffix for the structure-tensor run names, e.g. @r2")
+    p.add_argument("--extra-args", nargs=argparse.REMAINDER, default=[],
+                   help="extra encoder arguments for every run (must come last)")
     p.add_argument("--no-reference", dest="reference", action="store_false",
                    help="skip the grid-search reference runs (e.g. to split a long job)")
     p.add_argument("--grid", type=float, nargs=3, default=[1, 0.9, 0.1], help="refine-grid-search initStep range step")

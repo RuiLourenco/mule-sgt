@@ -153,7 +153,10 @@ public:
     //   PerDirection - the same 2x2 estimate for each EPI direction separately, averaged.
     //   Eigen4D      - -atan(e_s/e_u) and -atan(e_t/e_v) from the principal eigenvector
     //                  e of T, averaged.
-    enum class StructureTensorEstimator { Pooled, PerDirection, Eigen4D };
+    //   EpiHorizontal / EpiVertical - the 2D estimate of one EPI direction alone.
+    enum class StructureTensorEstimator { Pooled, PerDirection, Eigen4D, EpiHorizontal, EpiVertical };
+    // T with only the 6 entries the EPI estimators use (tt, ss, vv, uu, su, tv).
+    at::Tensor epiStructureTensor() const;
     double computeAngleFromStructureTensor(std::array<double,2> disparityRange,
                                            StructureTensorEstimator estimator = StructureTensorEstimator::Pooled) const;
     static double angleFromStructureTensor(const at::Tensor& T, StructureTensorEstimator estimator,
