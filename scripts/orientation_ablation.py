@@ -485,7 +485,7 @@ def run_accuracy(args) -> None:
         return
     centers = (coherence_edges[:-1] + coherence_edges[1:]) / 2
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
-    for name, marker in zip(names, ("o", "s", "^", "d")):
+    for name, marker in zip(names, ("o", "s", "^", "d", "v", "P")):
         errs = [e for _, _, _, e in _binned(rows, "coherence", coherence_edges, name + "_error")]
         excs = [x for _, _, _, x in _binned(rows, "coherence", coherence_edges, name + "_excess")]
         axes[0].plot(centers, errs, marker=marker, label=LABEL[name])
