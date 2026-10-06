@@ -42,6 +42,7 @@ public:
     double transformGain;
     bool verbosity;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Winner;
+    bool strictReproducibility = true; // MKL strict CNR mode; off needs no AVX2
     void ReadConfigurationFile(string parametersFileName);
     void DisplayConfiguration();
 };
@@ -87,6 +88,8 @@ void DecoderParameters :: ReadConfigurationFile(string parametersFileName) {
             colorTransformType = YCOCG;
         } else if(command == "-VV") {
             verbosity = true;
+        } else if(command == "-no_strict" || command == "-no-strict") {
+            strictReproducibility = false;
         } else if(command == "-partition_info" || command == "-partition-info") {
             std::string level;
             parametersFile >> level;
@@ -106,6 +109,7 @@ void DecoderParameters :: DisplayConfiguration() {
     cout << "extensionMethod = " << extensionMethod << endl;
     cout << "transformGain = " << transformGain << endl;
     cout << "verbosity = " << verbosity << endl;
+    cout << "strictReproducibility = " << strictReproducibility << endl;
 }
 
 void conflicting_options(const boost::program_options::variables_map & vm,
@@ -138,6 +142,7 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
     ("ycocg", po::bool_switch()->default_value(false), "ycocg")
     ("t_gain", po::value<double>(&par.transformGain), "transform gain")
     ("partition-info", po::value<string>(), "partition info recording: winner (default) or off; full is treated as winner")
+    ("no-strict", po::bool_switch()->default_value(false), "disable MKL strict reproducibility (for CPUs without AVX2); output may then differ between machines")
     ("verbosity,V", po::bool_switch()->default_value(false), "verbosity");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv,desc),vm);
@@ -177,13 +182,12 @@ int readProgramOptions(int argc, char** argv, DecoderParameters& par){
         std::copy(data.begin(), data.end(), par.stride.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    if(vm["no-strict"].as<bool>()) par.strictReproducibility = false;
     if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<string>());
     return 0;
 }
 
 int main(int argc, char **argv) {
-    enableReproducibleMath(); // must match the encoder's numerics
-
     DecoderParameters par;
     int v = readProgramOptions(argc, argv, par);
     if(v != 0){
@@ -193,6 +197,8 @@ int main(int argc, char **argv) {
     if(par.configFile.compare("") != 0){
         par.ReadConfigurationFile(par.configFile);
     } 
+    // Before any tensor work: MKL's reproducibility mode must be set before its first call
+    enableReproducibleMath(par.strictReproducibility);
     if(par.verbosity > 0){
         par.DisplayConfiguration();
     }

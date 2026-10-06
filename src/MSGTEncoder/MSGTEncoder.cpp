@@ -66,6 +66,7 @@ public:
     double refineGridSearchStep = 0.1;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
     int threads = 0; // workers for the parallel candidate searches, 0 = all available cores; tensor ops run single-threaded
+    bool strictReproducibility = true; // MKL strict CNR mode; off needs no AVX2
 
 
     void setMethod(SearchMethodType method) {
@@ -265,6 +266,9 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-threads")){
             parametersFile>>threads;
         }
+        if(!command.compare("-no_strict") || !command.compare("-no-strict")){
+            strictReproducibility = false;
+        }
 
     }
 }
@@ -293,6 +297,7 @@ void EncoderParameters :: DisplayConfiguration(void) {
     cout<<"Color Transform Type = "<<colorTransformType<<endl;
     cout<<"Verbosity = "<<verbosity<<endl;
     cout<<"Threads = "<<threads<<endl;
+    cout<<"Strict Reproducibility = "<<strictReproducibility<<endl;
 
 }
    
@@ -353,6 +358,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
 
         ("threads", po::value<int>(&par.threads), "Worker threads for the parallel candidate searches (default 0 = all available cores)")
+        ("no-strict", po::bool_switch()->default_value(false), "Disable MKL strict reproducibility (for CPUs without AVX2); the bitstream may then differ between machines")
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
@@ -407,6 +413,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         std::copy(data.begin(), data.end(), par.firstView.begin());
     }
     par.verbosity = vm["verbosity"].as<bool>();
+    if(vm["no-strict"].as<bool>()) par.strictReproducibility = false;
     if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<std::string>());
 
     
@@ -461,7 +468,6 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
 
 int main(int argc, char **argv) {
     
-    enableReproducibleMath(); // single-threaded tensor ops and MKL strict CNR; parallelism comes from the RD search pool
     torch::InferenceMode guard;
     //DEFAULT Encoder
     EncoderParameters par;
@@ -473,6 +479,9 @@ int main(int argc, char **argv) {
     if(par.configFile.compare("") != 0){
         par.ReadConfigurationFile(par.configFile);
     } 
+    // Before any tensor work: MKL's reproducibility mode must be set before its first call.
+    // Tensor ops run single-threaded either way; parallelism comes from the RD search pool.
+    enableReproducibleMath(par.strictReproducibility);
 
 
     if(par.verbosity > 0){
