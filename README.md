@@ -38,8 +38,8 @@ download a release tarball from the
 [Releases page](https://github.com/RuiLourenco/mule-sgt/releases) and extract it:
 
 ```bash
-tar xzf mule-sgt-v1.0.0-linux-x86_64.tar.gz
-cd mule-sgt-v1.0.0-linux-x86_64
+tar xzf mule-sgt-v1.1.0-linux-x86_64.tar.gz
+cd mule-sgt-v1.1.0-linux-x86_64
 ./bin/MSGTEncoder --help
 ./bin/MSGTDecoder --help
 ```
@@ -65,6 +65,12 @@ If you want a shorter invocation, symlink into the extracted `bin/` directory, o
 add that `bin/` directory itself to `$PATH` — don't copy the executable out on its
 own. Renaming the top-level `mule-sgt-<version>-linux-x86_64/` folder is fine; moving
 or renaming `bin/`/`lib/` relative to each other is not.
+
+**An x86-64 CPU with AVX2 is required.** Both binaries run Intel MKL in strict
+reproducibility mode on its AVX2 code path, so the encoder's bitstream and the
+decoder's output are bit-identical on every machine and for any `--threads` value;
+on a CPU without AVX2 they stop at startup with an error instead of silently
+running non-reproducibly.
 
 Once extracted, see [Encoding: `MSGTEncoder`](#encoding-msgtencoder) and
 [Decoding: `MSGTDecoder`](#decoding-msgtdecoder) below for actual usage — this
