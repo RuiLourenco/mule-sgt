@@ -363,7 +363,84 @@ average around 170 on 112 cores, so identical configurations varied by up to a f
 The only reliable timings are those in [Section 6](#6-first-ablation-before-the-fixes). From
 the number of RD evaluations, pooled + H/V should cost slightly less than the current method.
 
-### 8.2 Accuracy
+### 8.2 Refinement settings: search cost against accuracy
+
+**Question.** Which refinement setting for the structure-tensor search gives the best trade-off
+between search cost and coding performance? The grid search (1° grid, ±0.9° at 0.1°, rho
+search) is fixed as the reference, and the estimator is pooled + H/V with zero padding.
+
+**Settings.** Fourteen settings. Single-stage settings refine ±R at step δ around the estimate.
+Two-stage settings (new option `--refine-structure-tensor R δ R2 δ2`) then refine ±R2 at δ2
+around the first stage's best angle. Each setting was encoded at all four λ values.
+
+**Cost measure.** Every method evaluates the same tree of blocks, so the search work is the
+number of RD evaluations per block: 1 for the zero angle, 3 for the pooled + H/V estimates,
+2R/δ + 1 for each refinement stage and 16 for the rho search. The grid search needs 183. The
+encoder now records the count (`rdEvaluations` in `info.json`), and it matched this formula
+exactly in every run. The count measures CPU work; wall time behaves differently (below).
+
+| Setting | Evaluations per block | Relative to grid | BD-rate, PSNR-YUV | BD-rate, PSNR-Y | Pareto-optimal |
+|---|---|---|---|---|---|
+| ±2° at 0.5° | 29 | 0.16 | 2.96% | 2.35% | yes |
+| ±3° at 0.5°, then ±0.3° at 0.1° | 40 | 0.22 | 2.42% | 1.98% | yes |
+| ±10° at 1° | 41 | 0.22 | 2.35% | 2.01% | yes |
+| ±1° at 0.1° | 41 | 0.22 | 3.65% | 3.07% | |
+| ±5° at 0.5° | 41 | 0.22 | 1.86% | 1.54% | yes |
+| ±5° at 1°, then ±0.5° at 0.1° | 42 | 0.23 | 1.36% | 1.37% | yes |
+| ±5° at 0.5°, then ±0.3° at 0.1° | 48 | 0.26 | 1.35% | 1.33% | yes |
+| **±10° at 1°, then ±0.5° at 0.1°** | **52** | **0.28** | **1.02%** | 1.14% | yes |
+| ±10° at 0.5° (current default) | 61 | 0.33 | 1.33% | 1.05% | |
+| ±2° at 0.1° | 61 | 0.33 | 2.72% | 2.26% | |
+| ±10° at 0.5°, then ±0.3° at 0.1° | 68 | 0.37 | 0.89% | 0.96% | yes |
+| ±3° at 0.1° | 81 | 0.44 | 1.90% | 1.26% | |
+| ±5° at 0.1° | 121 | 0.66 | 1.05% | 1.09% | |
+| ±10° at 0.1° | 221 | 1.21 | 0.58% | 0.76% | yes |
+
+![Refinement settings](figures/refinement_pareto.png)
+
+- **The range must stay wide.** Narrow windows lose badly even with fine steps: ±1° at 0.1°
+  gives 3.65% and ±2° at 0.1° gives 2.72%. A wide window is what catches estimates that are
+  several degrees off.
+- **Two stages beat one at every cost.** A coarse wide pass followed by a short fine pass
+  dominates every single-stage setting except the most expensive one. ±10° at 1° then ±0.5° at
+  0.1° needs 15% fewer evaluations than the current default and lowers the PSNR-YUV BD-rate
+  from 1.33% to 1.02%. On PSNR-Y it is slightly worse (1.14% against 1.05%).
+- **The current method with the current default** (±10° at 0.5°, 61 evaluations) gives 1.78%,
+  so the recommended setting plus the pooled + H/V estimator is 0.76 points better at lower
+  cost.
+
+**Wall time.** At λ = 672, encoding wall time, measured twice in alternation, was:
+
+| Setting | Encoding time (mean of 2) | Relative to grid | Evaluations relative to grid |
+|---|---|---|---|
+| Grid search | 173 s | 1.00 | 1.00 |
+| ±10° at 0.5° | 138 s | 0.80 | 0.33 |
+| ±10° at 1°, then ±0.5° at 0.1° | 144 s | 0.83 | 0.28 |
+| ±10° at 0.1° | 214 s | 1.24 | 1.21 |
+
+The load average ranged from 34 to 73 on 112 cores, so these numbers are approximate; the two
+rounds agreed within about 15%. Wall time does not follow the evaluation count for the cheap
+settings. The likely reason is that the grid and refinement angles are evaluated in parallel on
+the thread pool, while the zero angle and the three estimated angles are evaluated one at a
+time on the main thread. Those four sequential evaluations appear to dominate the wall time of
+the structure-tensor search, so on this machine the refinement settings barely change it. This
+is an inference from the timings, not a profile.
+
+**Recommendation.**
+
+- Default `--refine-structure-tensor 10 1 0.5 0.1` with `--st-estimator pooled-hv`: the knee of
+  the front, 0.28 of the grid search's work, 1.02% BD-rate.
+- If more time is acceptable, `--refine-structure-tensor 10 0.5 0.3 0.1`: 0.37 of the work,
+  0.89%.
+- The largest remaining speed lever is evaluating the zero angle and the estimated angles in
+  parallel, together with the refinement grid. That would also remove most of the wall-time
+  difference between these settings and make the evaluation count a good time measure. Because
+  the thread-pool and main-thread costs differ by floating-point noise (Section 4), this could
+  change bitstreams slightly and needs its own check.
+- Differences below about 0.3 points come from one crop and may not hold elsewhere; the
+  ranking should be confirmed on other light fields before changing the defaults.
+
+### 8.3 Accuracy
 
 346 coded luma blocks from the four reference encodes:
 
@@ -414,7 +491,9 @@ padding: pooled + H/V 1.40° median and 1.49% excess, against 1.40° and 1.66% w
   most blocks lie near θ = 0, which is the regime the paper's encoder targets.
 - **Luma only** in the accuracy analysis, and only final leaves of the partition trees, not every
   evaluated node.
-- **Encoding times after the fixes are unreliable** because of machine load.
+- **Encoding times after the fixes are unreliable** because of machine load. The refinement
+  sweep therefore uses RD evaluations as its cost measure, plus one alternating wall-time check
+  (Section 8.2). CPU time was not recorded.
 - **Model-covariance degeneracy** ([Section 7.4](#74-model-covariance-degeneracy-near-integer-disparities))
   is analysed but not fixed.
 - **Angular trimming** at view-split boundaries ([Section 7.5](#75-smaller-issues)) is not changed.
@@ -479,6 +558,7 @@ python3 scripts/report_figures.py --synthetic SYNTHETIC/synthetic.csv --accuracy
 | Accuracy after the fixes | `accuracy_vs_coherence_after_fixes_error.tex`, `..._excess.tex` |
 | RD curves (log rate axis) | `rd_curves_wide.tex`, `rd_curves_narrow.tex` |
 | BD-rate | `bdrate_after_fixes.tex` |
+| Refinement settings, cost against BD-rate | `refinement_pareto.tex` |
 
 The raw runs behind this report are in `results/ablation_v2/` of the `mule-sgt-pooled-st`
 worktree (gitignored). The Greek crop was made by taking rows 128–255 and columns 192–319 of
