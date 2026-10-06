@@ -249,6 +249,10 @@ double TransformPartition::EvaluatePartition_(
     double currGain, 
     ProbabilityModelCollection& outModel_0 // Pass in a collection to hold the result
 ) {
+    mEvaluationCount.fetch_add(1, std::memory_order_relaxed);
+    mEvaluatedSamples.fetch_add(static_cast<uint64_t>(block_0.size[0] * block_0.size[1] * block_0.size[2] * block_0.size[3]),
+                                std::memory_order_relaxed);
+
     // 1. THE SANDBOX ENTRANCE: Snapshot the encoder's original state
     ProbabilityModelCollection initialState = encoder.GetOptimizerSnapshot();
 
@@ -357,23 +361,86 @@ double TransformPartition::RDtestStructureTensorAndRhos(Block4D_& block_0, Codin
     }
     return J0;
 }
-double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
-    Block4D_ blockOrig = block_0.clone();
-    std::array<double, 2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
+const char* toString(StructureTensorMode mode) {
+    switch (mode) {
+        case StructureTensorMode::Pooled: return "pooled";
+        case StructureTensorMode::PerDirection: return "per-direction";
+        case StructureTensorMode::Eigen4D: return "eigen4d";
+        case StructureTensorMode::Legacy: return "legacy";
+        case StructureTensorMode::PooledHV: return "pooled-hv";
+    }
+    return "pooled";
+}
 
-    // The zero angle, then the H, V and average structure-tensor angles; a later candidate must be strictly better
+StructureTensorMode structureTensorModeFromString(const std::string& name) {
+    if (name == "pooled") return StructureTensorMode::Pooled;
+    if (name == "per-direction" || name == "per_direction") return StructureTensorMode::PerDirection;
+    if (name == "eigen4d") return StructureTensorMode::Eigen4D;
+    if (name == "legacy") return StructureTensorMode::Legacy;
+    if (name == "pooled-hv" || name == "pooled_hv") return StructureTensorMode::PooledHV;
+    throw std::invalid_argument("Unknown structure tensor estimator '" + name +
+                                "' (expected pooled, per-direction, eigen4d, pooled-hv or legacy)");
+}
+
+namespace {
+
+struct EstimatorEntry {
+    Block4D_::StructureTensorEstimator estimator;
+    CandidateMethod method;
+};
+
+constexpr EstimatorEntry ESTIMATORS[3] = {
+    {Block4D_::StructureTensorEstimator::Pooled, CandidateMethod::StructureTensorPooled},
+    {Block4D_::StructureTensorEstimator::PerDirection, CandidateMethod::StructureTensorPerDirection},
+    {Block4D_::StructureTensorEstimator::Eigen4D, CandidateMethod::StructureTensorEigen4D},
+};
+
+const EstimatorEntry& estimatorFor(StructureTensorMode mode) {
+    switch (mode) {
+        case StructureTensorMode::PerDirection: return ESTIMATORS[1];
+        case StructureTensorMode::Eigen4D: return ESTIMATORS[2];
+        default: return ESTIMATORS[0];
+    }
+}
+
+} // namespace
+
+double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
+    // Every mode RD-tests the zero angle first, then its structure-tensor angles; a later candidate must be strictly better
+    Block4D_ blockOrig = block_0.clone();
+    std::vector<double> angles = {0};
+    std::vector<CandidateMethod> methods = {CandidateMethod::Zero};
+    if (mStructureTensorMode == StructureTensorMode::Legacy) {
+        std::array<double, 2> st = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
+        angles.insert(angles.end(), {st[0], st[1], (st[0]+st[1])/2});
+        methods.insert(methods.end(), {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg});
+    } else if (mStructureTensorMode == StructureTensorMode::PooledHV) {
+        at::Tensor T = blockOrig.epiStructureTensor(); // computed once for all three angles
+        constexpr EstimatorEntry entries[3] = {
+            {Block4D_::StructureTensorEstimator::Pooled, CandidateMethod::StructureTensorPooled},
+            {Block4D_::StructureTensorEstimator::EpiHorizontal, CandidateMethod::StructureTensorEpiH},
+            {Block4D_::StructureTensorEstimator::EpiVertical, CandidateMethod::StructureTensorEpiV},
+        };
+        for (const auto& candidate : entries) {
+            angles.push_back(Block4D_::angleFromStructureTensor(T, candidate.estimator, mDisparityRange));
+            methods.push_back(candidate.method);
+        }
+    } else {
+        const EstimatorEntry& entry = estimatorFor(mStructureTensorMode);
+        angles.push_back(blockOrig.computeAngleFromStructureTensor(mDisparityRange, entry.estimator));
+        methods.push_back(entry.method);
+    }
+
     std::vector<Block4D_> blocks;
     std::vector<ProbabilityModelCollection> models;
-    std::vector<double> J = evaluateAnglesInParallel(blockOrig, {0, angles[0], angles[1], (angles[0]+angles[1])/2}, currGain, blocks, models);
+    std::vector<double> J = evaluateAnglesInParallel(blockOrig, angles, currGain, blocks, models);
 
-    cui0.addCandidate(CandidateMethod::Zero, blocks[0].ssi, J[0]);
     double J0 = J[0];
     block_0 = blocks[0];
     outModel = models[0];
-    constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
-    for (int i = 1; i < 4; i++) {
-        cui0.addCandidate(methods[i-1], blocks[i].ssi, J[i]);
-        if (J[i] < J0) {
+    for (size_t i = 0; i < J.size(); i++) {
+        cui0.addCandidate(methods[i], blocks[i].ssi, J[i]);
+        if (i > 0 && J[i] < J0) {
             J0 = J[i];
             block_0 = blocks[i];
             outModel = models[i];
@@ -408,6 +475,49 @@ std::vector<double> TransformPartition::evaluateAnglesInParallel(const Block4D_&
     }
     if (firstError) std::rethrow_exception(firstError);
     return J;
+}
+
+void TransformPartition::probeStructureTensorEstimators(const Block4D_& block, double currGain, CodingUnitInfo& cui) {
+    at::Tensor T = block.structureTensor();
+    std::array<double, 16> flat;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            flat[4 * i + j] = T[i][j].item<double>();
+    cui.setStructureTensor(flat);
+
+    for (const auto& entry : ESTIMATORS) {
+        double angle = Block4D_::angleFromStructureTensor(T, entry.estimator, mDisparityRange);
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel; // EvaluatePartition_ leaves the encoder state untouched
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
+        cui.addProbe(entry.method, probe.ssi, J);
+    }
+    // Single-direction EPI angles, so the pooled-hv mode can be scored too.
+    constexpr EstimatorEntry epiEntries[2] = {
+        {Block4D_::StructureTensorEstimator::EpiHorizontal, CandidateMethod::StructureTensorEpiH},
+        {Block4D_::StructureTensorEstimator::EpiVertical, CandidateMethod::StructureTensorEpiV},
+    };
+    for (const auto& entry : epiEntries) {
+        double angle = Block4D_::angleFromStructureTensor(T, entry.estimator, mDisparityRange);
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel;
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, angle, angle, unusedModel);
+        cui.addProbe(entry.method, probe.ssi, J);
+    }
+
+    // The legacy angles (horizontal, vertical and mean from the 4D eigenvector, with
+    // log-det disambiguation), so the legacy mode can be scored the same way. Legacy
+    // RD-tests all three, so its effective estimate is the cheapest of them.
+    std::array<double, 2> legacy = block.computeAnglesFromStructureTensor(mDisparityRange);
+    const std::array<double, 3> legacyAngles = {legacy[0], legacy[1], (legacy[0] + legacy[1]) / 2};
+    constexpr CandidateMethod legacyMethods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV,
+                                                  CandidateMethod::StructureTensorAvg};
+    for (int i = 0; i < 3; ++i) {
+        Block4D_ probe = block.clone();
+        ProbabilityModelCollection unusedModel;
+        double J = EvaluatePartitionFixedRho(mEntropyCoder, probe, currGain, legacyAngles[i], legacyAngles[i], unusedModel);
+        cui.addProbe(legacyMethods[i], probe.ssi, J);
+    }
 }
 
 double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
@@ -688,6 +798,14 @@ double TransformPartition::RefineStructureTensorAndRhos(Block4D_& block_0, Codin
     
     double J = RDtestGridSearch(mRefineStructureTensorStep,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
     angle = blockTemp.ssi.getAngleH();
+
+    if (mRefineStructureTensorFineStep > 0) {
+        // Second, finer stage around the first stage's best angle.
+        std::array<double,2> fineRange = {angle - mRefineStructureTensorFineRange, angle + mRefineStructureTensorFineRange};
+        blockTemp = block_0.clone();
+        J = RDtestGridSearch(mRefineStructureTensorFineStep, fineRange, blockTemp, cui0, currGain, tempModel);
+        angle = blockTemp.ssi.getAngleH();
+    }
 
 
     //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);
@@ -993,6 +1111,9 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
     ProbabilityModelCollection state0;
     CodingUnitInfo cui0(block_0.lightFieldPosition, block_0.size); 
     double J0 = 0;
+    if (mProbeStructureTensor && mInfoLevel != PartitionInfoLevel::Off) {
+        probeStructureTensorEstimators(block_0, currGain, cui0);
+    }
     
     if (mSearchMethod == SearchMethodType::STRUCTURE_TENSOR) {
         J0 = RDtestStructureTensor(block_0, cui0, currGain, state0);
@@ -1030,8 +1151,10 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         // Capture the resulting state of the spatial split branch
         stateS = mEntropyCoder.GetOptimizerSnapshot();
         
-        // Restore the pristine original state before we evaluate view split
-        mEntropyCoder.RestoreOptimizerState(originalState);
+        // Restore the pristine original state before we evaluate view split. The thread
+        // pool must be restored too: grid and rho searches evaluate on it, and the split
+        // branch left it holding the state committed by its last sub-block.
+        CommitOptimizerState(originalState);
     }
 
     // 3b. Evaluate VIEW SPLIT (JV)
@@ -1050,8 +1173,8 @@ double TransformPartition::RDoptimizeTransformStep(const Block4D_ &inputBlock, B
         // Capture the resulting state of the view split branch
         stateV = mEntropyCoder.GetOptimizerSnapshot();
         
-        // Restore the pristine original state before final decision
-        mEntropyCoder.RestoreOptimizerState(originalState);
+        // Restore the pristine original state (main encoder and pool) before final decision
+        CommitOptimizerState(originalState);
     }
 
     // 4. Add Flag Costs

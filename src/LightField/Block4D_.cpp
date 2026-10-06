@@ -1,4 +1,5 @@
 #include "LightField/Block4D_.h"
+#include <cmath>
 #include <boost/range/adaptors.hpp>
 #include <boost/range/algorithm.hpp>
 #include <boost/range/algorithm_ext.hpp>
@@ -1004,10 +1005,19 @@ at::Tensor Block4D_::fetchBlockGradient(int64_t dimension) const{
 }
 
 double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) const{
-    int spatialBorder = 0;
     int angularBorder = 2;
-    if(lightFieldPosition[3] == 0 || lightFieldPosition[3] == lightField->data.size(3)-1 || lightFieldPosition[2] == 0 || lightFieldPosition[2] == lightField->data.size(2)-1){
-        spatialBorder = 2;
+    // The gradients are computed over the whole light field with a 5-tap filter and zero
+    // padding, so only spatial samples within GRADIENT_RADIUS of the light field's own
+    // border are corrupted. Drop exactly those, on the sides of the block that lie on that
+    // border; sides inside the light field keep all their samples.
+    constexpr int64_t GRADIENT_RADIUS = 2;
+    std::array<int64_t,4> spatialBegin{}, spatialEnd{};
+    // With replicate padding the edge samples are usable, so nothing is trimmed.
+    const int64_t radius = (lightField->gradientPadding == LightField::GradientPadding::Replicate) ? 0 : GRADIENT_RADIUS;
+    for (int d = 2; d < 4; ++d) {
+        int64_t lfSize = lightField->data.size(d);
+        spatialBegin[d] = std::clamp<int64_t>(radius - lightFieldPosition[d], 0, size[d]);
+        spatialEnd[d] = std::clamp<int64_t>(lfSize - radius - lightFieldPosition[d], spatialBegin[d], size[d]);
     }
 
     at::Tensor grad1 = fetchBlockGradient(dimension1);
@@ -1053,7 +1063,7 @@ double Block4D_::computeGradientSum(int64_t dimension1, int64_t dimension2) cons
         blockGradient = blockGradient * mask4D;
     }
 
-    blockGradient = blockGradient.index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBorder,size[2]-spatialBorder),at::indexing::Slice(spatialBorder,size[3]-spatialBorder)});
+    blockGradient = blockGradient.index({at::indexing::Slice(angularBorder,size[0]-angularBorder),at::indexing::Slice(angularBorder,size[1]-angularBorder),at::indexing::Slice(spatialBegin[2],spatialEnd[2]),at::indexing::Slice(spatialBegin[3],spatialEnd[3])});
     
     return blockGradient.sum().item<double>();
 }
@@ -1199,6 +1209,79 @@ std::array<double,2> Block4D_::computeAnglesFromStructureTensor(std::array<doubl
     }
 
     return angles;
+}
+
+namespace {
+
+constexpr double RAD_TO_DEG = 180.0 / PI;
+
+// Orientation, in degrees, of the smallest-eigenvalue eigenvector of the 2D structure
+// tensor [[Jaa, Jas], [Jas, Jss]] over (angular, spatial) axes, i.e. the direction along
+// the EPI lines. For intensity f(spatial - d * angular) this is atan(d). NaN if the
+// tensor is zero.
+double epiOrientation(double Jaa, double Jas, double Jss) {
+    if (Jaa + Jss <= 0.0) return std::numeric_limits<double>::quiet_NaN();
+    return 0.5 * std::atan2(-2.0 * Jas, Jss - Jaa) * RAD_TO_DEG;
+}
+
+double meanOfFinite(double a, double b) {
+    if (std::isfinite(a) && std::isfinite(b)) return 0.5 * (a + b);
+    if (std::isfinite(a)) return a;
+    if (std::isfinite(b)) return b;
+    return std::numeric_limits<double>::quiet_NaN();
+}
+
+} // namespace
+
+double Block4D_::angleFromStructureTensor(const at::Tensor& T, StructureTensorEstimator estimator,
+                                          std::array<double,2> disparityRange) {
+    auto t = T.to(at::kDouble).contiguous();
+    auto e = [&t](int i, int j) { return t[i][j].item<double>(); };
+    // Axes: 0 = t, 1 = s (angular); 2 = v, 3 = u (spatial).
+    double angle = std::numeric_limits<double>::quiet_NaN();
+    switch (estimator) {
+        case StructureTensorEstimator::Pooled:
+            angle = epiOrientation(e(1,1) + e(0,0), e(1,3) + e(0,2), e(3,3) + e(2,2));
+            break;
+        case StructureTensorEstimator::PerDirection:
+            angle = meanOfFinite(epiOrientation(e(1,1), e(1,3), e(3,3)),
+                                 epiOrientation(e(0,0), e(0,2), e(2,2)));
+            break;
+        case StructureTensorEstimator::EpiHorizontal:
+            angle = epiOrientation(e(1,1), e(1,3), e(3,3));
+            break;
+        case StructureTensorEstimator::EpiVertical:
+            angle = epiOrientation(e(0,0), e(0,2), e(2,2));
+            break;
+        case StructureTensorEstimator::Eigen4D: {
+            if (t.abs().sum().item<double>() <= 0.0) break;
+            auto [L, Q] = at::linalg_eigh(t, "U"); // ascending eigenvalues
+            double es = Q[1][3].item<double>(), eu = Q[3][3].item<double>();
+            double et = Q[0][3].item<double>(), ev = Q[2][3].item<double>();
+            angle = meanOfFinite(-std::atan(es / eu) * RAD_TO_DEG, -std::atan(et / ev) * RAD_TO_DEG);
+            break;
+        }
+    }
+    if (!std::isfinite(angle)) return 0.0;
+    std::array<double,2> angleRange = SgtSideInfo::angleRangeFromDispRange(disparityRange);
+    return std::min(std::max(angle, angleRange[0]), angleRange[1]);
+}
+
+at::Tensor Block4D_::epiStructureTensor() const{
+    // The 6 entries the 2D (EPI) estimators need; the others are left at zero.
+    at::Tensor T = at::zeros({4,4}, at::kDouble);
+    for (auto [i, j] : std::array<std::pair<int,int>,6>{{{0,0},{1,1},{2,2},{3,3},{1,3},{0,2}}}) {
+        double value = computeGradientSum(i, j);
+        T[i][j] = value;
+        T[j][i] = value;
+    }
+    return T;
+}
+
+double Block4D_::computeAngleFromStructureTensor(std::array<double,2> disparityRange,
+                                                 StructureTensorEstimator estimator) const{
+    at::Tensor T = (estimator == StructureTensorEstimator::Eigen4D) ? structureTensor() : epiStructureTensor();
+    return angleFromStructureTensor(T, estimator, disparityRange);
 }
 
 void Block4D_::saveBlockGradient(int64_t dimension) const{

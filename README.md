@@ -13,6 +13,7 @@ Two command-line tools are built: **`MSGTEncoder`** (light field → compressed
 ## Table of contents
 
 - [Running a release](#running-a-release)
+- [What changed in v1.2.0](#what-changed-in-v120)
 - [What changed in v1.1.0](#what-changed-in-v110)
 - [How to build](#how-to-build)
   - [Dependencies](#dependencies)
@@ -39,8 +40,8 @@ download a release tarball from the
 [Releases page](https://github.com/RuiLourenco/mule-sgt/releases) and extract it:
 
 ```bash
-tar xzf mule-sgt-v1.1.0-linux-x86_64.tar.gz
-cd mule-sgt-v1.1.0-linux-x86_64
+tar xzf mule-sgt-v1.2.0-linux-x86_64.tar.gz
+cd mule-sgt-v1.2.0-linux-x86_64
 ./bin/MSGTEncoder --help
 ./bin/MSGTDecoder --help
 ```
@@ -79,6 +80,30 @@ Once extracted, see [Encoding: `MSGTEncoder`](#encoding-msgtencoder) and
 [Decoding: `MSGTDecoder`](#decoding-msgtdecoder) below for actual usage — this
 section is only about getting the tools to run at all. See
 [Releases / CI](#releases--ci) for how these archives are built.
+
+## What changed in v1.2.0
+
+Merged from the structure-tensor investigation (`docs/structure_tensor_investigation.md`).
+
+**New and changed parameters**
+
+| Encoder flag / config token | Default | What it does |
+|---|---|---|
+| `--st-estimator` / `-st_estimator` | `pooled-hv` | How the structure-tensor searches turn the tensor into candidate angles. The new default RD-tests the pooled angle and the horizontal and vertical EPI angles; `legacy` reproduces v1.1.0's estimator. |
+| `--refine-structure-tensor R step [R2 step2]` | `10 0.5` | Optional second, finer refinement stage around the first stage's best angle. |
+| `--gradient-padding` / `-gradient_padding` | `zero` | Edge padding of the structure-tensor gradient filter; `replicate` keeps the edge samples. |
+| `--probe-st-estimators` / `-probe_st_estimators` | off | Records every estimator's angle and RD cost per block in `info.json` (analysis only; never changes the bitstream). |
+
+**Behaviour changes** (the bitstream of every structure-tensor-based search, and of
+view splits, differs from v1.1.0)
+
+- Structure-tensor gradients use BT.601 luma instead of the red channel.
+- Only the gradient samples corrupted by the filter's zero padding are trimmed from the
+  tensor sums; right and bottom edge blocks used to keep that artefact.
+- View splits cost their grid and rho candidates with the correct probability models
+  (the thread pool kept stale models after a spatial split).
+- `info.json` records the number of RD evaluations and samples evaluated.
+- The structure-tensor candidates of every estimator are evaluated in parallel.
 
 ## What changed in v1.1.0
 
@@ -251,6 +276,9 @@ seem to take effect.
 | `--verbosity`, `-V` | flag | off | Print detailed per-block progress/diagnostics to stdout while encoding. |
 | `--threads` | int | `0` (all cores) | Worker threads for the parallel candidate searches (grid, rho, structure tensor, covariance, logdet); each search uses at most one thread per candidate, and each worker holds its own ~40 MB coding context. Lower it on a shared machine. Tensor operations always run single-threaded, so the bitstream never depends on this value. |
 | `--no-strict` | flag | off | Run MKL without strict reproducibility. Needed on CPUs without AVX2, where the default mode stops with an error; the bitstream may then differ in the last bits between machines. See [Running a release](#running-a-release). |
+| `--st-estimator` | `pooled-hv` / `pooled` / `per-direction` / `eigen4d` / `legacy` | `pooled-hv` | How the structure-tensor heuristic turns the 4D structure tensor into candidate angles (each RD-tested against the zero angle). `pooled-hv` tests the pooled angle and the horizontal and vertical EPI angles, all from one 6-entry tensor; it beat the other estimators in every test. `pooled` uses only the one 2D tensor pooled over the horizontal and vertical EPIs. `per-direction` averages the two EPI estimates. `eigen4d` averages the angles read from the principal 4D eigenvector. `legacy` is the previous behaviour, which RD-tests the horizontal, vertical and mean eigenvector angles. |
+| `--probe-st-estimators` | flag | off | For every block the search evaluates, records the structure tensor and the angle and RD cost (default rhos) of all three estimators in `info.json`. Analysis only: it never changes the bitstream, but it slows encoding. |
+| `--gradient-padding` | `zero` / `replicate` | `zero` | Edge padding of the structure-tensor gradient filter. With `zero`, samples within 2 pixels of the light field's border are dropped from the tensor sums; with `replicate`, they are usable and kept. |
 | `--partition-info` | `full` / `winner` / `off` | `full` | What to record in `info.json`: every search candidate, only the chosen one, or nothing (no file, no predicted PSNR/rate printout). Never changes the bitstream. See [Partition info files](#partition-info-files). |
 
 **Rate-distortion search method** — exactly one of the following may be given (giving
@@ -266,7 +294,7 @@ specified.` and aborts the process); if none is given, the default is
 | `--covariance` | flag | Estimate the transform directly from the empirical covariance. |
 | `--all-heuristics` | flag | Try every non-refining heuristic above and keep the best by RD cost. |
 | `--zero` | flag | Force a zero transform angle (no slant) — useful as a baseline/ablation. |
-| `--refine-structure-tensor [range step]` | flag, optional 2 floats | Structure-tensor estimate, then a local refinement search around it; optional `range`/`step` (defaults `10.0`/`0.5`). |
+| `--refine-structure-tensor [range step [fineRange fineStep]]` | flag, optional 2 or 4 floats | Structure-tensor estimate, then a local refinement search around it; optional `range`/`step` (defaults `10.0`/`0.5`). With 4 values, a second refinement of ±`fineRange` at `fineStep` follows around the first stage's best angle; `10 1 0.5 0.1` was the best cost/quality trade-off in `docs/structure_tensor_investigation.md`. |
 | `--refine-grid-search [initStep range step]` | flag, optional 3 floats | Grid search with a coarse-to-fine refinement pass; optional `initStep`/`range`/`step` (defaults `1.0`/`0.9`/`0.1`). |
 
 ### Encoder config-file token reference
@@ -301,13 +329,16 @@ section.
 | `-partition_info` | `full` / `winner` / `off` | Partition info recording level |
 | `-threads` | 1 int | Worker threads for the parallel candidate searches (default 0 = all cores) |
 | `-no_strict` (or `-no-strict`) | — | Disable MKL strict reproducibility (for CPUs without AVX2) |
+| `-st_estimator` | `pooled-hv` / `pooled` / `per-direction` / `eigen4d` / `legacy` | Structure tensor angle estimator (default `pooled-hv`) |
+| `-probe_st_estimators` | — | Record every estimator's angle and RD cost per block |
+| `-gradient_padding` | `zero` / `replicate` | Structure-tensor gradient edge padding (default `zero`) |
 | `-structure_tensor` | — | Search method: structure tensor |
 | `-logdet [angleStep]` | optional 1 float | Search method: logdet |
 | `-grid_search [angleStep]` | optional 1 float | Search method: grid search |
 | `-covariance` | — | Search method: covariance |
 | `-all_heuristics` | — | Search method: all heuristics |
 | `-zero` | — | Search method: zero angle |
-| `-refine_structure_tensor [range step]` | optional 2 floats | Search method: refine structure tensor |
+| `-refine_structure_tensor [range step [fineRange fineStep]]` | optional 2 or 4 floats | Search method: refine structure tensor, with an optional second, finer refinement stage |
 | `-refine_grid_search [initStep range step]` | optional 3 floats | Search method: refine grid search |
 
 Hyphens and underscores are **not** interchangeable in this file — e.g. `-grid_search`
@@ -436,6 +467,10 @@ Each encode writes `info.json` next to the bitstream, and each decode writes
   evaluated as `[method, angleV, angleH, rhoS, rhoT, rhoU, rhoV, cost]`, and
   `chosenCandidate` points at the one that was coded. With `winner`, only that one is kept.
 
+With `--probe-st-estimators`, units also carry `structureTensor` (the 4×4 tensor, axes
+t, s, v, u, row-major) and `probes`, the angle and RD cost of each structure-tensor
+estimator in the same compact format. Probes are never coded and never chosen.
+
 Bits are the ideal code length of each coded symbol under the adaptive model, so they
 add up to the bitstream size minus the file header. The encoder's
 `Predicted PSNR` and `Total Rate` printouts are computed from these records. The PSNR
@@ -471,6 +506,12 @@ python3 scripts/partition_info.py map info.json --field psnr --channel Y --view 
 | `gap` | Angle error and cost gap between a heuristic's best candidate and the grid-search optimum, per unit size. |
 | `coarse-grid` | Whether a coarse grid plus local refinement would have found the fine-grid optimum. |
 
+`scripts/orientation_ablation.py` runs the orientation-estimation ablation on top of these
+files: a synthetic controlled experiment using the codec's gradient operator, a check of its
+estimators and gradients against recorded tensors, estimator accuracy against the
+grid-search optimum, the encodes for one light field, and BD-rate with relative encoding
+time. Its module docstring lists the commands.
+
 The module can also be imported (`load`, `rasterize`, `FIELDS`). On the C++ side,
 `PartitionInfoFile::load` and `rasterize` in `DebugTools/CodingPartitionInfo.h` do the same.
 Files written before version 2 are rejected.
@@ -491,6 +532,7 @@ src/
 01_TemplateFolder/    Template experiment layout, copied into results/ on first CMake configure
 02_ResultsTemplate/   Per-light-field experiment sweeps (config files + eval scripts)
 scripts/partition_info.py  Reads, summarizes, compares and plots partition info files
+scripts/orientation_ablation.py  Structure-tensor estimator ablation (synthetic, accuracy, BD-rate)
 tests/                GoogleTest unit tests (fetched automatically)
 ```
 

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <atomic>
 #include "LightField/Block4D_.h"
 #include "LightField/BlockCollage.h"
 #include "DebugTools/CodingUnitInfo.h"
@@ -23,6 +24,15 @@
 #define MINIMUM_BITPLANE_PRECISION 5
 
 class MultiScaleTransfrom;
+
+// How RDtestStructureTensor turns the structure tensor into candidate angles.
+//   Pooled / PerDirection / Eigen4D - one estimate (see Block4D_::StructureTensorEstimator).
+//   Legacy - the previous behaviour: horizontal, vertical and mean angles from the 4D
+//            eigenvector with log-det disambiguation, each RD-tested.
+//   PooledHV - RD-tests the pooled angle and the horizontal and vertical EPI angles.
+enum class StructureTensorMode { Pooled, PerDirection, Eigen4D, Legacy, PooledHV };
+const char* toString(StructureTensorMode mode);
+StructureTensorMode structureTensorModeFromString(const std::string& name);
 
 enum class SearchMethodType {
     STRUCTURE_TENSOR,
@@ -53,10 +63,30 @@ class TransformPartition {
     CodingPartitionInfo mCodingPartitionInfo;
     static std::array<int64_t, 8> searchTraceKey(const Block4D_& block);
     void recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion);
+    // Records every estimator's angle and RD cost (default rhos) for a block, for analysis.
+    void probeStructureTensorEstimators(const Block4D_& block, double currGain, CodingUnitInfo& cui);
+
+    StructureTensorMode mStructureTensorMode = StructureTensorMode::PooledHV;
+    bool mProbeStructureTensor = false;
+    // Optional second refinement stage around the first stage's best angle (step 0 = off).
+    double mRefineStructureTensorFineRange = 0.0;
+    double mRefineStructureTensorFineStep = 0.0;
+    // Work counters: every call to EvaluatePartition_, and the samples of the blocks evaluated.
+    std::atomic<uint64_t> mEvaluationCount{0};
+    std::atomic<uint64_t> mEvaluatedSamples{0};
 public:  
     // Rebuilds the encoder pool (0 = all available cores); each parallel search uses up to this many threads
     void setNumThreads(int numThreads);
     int getNumThreads() const { return mNumThreads; }
+    void setStructureTensorFineRefinement(double range, double step) {
+        mRefineStructureTensorFineRange = range;
+        mRefineStructureTensorFineStep = step;
+    }
+    uint64_t getEvaluationCount() const { return mEvaluationCount.load(); }
+    uint64_t getEvaluatedSamples() const { return mEvaluatedSamples.load(); }
+    void setStructureTensorMode(StructureTensorMode mode) { mStructureTensorMode = mode; }
+    // Requires a partition info level other than Off to have any effect.
+    void setProbeStructureTensor(bool enabled) { mProbeStructureTensor = enabled; }
     void setPartitionInfoLevel(PartitionInfoLevel level);
     PartitionInfoLevel getPartitionInfoLevel() const { return mInfoLevel; }
     // What the last EncodePartition call coded. Empty when the level is Off.

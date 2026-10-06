@@ -27,6 +27,12 @@ bool is_all_whitespace(const std::string& str) {
 std::string g_outputFileName = "";
 
 class EncoderParameters;
+
+static LightField::GradientPadding gradientPaddingFromString(const std::string& name) {
+    if (name == "zero") return LightField::GradientPadding::Zero;
+    if (name == "replicate") return LightField::GradientPadding::Replicate;
+    throw std::invalid_argument("Unknown gradient padding '" + name + "' (expected zero or replicate)");
+}
 enum ExtensionType { REPEAT_LAST, CYCLIC, NONE};
 enum ColorTransformType {BT601,YCOCG};
 void ExtendDCT(Matrix &extendedDCT, ExtensionType extensionMethod, int transformLength, int extensionLength);
@@ -61,12 +67,17 @@ public:
     double gridSearchAngleStep = 1.0;
     double refineStructureTensorRange = 10.0;
     double refineStructureTensorStep = 0.5;
+    double refineStructureTensorFineRange = 0.0;  // optional second stage; step 0 = off
+    double refineStructureTensorFineStep = 0.0;
     double refineGridSearchInitialStep = 1.0;
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
     int threads = 0; // workers for the parallel candidate searches, 0 = all available cores; tensor ops run single-threaded
     bool strictReproducibility = true; // MKL strict CNR mode; off needs no AVX2
+    StructureTensorMode structureTensorMode = StructureTensorMode::PooledHV;
+    bool probeStructureTensor = false;
+    LightField::GradientPadding gradientPadding = LightField::GradientPadding::Zero;
 
 
     void setMethod(SearchMethodType method) {
@@ -155,12 +166,14 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
             setMethod(SearchMethodType::REFINE_STRUCTURE_TENSOR);
             std::string peekToken;
             int paramsRead = 0;
-            while (paramsRead < 2) {
+            while (paramsRead < 4) {
                 auto pos = parametersFile.tellg();
                 if (parametersFile >> peekToken) {
                     if (!peekToken.empty() && peekToken[0] != '-') {
                         if (paramsRead == 0) refineStructureTensorRange = std::stod(peekToken);
                         if (paramsRead == 1) refineStructureTensorStep = std::stod(peekToken);
+                        if (paramsRead == 2) refineStructureTensorFineRange = std::stod(peekToken);
+                        if (paramsRead == 3) refineStructureTensorFineStep = std::stod(peekToken);
                         paramsRead++;
                     } else {
                         parametersFile.seekg(pos);
@@ -269,6 +282,19 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
         if(!command.compare("-no_strict") || !command.compare("-no-strict")){
             strictReproducibility = false;
         }
+        if(!command.compare("-st_estimator") || !command.compare("-st-estimator")){
+            std::string mode;
+            parametersFile>>mode;
+            structureTensorMode = structureTensorModeFromString(mode);
+        }
+        if(!command.compare("-probe_st_estimators") || !command.compare("-probe-st-estimators")){
+            probeStructureTensor = true;
+        }
+        if(!command.compare("-gradient_padding") || !command.compare("-gradient-padding")){
+            std::string mode;
+            parametersFile>>mode;
+            gradientPadding = gradientPaddingFromString(mode);
+        }
 
     }
 }
@@ -345,7 +371,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("covariance", po::bool_switch(), "Covariance Heuristic")
         ("all-heuristics", po::bool_switch(), "All Heuristics")
         ("zero", po::bool_switch(), "Zero Heuristic")
-        ("refine-structure-tensor", po::value<std::vector<double>>()->multitoken(), "Refine Structure Tensor [refinementRange refinementStep]")
+        ("refine-structure-tensor", po::value<std::vector<double>>()->multitoken(), "Refine Structure Tensor [refinementRange refinementStep [fineRange fineStep]]")
         ("refine-grid-search", po::value<std::vector<double>>()->multitoken(), "Refine Grid Search [initialStep refinementRange refinementStep]")
         ("transform-gain,g", po::value<double>(&par.transformGain),  "Transform Gain")
         ("num-views,v", po::value<std::vector<std::int64_t>>()->multitoken(),  "Number of Views: T S")
@@ -360,6 +386,9 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("threads", po::value<int>(&par.threads), "Worker threads for the parallel candidate searches (default 0 = all available cores)")
         ("no-strict", po::bool_switch()->default_value(false), "Disable MKL strict reproducibility (for CPUs without AVX2); the bitstream may then differ between machines")
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
+        ("st-estimator", po::value<std::string>(), "Structure tensor angle estimator: pooled-hv (default: pooled, horizontal and vertical EPI angles), pooled, per-direction, eigen4d or legacy")
+        ("gradient-padding", po::value<std::string>(), "Padding of the structure-tensor gradient filter at the light field edges: zero (default) or replicate")
+        ("probe-st-estimators", po::bool_switch()->default_value(false), "Record the angle and RD cost of every structure tensor estimator for each block in info.json (analysis only, needs --partition-info full or winner)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
 
@@ -414,6 +443,9 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
     }
     par.verbosity = vm["verbosity"].as<bool>();
     if(vm["no-strict"].as<bool>()) par.strictReproducibility = false;
+    if(vm.count("st-estimator")) par.structureTensorMode = structureTensorModeFromString(vm["st-estimator"].as<std::string>());
+    if(vm["probe-st-estimators"].as<bool>()) par.probeStructureTensor = true;
+    if(vm.count("gradient-padding")) par.gradientPadding = gradientPaddingFromString(vm["gradient-padding"].as<std::string>());
     if(vm.count("partition-info")) par.partitionInfoLevel = partitionInfoLevelFromString(vm["partition-info"].as<std::string>());
 
     
@@ -454,6 +486,10 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         auto data = vm["refine-structure-tensor"].as<std::vector<double>>();
         if (data.size() > 0) par.refineStructureTensorRange = data[0];
         if (data.size() > 1) par.refineStructureTensorStep = data[1];
+        if (data.size() > 3) {
+            par.refineStructureTensorFineRange = data[2];
+            par.refineStructureTensorFineStep = data[3];
+        }
     }
     if (vm.count("refine-grid-search")) {
         par.setMethod(SearchMethodType::REFINE_GRID_SEARCH);
@@ -553,6 +589,7 @@ int main(int argc, char **argv) {
     // std::cout << "Press Enter to continue..." << std::endl;
     // std::cin.get();
     write_tensor(inputLF.data.index({inputLF.data.size(0)/2,at::indexing::Slice(),inputLF.data.size(2)/2,at::indexing::Slice(),0}),"/nfs/home/ruilourenco.it/Documents/Code/mule-sgt-pre-slant-st-fixed/results/Set2/eval/epi.png");
+    inputLF.gradientPadding = par.gradientPadding;
     inputLF.computeTopHalfGradients(par.maxPartitionSize[2]);
 
     //inputLF.computeBottomHalfGradients();
@@ -616,6 +653,9 @@ int main(int argc, char **argv) {
     std::cout<<"Worker threads = "<<tp.getNumThreads()<<std::endl;
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
     tp.setPartitionInfoLevel(par.partitionInfoLevel);
+    tp.setStructureTensorMode(par.structureTensorMode);
+    tp.setProbeStructureTensor(par.probeStructureTensor);
+    tp.setStructureTensorFineRefinement(par.refineStructureTensorFineRange, par.refineStructureTensorFineStep);
 
     std::array<double,3> error = {0,0,0};
     bool second_half = false;
@@ -773,6 +813,16 @@ int main(int argc, char **argv) {
             {"lambda", par.Lambda / (par.transformGain * par.transformGain)}, // as given, before gain scaling
             {"transformGain", par.transformGain},
             {"searchMethod", searchMethodName(par.searchMethod)},
+            {"structureTensorEstimator", toString(par.structureTensorMode)},
+            {"probeStructureTensorEstimators", par.probeStructureTensor},
+            {"gradientPadding", par.gradientPadding == LightField::GradientPadding::Replicate ? "replicate" : "zero"},
+            {"gradientSignal", "luma"},
+            {"refineStructureTensor", {par.refineStructureTensorRange, par.refineStructureTensorStep,
+                                       par.refineStructureTensorFineRange, par.refineStructureTensorFineStep}},
+            {"rdEvaluations", tp.getEvaluationCount()},
+            {"rdEvaluatedSamples", tp.getEvaluatedSamples()},
+            {"refineGridSearch", {par.refineGridSearchInitialStep, par.refineGridSearchRange, par.refineGridSearchStep}},
+            {"gridSearchAngleStep", par.gridSearchAngleStep},
             {"disparityRange", par.disparityRange},
             {"preSlantTan", par.preSlantTan},
             {"maxPartitionSize", par.maxPartitionSize},

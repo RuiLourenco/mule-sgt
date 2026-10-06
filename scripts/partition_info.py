@@ -46,7 +46,9 @@ REJECTED_COST = 1e50
 
 # Methods that belong to one estimator family (for the gap analysis).
 METHOD_FAMILIES = {
-    "structure_tensor": ("structure_tensor_h", "structure_tensor_v", "structure_tensor_avg"),
+    "structure_tensor": ("structure_tensor_h", "structure_tensor_v", "structure_tensor_avg",
+                         "structure_tensor_pooled", "structure_tensor_per_direction",
+                         "structure_tensor_eigen4d"),
     "logdet": ("logdet_h", "logdet_v", "logdet_avg"),
     "covariance": ("covariance_h", "covariance_v", "covariance_avg"),
     "zero": ("zero",),
@@ -87,6 +89,8 @@ class Unit:
     search_cost: Optional[float]
     candidates: list
     chosen_index: Optional[int]
+    probes: list = field(default_factory=list)          # diagnostic evaluations (--probe-st-estimators)
+    structure_tensor: Optional[np.ndarray] = None       # 4x4, axes (t, s, v, u)
 
     @property
     def samples(self) -> int:
@@ -174,17 +178,22 @@ def parse_channel(channel) -> int:
     return aliases[text.lower()]
 
 
-def _unit_from_json(j: dict, fields: list) -> Unit:
-    candidates = []
-    for row in j.get("candidates", []):
+def _candidates_from_json(rows: list, fields: list) -> list:
+    out = []
+    for row in rows:
         values = dict(zip(fields, row))
         cost = values["cost"]
-        candidates.append(Candidate(
+        out.append(Candidate(
             method=values["method"],
             angleV=values["angleV"], angleH=values["angleH"],
             rhoS=values["rhoS"], rhoT=values["rhoT"], rhoU=values["rhoU"], rhoV=values["rhoV"],
             cost=math.nan if cost is None else cost,
         ))
+    return out
+
+
+def _unit_from_json(j: dict, fields: list) -> Unit:
+    tensor = j.get("structureTensor")
     return Unit(
         position=tuple(j["lightFieldPosition"]),
         size=tuple(j["size"]),
@@ -193,8 +202,10 @@ def _unit_from_json(j: dict, fields: list) -> Unit:
         ssi=j.get("ssi"),
         method=j.get("method"),
         search_cost=j.get("searchCost"),
-        candidates=candidates,
+        candidates=_candidates_from_json(j.get("candidates", []), fields),
         chosen_index=j.get("chosenCandidate"),
+        probes=_candidates_from_json(j.get("probes", []), fields),
+        structure_tensor=None if tensor is None else np.array(tensor, dtype=float).reshape(4, 4),
     )
 
 
