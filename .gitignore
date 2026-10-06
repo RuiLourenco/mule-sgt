@@ -19,5 +19,7 @@ __pycache__/
 # Data & Output artefacts
 *.csv
 *.txt
+# CMakeLists.txt are build files, not data (*.txt once hid tests/DebugTools/CMakeLists.txt from CI)
+!CMakeLists.txt
 *.comp
 *info.json
