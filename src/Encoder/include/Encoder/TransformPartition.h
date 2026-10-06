@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <atomic>
 #include "LightField/Block4D_.h"
 #include "LightField/BlockCollage.h"
 #include "DebugTools/CodingUnitInfo.h"
@@ -66,7 +67,19 @@ class TransformPartition {
 
     StructureTensorMode mStructureTensorMode = StructureTensorMode::Pooled;
     bool mProbeStructureTensor = false;
+    // Optional second refinement stage around the first stage's best angle (step 0 = off).
+    double mRefineStructureTensorFineRange = 0.0;
+    double mRefineStructureTensorFineStep = 0.0;
+    // Work counters: every call to EvaluatePartition_, and the samples of the blocks evaluated.
+    std::atomic<uint64_t> mEvaluationCount{0};
+    std::atomic<uint64_t> mEvaluatedSamples{0};
 public:  
+    void setStructureTensorFineRefinement(double range, double step) {
+        mRefineStructureTensorFineRange = range;
+        mRefineStructureTensorFineStep = step;
+    }
+    uint64_t getEvaluationCount() const { return mEvaluationCount.load(); }
+    uint64_t getEvaluatedSamples() const { return mEvaluatedSamples.load(); }
     void setStructureTensorMode(StructureTensorMode mode) { mStructureTensorMode = mode; }
     // Requires a partition info level other than Off to have any effect.
     void setProbeStructureTensor(bool enabled) { mProbeStructureTensor = enabled; }

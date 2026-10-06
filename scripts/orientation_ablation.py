@@ -561,7 +561,8 @@ def rd_point(run_dir: Path) -> dict:
     file_bits = os.path.getsize(run_dir / "lf.comp") * 8
     return {"bpp": file_bits / samples, "coded_bpp": bits / samples,
             "psnr_y": psnr[0], "psnr_yuv": (6 * psnr[0] + psnr[1] + psnr[2]) / 8,
-            "seconds": run["seconds"]}
+            "seconds": run["seconds"], "evaluations": info.metadata.get("rdEvaluations"),
+            "evaluated_samples": info.metadata.get("rdEvaluatedSamples")}
 
 
 def bd_rate(anchor_rate, anchor_psnr, test_rate, test_psnr) -> float:
@@ -610,6 +611,90 @@ def run_bdrate(args) -> None:
     summary = "\n".join(lines)
     (root / "bdrate_summary.txt").write_text(summary + "\n")
     _write_csv(root / "bdrate.csv", rows)
+    print(summary)
+
+
+# --------------------------------------------------------------------------- #
+# pareto
+# --------------------------------------------------------------------------- #
+
+ESTIMATE_EVALUATIONS = {"pooled": 1, "per-direction": 1, "eigen4d": 1, "legacy": 3, "pooled-hv": 3}
+RHO_SEARCH_POINTS = 16
+
+
+def _grid_points(low: float, high: float, step: float) -> int:
+    """Number of angles RDtestGridSearch evaluates on [low, high]."""
+    return int(math.floor((high - low) / step + 1e-9)) + 1
+
+
+def evaluations_per_block(command: list, disparity_range) -> int | None:
+    """RD evaluations per evaluated block implied by an encoder command line.
+
+    Matches the counters the encoder records (rdEvaluations / number of evaluated blocks)."""
+    def values(flag):
+        if flag not in command:
+            return None
+        out = []
+        for token in command[command.index(flag) + 1:]:
+            try:
+                out.append(float(token))
+            except ValueError:
+                break
+        return out
+    st = values("--refine-structure-tensor")
+    if st is not None:
+        estimator = command[command.index("--st-estimator") + 1] if "--st-estimator" in command else "pooled"
+        total = 1 + ESTIMATE_EVALUATIONS[estimator] + _grid_points(-st[0], st[0], st[1]) + RHO_SEARCH_POINTS
+        if len(st) >= 4 and st[3] > 0:
+            total += _grid_points(-st[2], st[2], st[3])
+        return total
+    grid = values("--refine-grid-search")
+    if grid is not None:
+        lo, hi = angle_range(disparity_range)
+        return _grid_points(lo, hi, grid[0]) + _grid_points(-grid[1], grid[1], grid[2]) + RHO_SEARCH_POINTS
+    return None
+
+
+def run_pareto(args) -> None:
+    root = Path(args.runs)
+    points, commands = {}, {}
+    for run_dir in sorted(p for p in root.iterdir() if (p / "run.json").exists()):
+        run = json.loads((run_dir / "run.json").read_text())
+        points.setdefault(run["name"], []).append(rd_point(run_dir))
+        commands.setdefault(run["name"], run["command"])
+    disparity_range = json.loads((next(root.glob("reference_*/info.json"))).read_text())["metadata"]["disparityRange"]
+    anchor = sorted(points["reference"], key=lambda p: p["bpp"])
+    ref_cost = evaluations_per_block(commands["reference"], disparity_range)
+    rows = []
+    for name, pts in points.items():
+        if name.startswith("reference") or len(pts) < 4:
+            continue
+        if args.estimator and not name.startswith(args.estimator):
+            continue
+        test = sorted(pts, key=lambda p: p["bpp"])
+        cost = evaluations_per_block(commands[name], disparity_range)
+        rows.append({
+            "name": name,
+            "bd_yuv": bd_rate([p["bpp"] for p in anchor], [p["psnr_yuv"] for p in anchor],
+                              [p["bpp"] for p in test], [p["psnr_yuv"] for p in test]),
+            "bd_y": bd_rate([p["bpp"] for p in anchor], [p["psnr_y"] for p in anchor],
+                            [p["bpp"] for p in test], [p["psnr_y"] for p in test]),
+            "evaluations_per_block": cost,
+            "relative_cost": cost / ref_cost if cost and ref_cost else math.nan,
+        })
+    rows.sort(key=lambda r: r["relative_cost"])
+    best = math.inf
+    for r in rows:  # Pareto front: no cheaper setting has a lower BD-rate
+        r["pareto"] = r["bd_yuv"] < best
+        best = min(best, r["bd_yuv"])
+    lines = [f"{root.name}: BD-rate vs grid search ({ref_cost} evaluations per block) and relative search cost",
+             f"  {'setting':<34}{'eval/block':>11}{'rel. cost':>10}{'BD YUV':>9}{'BD Y':>8}  pareto"]
+    for r in rows:
+        lines.append(f"  {r['name']:<34}{r['evaluations_per_block']:>11}{r['relative_cost']:>10.3f}"
+                     f"{r['bd_yuv']:>8.2f}%{r['bd_y']:>7.2f}%  {'*' if r['pareto'] else ''}")
+    summary = "\n".join(lines)
+    (root / "pareto_summary.txt").write_text(summary + "\n")
+    _write_csv(root / "pareto.csv", rows)
     print(summary)
 
 
@@ -680,7 +765,8 @@ def main(argv=None) -> int:
     p.add_argument("--no-reference", dest="reference", action="store_false",
                    help="skip the grid-search reference runs (e.g. to split a long job)")
     p.add_argument("--grid", type=float, nargs=3, default=[1, 0.9, 0.1], help="refine-grid-search initStep range step")
-    p.add_argument("--st-refine", type=float, nargs=2, default=[10, 0.5], help="refine-structure-tensor range step")
+    p.add_argument("--st-refine", type=float, nargs="+", default=[10, 0.5],
+                   help="refine-structure-tensor range step [fineRange fineStep]")
     p.add_argument("--max-partition", type=int, nargs=4, default=[9, 9, 64, 64])
     p.add_argument("--min-partition", type=int, nargs=4, default=[4, 4, 4, 4])
     p.add_argument("--views", type=int, nargs=2, default=[9, 9])
@@ -693,7 +779,14 @@ def main(argv=None) -> int:
     p.add_argument("runs", help="output directory of the run command")
     p.add_argument("--metric", default="yuv", choices=["y", "yuv"])
 
+    p = sub.add_parser("pareto", help="BD-rate against relative search cost for every complete setting")
+    p.add_argument("runs", help="output directory of the run command")
+    p.add_argument("--estimator", default="", help="only settings whose name starts with this, e.g. pooled_hv")
+
     args = parser.parse_args(argv)
+    if args.command == "pareto":
+        run_pareto(args)
+        return 0
     if args.command == "synthetic":
         run_synthetic(args)
     elif args.command == "validate":

@@ -66,6 +66,8 @@ public:
     double gridSearchAngleStep = 1.0;
     double refineStructureTensorRange = 10.0;
     double refineStructureTensorStep = 0.5;
+    double refineStructureTensorFineRange = 0.0;  // optional second stage; step 0 = off
+    double refineStructureTensorFineStep = 0.0;
     double refineGridSearchInitialStep = 1.0;
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
@@ -161,12 +163,14 @@ void EncoderParameters :: ReadConfigurationFile(std::string parametersFileName) 
             setMethod(SearchMethodType::REFINE_STRUCTURE_TENSOR);
             std::string peekToken;
             int paramsRead = 0;
-            while (paramsRead < 2) {
+            while (paramsRead < 4) {
                 auto pos = parametersFile.tellg();
                 if (parametersFile >> peekToken) {
                     if (!peekToken.empty() && peekToken[0] != '-') {
                         if (paramsRead == 0) refineStructureTensorRange = std::stod(peekToken);
                         if (paramsRead == 1) refineStructureTensorStep = std::stod(peekToken);
+                        if (paramsRead == 2) refineStructureTensorFineRange = std::stod(peekToken);
+                        if (paramsRead == 3) refineStructureTensorFineStep = std::stod(peekToken);
                         paramsRead++;
                     } else {
                         parametersFile.seekg(pos);
@@ -356,7 +360,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("covariance", po::bool_switch(), "Covariance Heuristic")
         ("all-heuristics", po::bool_switch(), "All Heuristics")
         ("zero", po::bool_switch(), "Zero Heuristic")
-        ("refine-structure-tensor", po::value<std::vector<double>>()->multitoken(), "Refine Structure Tensor [refinementRange refinementStep]")
+        ("refine-structure-tensor", po::value<std::vector<double>>()->multitoken(), "Refine Structure Tensor [refinementRange refinementStep [fineRange fineStep]]")
         ("refine-grid-search", po::value<std::vector<double>>()->multitoken(), "Refine Grid Search [initialStep refinementRange refinementStep]")
         ("transform-gain,g", po::value<double>(&par.transformGain),  "Transform Gain")
         ("num-views,v", po::value<std::vector<std::int64_t>>()->multitoken(),  "Number of Views: T S")
@@ -468,6 +472,10 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         auto data = vm["refine-structure-tensor"].as<std::vector<double>>();
         if (data.size() > 0) par.refineStructureTensorRange = data[0];
         if (data.size() > 1) par.refineStructureTensorStep = data[1];
+        if (data.size() > 3) {
+            par.refineStructureTensorFineRange = data[2];
+            par.refineStructureTensorFineStep = data[3];
+        }
     }
     if (vm.count("refine-grid-search")) {
         par.setMethod(SearchMethodType::REFINE_GRID_SEARCH);
@@ -628,6 +636,7 @@ int main(int argc, char **argv) {
     tp.setPartitionInfoLevel(par.partitionInfoLevel);
     tp.setStructureTensorMode(par.structureTensorMode);
     tp.setProbeStructureTensor(par.probeStructureTensor);
+    tp.setStructureTensorFineRefinement(par.refineStructureTensorFineRange, par.refineStructureTensorFineStep);
 
     std::array<double,3> error = {0,0,0};
     bool second_half = false;
@@ -789,7 +798,10 @@ int main(int argc, char **argv) {
             {"probeStructureTensorEstimators", par.probeStructureTensor},
             {"gradientPadding", par.gradientPadding == LightField::GradientPadding::Replicate ? "replicate" : "zero"},
             {"gradientSignal", "luma"},
-            {"refineStructureTensor", {par.refineStructureTensorRange, par.refineStructureTensorStep}},
+            {"refineStructureTensor", {par.refineStructureTensorRange, par.refineStructureTensorStep,
+                                       par.refineStructureTensorFineRange, par.refineStructureTensorFineStep}},
+            {"rdEvaluations", tp.getEvaluationCount()},
+            {"rdEvaluatedSamples", tp.getEvaluatedSamples()},
             {"refineGridSearch", {par.refineGridSearchInitialStep, par.refineGridSearchRange, par.refineGridSearchStep}},
             {"gridSearchAngleStep", par.gridSearchAngleStep},
             {"disparityRange", par.disparityRange},

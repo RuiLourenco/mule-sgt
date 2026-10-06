@@ -247,6 +247,10 @@ double TransformPartition::EvaluatePartition_(
     double currGain, 
     ProbabilityModelCollection& outModel_0 // Pass in a collection to hold the result
 ) {
+    mEvaluationCount.fetch_add(1, std::memory_order_relaxed);
+    mEvaluatedSamples.fetch_add(static_cast<uint64_t>(block_0.size[0] * block_0.size[1] * block_0.size[2] * block_0.size[3]),
+                                std::memory_order_relaxed);
+
     // 1. THE SANDBOX ENTRANCE: Snapshot the encoder's original state
     ProbabilityModelCollection initialState = encoder.GetOptimizerSnapshot();
 
@@ -782,6 +786,14 @@ double TransformPartition::RefineStructureTensorAndRhos(Block4D_& block_0, Codin
     
     double J = RDtestGridSearch(mRefineStructureTensorStep,refinementAngleRange,blockTemp,cui0,currGain,tempModel);  
     angle = blockTemp.ssi.getAngleH();
+
+    if (mRefineStructureTensorFineStep > 0) {
+        // Second, finer stage around the first stage's best angle.
+        std::array<double,2> fineRange = {angle - mRefineStructureTensorFineRange, angle + mRefineStructureTensorFineRange};
+        blockTemp = block_0.clone();
+        J = RDtestGridSearch(mRefineStructureTensorFineStep, fineRange, blockTemp, cui0, currGain, tempModel);
+        angle = blockTemp.ssi.getAngleH();
+    }
 
 
     //J0 = RDtestStructureTensor(blockTemp,cui0,currGain,coderModelState_0);

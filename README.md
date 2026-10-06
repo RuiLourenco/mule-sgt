@@ -227,7 +227,7 @@ specified.` and aborts the process); if none is given, the default is
 | `--covariance` | flag | Estimate the transform directly from the empirical covariance. |
 | `--all-heuristics` | flag | Try every non-refining heuristic above and keep the best by RD cost. |
 | `--zero` | flag | Force a zero transform angle (no slant) — useful as a baseline/ablation. |
-| `--refine-structure-tensor [range step]` | flag, optional 2 floats | Structure-tensor estimate, then a local refinement search around it; optional `range`/`step` (defaults `10.0`/`0.5`). |
+| `--refine-structure-tensor [range step [fineRange fineStep]]` | flag, optional 2 or 4 floats | Structure-tensor estimate, then a local refinement search around it; optional `range`/`step` (defaults `10.0`/`0.5`). With 4 values, a second refinement of ±`fineRange` at `fineStep` follows around the first stage's best angle; `10 1 0.5 0.1` was the best cost/quality trade-off in `docs/structure_tensor_investigation.md`. |
 | `--refine-grid-search [initStep range step]` | flag, optional 3 floats | Grid search with a coarse-to-fine refinement pass; optional `initStep`/`range`/`step` (defaults `1.0`/`0.9`/`0.1`). |
 
 ### Encoder config-file token reference
