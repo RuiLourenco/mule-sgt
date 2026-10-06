@@ -13,6 +13,7 @@ Two command-line tools are built: **`MSGTEncoder`** (light field → compressed
 ## Table of contents
 
 - [Running a release](#running-a-release)
+- [What changed in v1.1.0](#what-changed-in-v110)
 - [How to build](#how-to-build)
   - [Dependencies](#dependencies)
   - [Build steps](#build-steps)
@@ -66,16 +67,48 @@ add that `bin/` directory itself to `$PATH` — don't copy the executable out on
 own. Renaming the top-level `mule-sgt-<version>-linux-x86_64/` folder is fine; moving
 or renaming `bin/`/`lib/` relative to each other is not.
 
-**An x86-64 CPU with AVX2 is required.** Both binaries run Intel MKL in strict
-reproducibility mode on its AVX2 code path, so the encoder's bitstream and the
-decoder's output are bit-identical on every machine and for any `--threads` value;
-on a CPU without AVX2 they stop at startup with an error instead of silently
-running non-reproducibly.
+**Strict reproducibility needs an x86-64 CPU with AVX2.** By default both binaries
+run Intel MKL in strict reproducibility mode on its AVX2 code path, so the encoder's
+bitstream and the decoder's output are bit-identical on every machine and for any
+`--threads` value. On a CPU without AVX2 they stop at startup with an error; pass
+`--no-strict` (config file: `-no_strict`) to both binaries to run there anyway. Without
+strict mode the output still does not depend on `--threads`, but it can differ in the
+last bits between machines, so a near-tie RD decision may occasionally flip.
 
 Once extracted, see [Encoding: `MSGTEncoder`](#encoding-msgtencoder) and
 [Decoding: `MSGTDecoder`](#decoding-msgtdecoder) below for actual usage — this
 section is only about getting the tools to run at all. See
 [Releases / CI](#releases--ci) for how these archives are built.
+
+## What changed in v1.1.0
+
+**New and changed parameters**
+
+| Encoder | Decoder | What it does |
+|---|---|---|
+| `--threads N` / `-threads N` | — | Worker threads for the parallel candidate searches. Default `0` = all available cores (v1.0.0 always used every core, with every tensor op multithreaded). Never changes the bitstream. Lower it on a shared machine. |
+| `--no-strict` / `-no_strict` | `--no-strict` / `-no_strict` | Opt out of MKL strict reproducibility (needed on CPUs without AVX2). |
+
+**Behaviour changes**
+
+- *Reproducibility.* Tensor ops run single-threaded and, unless `--no-strict` is given,
+  MKL runs in strict reproducibility mode. v1.0.0 bitstreams depended on the machine's
+  core count; v1.1.0 bitstreams are the same on any AVX2 machine and for any `--threads`.
+- *Output differs from v1.0.0 for some modes.* The covariance heuristic applied `atan`
+  twice; fixing it lowers rate and raises PSNR for `--covariance` (up to −53% rate and
+  +2.2 dB with pre-slant on the crops tested) and changes `--all-heuristics` slightly.
+  Strict mode can also flip a rare near-tie decision against v1.0.0. Regenerate older
+  results before comparing them bit for bit.
+- *Fixes.* Maximum block sizes that are not 128-aligned along `v` (e.g. `-l 9 9 512 512`)
+  no longer crash; pre-slant (`-preSlantTan` ≠ 0) no longer aborts the structure-tensor,
+  refine-structure-tensor and all-heuristics searches ("POISON LEAKED"); view splits
+  (`-m` below the view count) with pre-slant no longer crash the encoder or decoder;
+  errors inside the parallel searches now report their real message.
+- *Predicted PSNR.* The encoder's `Predicted PSNR` is now normalised by the original
+  (unslanted) pixel count; with pre-slant it used to read about 1–2 dB too high.
+- *Speed.* Encoding is about 1.7× faster in total on an idle 96-core machine and 2–4×
+  on a loaded one (the `--zero` search, which has no candidates to parallelise, can be
+  slightly slower on an idle machine).
 
 ## How to build
 
@@ -202,7 +235,7 @@ seem to take effect.
 | `--light-field-dir`, `-d` | 1 path | `./ExampleLightField/` | Directory containing the input light field's `TTT_SSS.ppm` view images. |
 | `--output-dir`, `-o` | 1 path | `out.comp` | **Output file path** for the compressed bitstream (despite the flag name, this is a file, not a directory — if the target already exists, the encoder auto-suffixes the parent directory with `-1`, `-2`, ... to avoid overwriting). |
 | `--lambda` | 1 float | `1.0` | The Lagrange multiplier λ for rate-distortion optimization (`cost = distortion + λ·rate`). Higher λ → fewer bits, lower quality; lower λ → more bits, higher quality. This is the primary rate control knob — see the example configs for λ values at several target rates. |
-| `--maximum-partition-size`, `-l` | 4 ints (`t s v u`) | `4 4 4 4` | Size of the top-level 4D block the partition search starts from, in (angular-T, angular-S, spatial-V, spatial-U) order. |
+| `--maximum-partition-size`, `-l` | 4 ints (`t s v u`) | `4 4 4 4` | Size of the top-level 4D block the partition search starts from, in (angular-T, angular-S, spatial-V, spatial-U) order. Any size is supported (e.g. `9 9 512 512`). |
 | `--minimum-partition-size`, `-m` | 4 ints (`t s v u`) | `13 13 15 15` | Smallest block size the RD search is allowed to split down to, same axis order. Setting `min == max` on an axis pair disables splitting on that axis entirely (e.g. `-m 9 9 4 4` with `-l 9 9 64 64` allows spatial splits but no angular/inter-view split). |
 | `--disp-range`, `-r` | 2 floats (`lo hi`) | `-3.5 3.5` | Expected disparity range of the light field, used to bound the slant-angle search. |
 | `--pre-slant-tan` | 1 int | `0` | Tangent of the global pre-slant shear applied to the light field before encoding (for lenslet/plenoptic content with non-axis-aligned epipolar structure). `0` disables pre-slanting. |
@@ -216,7 +249,8 @@ seem to take effect.
 | `--bt601` | flag | on (default) | Use BT.601 RGB→YCbCr color transform. Mutually exclusive with `--ycocg` (specifying both is an error). |
 | `--ycocg` | flag | off | Use YCoCg color transform instead of BT.601. |
 | `--verbosity`, `-V` | flag | off | Print detailed per-block progress/diagnostics to stdout while encoding. |
-| `--threads` | int | `0` (all cores) | Worker threads for the parallel candidate searches (grid, rho, structure tensor, covariance, logdet); each search uses at most one thread per candidate. Lower it on a shared machine. Tensor operations run single-threaded and MKL in strict reproducibility mode, so the bitstream does not depend on this value, the core count or the machine. |
+| `--threads` | int | `0` (all cores) | Worker threads for the parallel candidate searches (grid, rho, structure tensor, covariance, logdet); each search uses at most one thread per candidate, and each worker holds its own ~40 MB coding context. Lower it on a shared machine. Tensor operations always run single-threaded, so the bitstream never depends on this value. |
+| `--no-strict` | flag | off | Run MKL without strict reproducibility. Needed on CPUs without AVX2, where the default mode stops with an error; the bitstream may then differ in the last bits between machines. See [Running a release](#running-a-release). |
 | `--partition-info` | `full` / `winner` / `off` | `full` | What to record in `info.json`: every search candidate, only the chosen one, or nothing (no file, no predicted PSNR/rate printout). Never changes the bitstream. See [Partition info files](#partition-info-files). |
 
 **Rate-distortion search method** — exactly one of the following may be given (giving
@@ -266,6 +300,7 @@ section.
 | `-VV` | — | Verbose output |
 | `-partition_info` | `full` / `winner` / `off` | Partition info recording level |
 | `-threads` | 1 int | Worker threads for the parallel candidate searches (default 0 = all cores) |
+| `-no_strict` (or `-no-strict`) | — | Disable MKL strict reproducibility (for CPUs without AVX2) |
 | `-structure_tensor` | — | Search method: structure tensor |
 | `-logdet [angleStep]` | optional 1 float | Search method: logdet |
 | `-grid_search [angleStep]` | optional 1 float | Search method: grid search |
@@ -302,6 +337,7 @@ file with its own token vocabulary) as the encoder.
 | `--bt601` / `--ycocg` | flag | *(none — see warning)* | **Must match** the encoder's color-transform choice; not stored in the bitstream. |
 | `--t_gain` | 1 float | *(none — see warning)* | **Must match** the encoder's `--transform-gain`/`-g`. |
 | `--verbosity`, `-V` | flag | off | Verbose per-block decode diagnostics. |
+| `--no-strict` | flag | off | Run MKL without strict reproducibility (for CPUs without AVX2). Use the same setting as the encoder for bit-identical reconstructions. |
 | `--partition-info` | `winner` / `off` | `winner` | Write `decoded_info.json` into the output directory, or not. `full` is accepted and treated as `winner`, since the bitstream only carries the chosen configuration. |
 
 > **Always pass an extension flag, a color-transform flag, and `--t_gain` explicitly.**
@@ -328,6 +364,7 @@ file with its own token vocabulary) as the encoder.
 | `-t_gain` | 1 float | Transform gain (must match encoder) |
 | `-bt601` / `-ycocg` | — | Color transform (must match encoder) |
 | `-VV` | — | Verbose output |
+| `-no_strict` (or `-no-strict`) | — | Disable MKL strict reproducibility (for CPUs without AVX2) |
 | `-partition_info` | `winner` / `off` | Partition info recording level |
 
 Unlike the encoder's config parser, the decoder's tokens above are used consistently
@@ -349,7 +386,12 @@ header and have no safe default:
 - Color transform (`--bt601`/`--ycocg`)
 - Lenslet 13×13 correction (`--lenslet13x13`, matching the encoder's `--isLenslet13x13`)
 
-Getting any of these wrong will not necessarily produce an error — it can silently
+**Should match for bit-identical reconstructions:** strict reproducibility
+(`--no-strict` on both or neither). A mismatch does not desynchronise the decoder; it
+only lets the decoder's inverse transform differ from the encoder's in the last bits,
+which can change a handful of decoded samples by ±1.
+
+Getting any of the required settings wrong will not necessarily produce an error — it can silently
 decode to visibly wrong colors or brightness. See
 [`02_ResultsTemplate/Bikes/AllHeuristics`](02_ResultsTemplate/Bikes/AllHeuristics)
 for an example where `-lenslet13x13` and view offsets are kept consistent between the
@@ -396,7 +438,14 @@ Each encode writes `info.json` next to the bitstream, and each decode writes
 
 Bits are the ideal code length of each coded symbol under the adaptive model, so they
 add up to the bitstream size minus the file header. The encoder's
-`Predicted PSNR` and `Total Rate` printouts are computed from these records.
+`Predicted PSNR` and `Total Rate` printouts are computed from these records. The PSNR
+is normalised by the light field's original pixel count (pre-slant padding carries no
+coded error). Partial blocks at the light-field border are extended before coding
+(`-extension_repeat`), and the error on that padding is included, so for light fields
+whose size is not a multiple of the block size the prediction reads slightly low
+(about 0.05–0.2 dB on the crops tested). Per-unit `mse`/`psnr` from
+`scripts/partition_info.py` divide by the unit's full size, so units that include
+pre-slant padding read optimistic.
 
 `scripts/partition_info.py` reads these files (numpy only; matplotlib for plots):
 
