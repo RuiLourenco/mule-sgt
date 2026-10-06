@@ -54,8 +54,9 @@ class TransformPartition {
     static std::array<int64_t, 8> searchTraceKey(const Block4D_& block);
     void recordCodingUnit(const Block4D_& leaf, double bits, double transformDistortion);
 public:  
-    // Rebuilds the encoder pool; the parallel searches use exactly this many threads
+    // Rebuilds the encoder pool (0 = all available cores); each parallel search uses up to this many threads
     void setNumThreads(int numThreads);
+    int getNumThreads() const { return mNumThreads; }
     void setPartitionInfoLevel(PartitionInfoLevel level);
     PartitionInfoLevel getPartitionInfoLevel() const { return mInfoLevel; }
     // What the last EncodePartition call coded. Empty when the level is Off.
@@ -133,6 +134,9 @@ public:
     double EvaluatePartitionFixedRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain, double angleV, double angleH, ProbabilityModelCollection& outModel);
     double EvaluatePartitionLSRho(Hierarchical4DEncoder& encoder, Block4D_ &block_0, double currGain, double angleV, double angleH, ProbabilityModelCollection& outModel);
     double RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
+    // Evaluates fixed-rho candidates at the given angles in parallel, each exactly as a serial evaluation on mEntropyCoder would
+    std::vector<double> evaluateAnglesInParallel(const Block4D_& blockOrig, const std::vector<double>& angles, double currGain,
+                                                 std::vector<Block4D_>& blocks, std::vector<ProbabilityModelCollection>& models);
     double RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
     double RDtestGridSearch(double angleStep,std::array<double,2> angleRange, Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel);
     double RDtestAllAngleHeuristics(Block4D_& block_0, CodingUnitInfo& cui0, ProbabilityModelCollection& outModel);

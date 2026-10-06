@@ -65,7 +65,7 @@ public:
     double refineGridSearchRange = 0.9;
     double refineGridSearchStep = 0.1;
     PartitionInfoLevel partitionInfoLevel = PartitionInfoLevel::Full;
-    int threads = 8; // workers for the parallel grid/rho searches; tensor ops themselves run single-threaded
+    int threads = 0; // workers for the parallel candidate searches, 0 = all available cores; tensor ops run single-threaded
 
 
     void setMethod(SearchMethodType method) {
@@ -352,7 +352,7 @@ int readProgramOptions(int argc, char **argv, EncoderParameters &par) {
         ("ycocg", po::bool_switch()->default_value(false),  "Sets Color Transform to YCOCG")
         ("isLenslet13x13",po::bool_switch()->default_value(false), "Increases Brightness of Edge Views")
 
-        ("threads", po::value<int>(&par.threads), "Worker threads for the parallel grid/rho searches (default 8)")
+        ("threads", po::value<int>(&par.threads), "Worker threads for the parallel candidate searches (default 0 = all available cores)")
         ("partition-info", po::value<std::string>(), "Partition info recording: full (every search candidate, default), winner (chosen candidate only) or off (no info file)")
         ("verbosity,V", po::bool_switch()->default_value(false),  "Sets Verbosity to true");
 
@@ -604,6 +604,7 @@ int main(int argc, char **argv) {
                           par.refineGridSearchRange, par.refineGridSearchStep);
 
     tp.setNumThreads(par.threads);
+    std::cout<<"Worker threads = "<<tp.getNumThreads()<<std::endl;
     tp.mEntropyCoder.StartEncoder(outputFileNamePointer);
     tp.setPartitionInfoLevel(par.partitionInfoLevel);
 

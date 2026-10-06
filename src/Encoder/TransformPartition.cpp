@@ -359,34 +359,59 @@ double TransformPartition::RDtestStructureTensorAndRhos(Block4D_& block_0, Codin
 }
 double TransformPartition::RDtestStructureTensor(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
     Block4D_ blockOrig = block_0.clone();
-    Block4D_ temp_block_0 = block_0;
-
-    double J0 = RDtestZero(block_0, cui0, currGain, outModel);
-    
     std::array<double, 2> angles = blockOrig.computeAnglesFromStructureTensor(mDisparityRange);
-    std::array<double, 3> anglesToTest = {angles[0], angles[1], (angles[0]+angles[1])/2};
-    
-    ProbabilityModelCollection currModel;
-    
-    for (int i = 0; i < 3; i++) {
-        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
-        
-        constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
-        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
-        
-        if (J0_curr < J0) {
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            outModel = currModel; // Just a simple struct copy!
+
+    // The zero angle, then the H, V and average structure-tensor angles; a later candidate must be strictly better
+    std::vector<Block4D_> blocks;
+    std::vector<ProbabilityModelCollection> models;
+    std::vector<double> J = evaluateAnglesInParallel(blockOrig, {0, angles[0], angles[1], (angles[0]+angles[1])/2}, currGain, blocks, models);
+
+    cui0.addCandidate(CandidateMethod::Zero, blocks[0].ssi, J[0]);
+    double J0 = J[0];
+    block_0 = blocks[0];
+    outModel = models[0];
+    constexpr CandidateMethod methods[3] = {CandidateMethod::StructureTensorH, CandidateMethod::StructureTensorV, CandidateMethod::StructureTensorAvg};
+    for (int i = 1; i < 4; i++) {
+        cui0.addCandidate(methods[i-1], blocks[i].ssi, J[i]);
+        if (J[i] < J0) {
+            J0 = J[i];
+            block_0 = blocks[i];
+            outModel = models[i];
         }
-        temp_block_0 = blockOrig;
     }
     return J0;
 }
 
+std::vector<double> TransformPartition::evaluateAnglesInParallel(const Block4D_& blockOrig, const std::vector<double>& angles, double currGain,
+                                                                 std::vector<Block4D_>& blocks, std::vector<ProbabilityModelCollection>& models) {
+    const int n = static_cast<int>(angles.size());
+    std::vector<double> J(n);
+    blocks.assign(n, blockOrig); // sgtTransform replaces data rather than writing into it, so shallow copies are safe
+    models.assign(n, ProbabilityModelCollection());
+
+    // Each worker starts from the master coder's models, as the serial loops on mEntropyCoder did, and gets its own
+    // models back afterwards so later pool searches (grid, rho) start exactly where they did before
+    const ProbabilityModelCollection masterState = mEntropyCoder.GetOptimizerSnapshot();
+    std::exception_ptr firstError;
+    #pragma omp parallel for schedule(dynamic) num_threads(std::min(mNumThreads, n))
+    for (int i = 0; i < n; ++i) {
+        try {
+            Hierarchical4DEncoder& encoder = *m_encoder_pool[omp_get_thread_num()];
+            const ProbabilityModelCollection ownState = encoder.GetOptimizerSnapshot();
+            encoder.RestoreOptimizerState(masterState);
+            J[i] = EvaluatePartitionFixedRho(encoder, blocks[i], currGain, angles[i], angles[i], models[i]);
+            encoder.RestoreOptimizerState(ownState);
+        } catch (...) {
+            #pragma omp critical
+            if (!firstError) firstError = std::current_exception();
+        }
+    }
+    if (firstError) std::rethrow_exception(firstError);
+    return J;
+}
+
 double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
     Block4D_ blockOrig = block_0.clone();
-    Block4D_ temp_block_0 = block_0;
 
     double J0 = std::numeric_limits<double>::max();
     
@@ -396,20 +421,18 @@ double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& c
     angles[1] = blockOrig.getOrientationFromCovariance(1, mDisparityRange, false);
     std::array<double, 3> anglesToTest = {angles[0], angles[1], (angles[0] + angles[1]) / 2};
     
-    ProbabilityModelCollection currModel;
+    std::vector<Block4D_> blocks;
+    std::vector<ProbabilityModelCollection> models;
+    std::vector<double> J = evaluateAnglesInParallel(blockOrig, {anglesToTest.begin(), anglesToTest.end()}, currGain, blocks, models);
 
+    constexpr CandidateMethod methods[3] = {CandidateMethod::CovarianceH, CandidateMethod::CovarianceV, CandidateMethod::CovarianceAvg};
     for (int i = 0; i < 3; i++) {
-        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
-        
-        constexpr CandidateMethod methods[3] = {CandidateMethod::CovarianceH, CandidateMethod::CovarianceV, CandidateMethod::CovarianceAvg};
-        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
-        
-        if (J0_curr < J0) {
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            outModel = currModel; // Simple struct copy saves the state
+        cui0.addCandidate(methods[i], blocks[i].ssi, J[i]);
+        if (J[i] < J0) {
+            J0 = J[i];
+            block_0 = blocks[i];
+            outModel = models[i];
         }
-        temp_block_0 = blockOrig; // Reset block for the next iteration
     }
 
     return J0;
@@ -418,7 +441,6 @@ double TransformPartition::RDtestCovariance(Block4D_& block_0, CodingUnitInfo& c
 
 double TransformPartition::RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0, double currGain, ProbabilityModelCollection& outModel) {
     Block4D_ blockOrig = block_0.clone();
-    Block4D_ temp_block_0 = block_0;
     
     double J0 = std::numeric_limits<double>::max();
     
@@ -427,21 +449,18 @@ double TransformPartition::RDtestLogdet(Block4D_& block_0, CodingUnitInfo& cui0,
     std::array<double, 2> logdetAngles = blockOrig.logDetAngleEstimation(angleStep, mDisparityRange);
     std::array<double, 3> anglesToTest = {logdetAngles[0], logdetAngles[1], (logdetAngles[0] + logdetAngles[1]) / 2};
 
-    ProbabilityModelCollection currModel;
+    std::vector<Block4D_> blocks;
+    std::vector<ProbabilityModelCollection> models;
+    std::vector<double> J = evaluateAnglesInParallel(blockOrig, {anglesToTest.begin(), anglesToTest.end()}, currGain, blocks, models);
 
+    constexpr CandidateMethod methods[3] = {CandidateMethod::LogdetH, CandidateMethod::LogdetV, CandidateMethod::LogdetAvg};
     for (int i = 0; i < 3; i++) {
-        double J0_curr = EvaluatePartitionFixedRho(mEntropyCoder, temp_block_0, currGain, anglesToTest[i], anglesToTest[i], currModel);
-        
-        constexpr CandidateMethod methods[3] = {CandidateMethod::LogdetH, CandidateMethod::LogdetV, CandidateMethod::LogdetAvg};
-        cui0.addCandidate(methods[i], temp_block_0.ssi, J0_curr);
-        
-        if (J0_curr < J0) {
-            J0 = J0_curr;
-            block_0 = temp_block_0;
-            outModel = currModel; // Simple struct copy saves the state
+        cui0.addCandidate(methods[i], blocks[i].ssi, J[i]);
+        if (J[i] < J0) {
+            J0 = J[i];
+            block_0 = blocks[i];
+            outModel = models[i];
         }
-        
-        temp_block_0 = blockOrig; // Reset block for the next iteration
     }
 
     return J0;
@@ -502,7 +521,7 @@ double TransformPartition::RDtestGridSearch(double angleStep, std::array<double,
 
     // An exception must not escape the OpenMP region (that calls terminate and loses the message): keep the first, rethrow after
     std::exception_ptr firstError;
-    #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
+    #pragma omp parallel for schedule(dynamic) num_threads(std::min(mNumThreads, numSteps))
     for (int i = 0; i < numSteps; ++i) {
         try {
             int thread_id = omp_get_thread_num();
@@ -591,7 +610,7 @@ double TransformPartition::parallelRhoSearch(
     // --- Phase 2: Map (Parallel Evaluation) ---
     // Same as RDtestGridSearch: never let an exception escape the OpenMP region
     std::exception_ptr firstError;
-    #pragma omp parallel for schedule(dynamic) num_threads(mNumThreads)
+    #pragma omp parallel for schedule(dynamic) num_threads(std::min(mNumThreads, numSteps))
     for (int i = 0; i < numSteps; ++i) {
         try {
             int thread_id = omp_get_thread_num();
@@ -1231,7 +1250,7 @@ void TransformPartition::EncodePartition() {
 }
 
 void TransformPartition::setNumThreads(int numThreads) {
-    mNumThreads = std::max(1, numThreads);
+    mNumThreads = numThreads > 0 ? numThreads : omp_get_num_procs();
     m_encoder_pool.clear();
     create_encoder_pool(mNumThreads, mEntropyCoder.mProcessingContext.image_height, mEntropyCoder.mProcessingContext.image_width);
 }
